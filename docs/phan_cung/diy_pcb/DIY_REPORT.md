@@ -1,6 +1,8 @@
 STATUS: ALL_DONE
 
-# SmartHome Hub DIY Single-Layer PCB Redesign Report (`agyhwdiy2_20261121`)
+> **Cập nhật PCB-Direct v3 (`agyhw12_20261127`):** Thiết kế Hub DIY v3 hiện hành đã tích hợp thêm **2 tụ lọc `C8` (100 nF 50V trên `+3V3_SOIL`) và `C9` (100 µF 16V tại `J11`/PAM8403)** lên trực tiếp bo mạch `100×80 mm` (loại bỏ hoàn toàn breadboard trắng). Thông số hiện hành: **`51 footprints` (`47` linh kiện hàn trong `smarthome_hub-all-pos.csv` + `4` lỗ bắt M3 `H1–H4`)**, **`131` lỗ khoan (4 cỡ mũi 0.9/1.1/1.3/3.2 mm)**, **`184` đoạn mạch đồng trên 1 lớp `B.Cu`**, **`0` ERC / `0` DRC / `0` cảnh báo** (chi tiết cập nhật tại `BOM_DIY_SHOPPING.md`, `drill_table.md`, `erc_report.txt`, `drc_report.txt`). Phần dưới đây lưu lại hồ sơ thiết kế nền `agyhwdiy2_20261121`.
+
+# SmartHome Hub DIY Single-Layer PCB Redesign Report (`agyhwdiy2_20261121` — Archive + v3 On-Board `C8/C9`)
 
 - **Branch / Worktree**: `hwdiy-20261121` (`C:\Users\LENOVO\datn-wt\hwdiy`, branched from `master` @ `131bdc2`)
 - **Run Directory**: `C:\Users\LENOVO\datn-wt\agyhwdiy2_20261121`

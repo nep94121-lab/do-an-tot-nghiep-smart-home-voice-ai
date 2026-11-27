@@ -4,53 +4,45 @@
 - **Mũi khoan PCB hợp kim/HSS**: đúng 4 cỡ `0.9 mm`, `1.1 mm`, `1.3 mm`, và `3.2 mm` (hoặc mũi khoan 3.0–3.2 mm cho lỗ ốc M3).
 - **Ốc & trụ đồng M3**: 4 bộ ốc M3 × 10 mm + trụ đồng/nylon M3 (pattern lỗ `90.0 × 70.0 mm`).
 
-## 1. Linh kiện hàn trực tiếp lên PCB (45 linh kiện + 4 lỗ M3 = 49 footprints)
+## 1. Linh kiện hàn trực tiếp lên PCB (47 linh kiện + 4 lỗ M3 = 51 footprints)
 
 | STT | Ký hiệu (Refs) | Giá trị / Tên linh kiện | Số lượng | Kiểu chân (Footprint DIY) | Mũi khoan | Nguồn chuẩn kích thước (Datasheet) |
 | ---: | :--- | :--- | :---: | :--- | :---: | :--- |
 | 1 | C1, C2 | `470uF 16V` | **2** | `CP_Radial_D8.0mm_P3.50mm_DIY` | 0.9 mm | 470 µF 16V Radial Electrolytic (D=8.0 mm, H=11.5 mm, P=3.50 mm, lead 0.6 mm) — Nichicon UVR/UHE |
-| 2 | C3, C7, C6 | `100nF` | **3** | `C_Disc_D5.0mm_P5.00mm_DIY` | 0.9 mm | Ceramic Disc / MLCC 50V (D=5.0 mm, P=5.00 mm, lead 0.5 mm) — Murata RDE / Vishay K-series |
+| 2 | C3, C8, C7, C6 | `100nF` | **4** | `C_Disc_D5.0mm_P5.00mm_DIY` | 0.9 mm | Ceramic Disc / MLCC 50V (D=5.0 mm, P=5.00 mm, lead 0.5 mm) — Murata RDE / Vishay K-series |
 | 3 | C4 | `10uF 16V` | **1** | `CP_Radial_D5.0mm_P3.50mm_DIY` | 0.9 mm | 10 uF 16V Radial Electrolytic (D=5.0 mm, P=3.50 mm formed; use low-profile H<=7mm or lay flat sideways to clear NodeMCU Micro-USB plug) |
 | 4 | C5 | `10nF` | **1** | `C_Disc_D5.0mm_P5.00mm_DIY` | 0.9 mm | Ceramic Disc / MLCC 50V (D=5.0 mm, P=5.00 mm, lead 0.5 mm) — Murata RDE / Vishay K-series |
-| 5 | D1, D2 | `1N4007` | **2** | `D_DO41_P10.16mm_DIY` | 1.1 mm | 1N4007 DO-41 / SOD-81 (L=5.2 mm, D=2.7 mm, lead 0.86 mm max, P=10.16 mm) — Vishay 1N4007 |
-| 6 | D3 | `LED_PWR_GRN` | **1** | `LED_D3.0mm_P5.08mm_DIY` | 0.9 mm | 3 mm Green Indicator LED (D=3.0 mm, leads formed to P=5.08 mm for forgiving 2.8 mm DIY pads) |
-| 7 | J1 | `PWR_5V_IN` | **1** | `TerminalBlock_MKDS_1x02_P5.08mm_DIY` | 1.3 mm | Phoenix Contact MKDS 1,5/2-5,08 (pitch 5.08 mm, 0.9×0.9 mm pin, drill 1.3 mm) |
-| 8 | J10 | `RLY2_SW` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
-| 9 | J11 | `PAM8403_PWR` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
-| 10 | J12 | `AUDIO_D3` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
-| 11 | J13 | `DHT11_D2` | **1** | `PinHeader_1x03_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300311121 / Samtec TSW |
-| 12 | J14 | `SOIL_A0` | **1** | `PinHeader_1x03_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300311121 / Samtec TSW |
-| 13 | J15 | `KY037_D5` | **1** | `PinHeader_1x03_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300311121 / Samtec TSW |
-| 14 | J2 | `PUMP_OUT` | **1** | `TerminalBlock_MKDS_1x02_P5.08mm_DIY` | 1.3 mm | Phoenix Contact MKDS 1,5/2-5,08 (pitch 5.08 mm, 0.9×0.9 mm pin, drill 1.3 mm) |
-| 15 | J3 | `SERVO_D1` | **1** | `PinHeader_1x03_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300311121 / Samtec TSW |
-| 16 | J4 | `LED_LR_D0` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
-| 17 | J5 | `LED_BR_D4` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
-| 18 | J6 | `BUZZ_D8` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
-| 19 | J7 | `RLY1_PUMP_D6` | **1** | `PinHeader_1x03_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300311121 / Samtec TSW |
-| 20 | J8 | `RLY1_SW` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
-| 21 | J9 | `RLY2_AMP_D7` | **1** | `PinHeader_1x03_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300311121 / Samtec TSW |
-| 22 | Q1 | `S8050` | **1** | `TO-92_Wide_DIY` | 0.9 mm | NPN BJT S8050 (hoặc 2N2222A, E-B-C, 0.7A/20V, TO-92 wide-formed leads, 0.9 mm drill, 2.60 mm round pads) — Unisonic S8050 |
-| 23 | R1, R2 | `220R` | **2** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
-| 24 | R3, R7, R4, R9 | `10k` | **4** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
-| 25 | R5, R6 | `2.2k` | **2** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
-| 26 | R8, R10 | `1k` | **2** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
-| 27 | U1 | `NodeMCU_Left_1x15` | **1** | `PinSocket_1x15_P2.54mm_DIY` | 1.1 mm | 2.54 mm pitch, row spacing 22.86 mm (0.9 in), height 8.5 mm — NodeMCU v2 Amica (48.26 × 25.40 mm) |
-| 28 | U2 | `NodeMCU_Right_1x15` | **1** | `PinSocket_1x15_P2.54mm_DIY` | 1.1 mm | 2.54 mm pitch, row spacing 22.86 mm (0.9 in), height 8.5 mm — NodeMCU v2 Amica (48.26 × 25.40 mm) |
-| 29 | JP1, JP5 | `JUMPER_12.70mm` | **2** | `WireJumper_P12.70mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
-| 30 | JP2 | `JUMPER_17.78mm` | **1** | `WireJumper_P17.78mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
-| 31 | JP3 | `JUMPER_7.62mm` | **1** | `WireJumper_P7.62mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
-| 32 | JP4 | `JUMPER_35.56mm` | **1** | `WireJumper_P35.56mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
-| 33 | JP6 | `JUMPER_20.32mm` | **1** | `WireJumper_P20.32mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
-| 34 | JP7 | `JUMPER_25.40mm` | **1** | `WireJumper_P25.40mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
-
-## 1.1. Tụ tách nhiễu bổ sung theo Datasheet (gắn ngoài bo tại chân Header / Breadboard)
-
-> Để giữ nguyên bo PCB DIY 1 lớp `100.0 × 80.0 mm` ở trạng thái **0 ERC / 0 DRC** (`49 footprints`, khe hở đồng `>= 0.60 mm` an toàn ủi tay), hai tụ lọc nguồn khuyến nghị bổ sung theo datasheet (`C8` và `C9`) được gắn trực tiếp tại chân header / breadboard hoặc pad nguồn module mà không làm chật pad trên bo 1 lớp:
-
-| STT | Ký hiệu | Giá trị & Điện áp | SL | Phân cực | Vị trí gắn & Chân nối | Nguồn Datasheet |
-| ---: | :--- | :--- | :---: | :--- | :--- | :--- |
-| 1 | **C8** | `100nF (104) 50V` gốm | **1** | Không phân cực | Gắn giữa `+3V3` ↔ `GND` trên Breadboard hoặc sát chân `U1.11`/`U2.6` và cảm biến `J13/J14/J15` *(kết hợp tụ Tantalum 10µF của AMS1117-3.3 đã hàn sẵn trên bo NodeMCU v2 Amica)* | Espressif ESP8266 Hardware Design Guidelines Sec. 2.1 + AMS1117-3.3 Datasheet |
-| 2 | **C9** | `100µF 16V` tụ hóa đứng | **1** | Có cực: `(+)` vào `AMP_5V` (`5V+`), `(-)` vạch trắng vào `GND` (`5V-`) | Gắn sát chân header `J11` (`AMP_5V` ↔ `GND`) hoặc trực tiếp lên pad `5V+ / 5V-` của module `PAM8403` *(mắc song song `C6 100nF`)* | Diodes Inc. PAM8403 Datasheet (Power Supply Decoupling: `100µF` bulk + `0.1µF` HF) |
+| 5 | C9 | `100uF 16V` | **1** | `CP_Radial_D6.3mm_P3.50mm_DIY` | 0.9 mm | 100 µF 16V Radial Electrolytic (D=6.3 mm, H=11.0 mm, P=3.50 mm formed, lead 0.5 mm) — Nichicon UVR / PAM8403 bulk on-board C9 |
+| 6 | D1, D2 | `1N4007` | **2** | `D_DO41_P10.16mm_DIY` | 1.1 mm | 1N4007 DO-41 / SOD-81 (L=5.2 mm, D=2.7 mm, lead 0.86 mm max, P=10.16 mm) — Vishay 1N4007 |
+| 7 | D3 | `LED_PWR_GRN` | **1** | `LED_D3.0mm_P5.08mm_DIY` | 0.9 mm | 3 mm Green Indicator LED (D=3.0 mm, leads formed to P=5.08 mm for forgiving 2.8 mm DIY pads) |
+| 8 | J1 | `PWR_5V_IN` | **1** | `TerminalBlock_MKDS_1x02_P5.08mm_DIY` | 1.3 mm | Phoenix Contact MKDS 1,5/2-5,08 (pitch 5.08 mm, 0.9×0.9 mm pin, drill 1.3 mm) |
+| 9 | J10 | `RLY2_SW` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
+| 10 | J11 | `PAM8403_PWR` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
+| 11 | J12 | `AUDIO_D3` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
+| 12 | J13 | `DHT11_D2` | **1** | `PinHeader_1x03_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300311121 / Samtec TSW |
+| 13 | J14 | `SOIL_A0` | **1** | `PinHeader_1x03_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300311121 / Samtec TSW |
+| 14 | J15 | `KY037_D5` | **1** | `PinHeader_1x03_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300311121 / Samtec TSW |
+| 15 | J2 | `PUMP_OUT` | **1** | `TerminalBlock_MKDS_1x02_P5.08mm_DIY` | 1.3 mm | Phoenix Contact MKDS 1,5/2-5,08 (pitch 5.08 mm, 0.9×0.9 mm pin, drill 1.3 mm) |
+| 16 | J3 | `SERVO_D1` | **1** | `PinHeader_1x03_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300311121 / Samtec TSW |
+| 17 | J4 | `LED_LR_D0` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
+| 18 | J5 | `LED_BR_D4` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
+| 19 | J6 | `BUZZ_D8` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
+| 20 | J7 | `RLY1_PUMP_D6` | **1** | `PinHeader_1x03_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300311121 / Samtec TSW |
+| 21 | J8 | `RLY1_SW` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
+| 22 | J9 | `RLY2_AMP_D7` | **1** | `PinHeader_1x03_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300311121 / Samtec TSW |
+| 23 | Q1 | `S8050` | **1** | `TO-92_Wide_DIY` | 0.9 mm | NPN BJT S8050 (hoặc 2N2222A, E-B-C, 0.7A/20V, TO-92 wide-formed leads, 0.9 mm drill, 2.60 mm round pads) — Unisonic S8050 |
+| 24 | R1, R2 | `220R` | **2** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
+| 25 | R3, R7, R4, R9 | `10k` | **4** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
+| 26 | R5, R6 | `2.2k` | **2** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
+| 27 | R8, R10 | `1k` | **2** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
+| 28 | U1 | `NodeMCU_Left_1x15` | **1** | `PinSocket_1x15_P2.54mm_DIY` | 1.1 mm | 2.54 mm pitch, row spacing 22.86 mm (0.9 in), height 8.5 mm — NodeMCU v2 Amica (48.26 × 25.40 mm) |
+| 29 | U2 | `NodeMCU_Right_1x15` | **1** | `PinSocket_1x15_P2.54mm_DIY` | 1.1 mm | 2.54 mm pitch, row spacing 22.86 mm (0.9 in), height 8.5 mm — NodeMCU v2 Amica (48.26 × 25.40 mm) |
+| 30 | JP1, JP5 | `JUMPER_12.70mm` | **2** | `WireJumper_P12.70mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
+| 31 | JP2 | `JUMPER_17.78mm` | **1** | `WireJumper_P17.78mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
+| 32 | JP3 | `JUMPER_7.62mm` | **1** | `WireJumper_P7.62mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
+| 33 | JP4 | `JUMPER_35.56mm` | **1** | `WireJumper_P35.56mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
+| 34 | JP6 | `JUMPER_20.32mm` | **1** | `WireJumper_P20.32mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
+| 35 | JP7 | `JUMPER_25.40mm` | **1** | `WireJumper_P25.40mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
 
 ## 2. 14 Module / Ngoại vi cắm ngoài (kết nối vào các header trên bo, giữ nguyên pin map)
 
@@ -65,23 +57,7 @@
 | Module Relay 1 (Xanh 5V SRD-05VDC — Bơm) | `J7` (điều khiển) + `J8` (tiếp điểm) | `D6 / GPIO12` | `J7`: 5V/GND/D6; `J8`: COM=`+5V`, NO=`PUMP_5V` |
 | Bơm chìm mini DC 5V | `J2` (`PUMP_OUT`) | Qua Relay 1 | Vặn vít domino 5.08 mm, có `D1` 1N4007 dập xung |
 | Module Relay 2 (Đỏ Opto 5V — Cấp nguồn Amp) | `J9` (điều khiển) + `J10` (tiếp điểm) | `D7 / GPIO13` | `J9`: 5V/GND/D7; `J10`: COM=`+5V`, NO=`AMP_5V` |
-| Module khuếch đại PAM8403 + Loa 28 mm 8 Ω | `J11` (nguồn) + `J12` (tín hiệu) | `D3 / GPIO0` | `J11`: AMP_5V/GND (có `C6` 100nF trên bo + `C9` 100µF 16V ngoài bo); `J12`: AUD_OUT/GND (qua `C4,R5,R6,C5`) |
-| Cảm biến nhiệt độ & độ ẩm DHT11 | `J13` (`DHT11_D2`) | `D2 / GPIO4` | 3.3V (lọc `C8` 100nF) / D2 (có `R3` 10k pull-up) / GND |
-| Cảm biến độ ẩm đất YL-69 + mạch LM393 | `J14` (`SOIL_A0`) | `A0` | 3.3V (lọc `C8` 100nF) / GND / AO→A0 (có `C7` 100nF lọc nhiễu) |
-| Cảm biến âm thanh KY-037 / KY-038 | `J15` (`KY037_D5`) | `D5 / GPIO14` | 3.3V (lọc `C8` 100nF) / GND / DO→D5 |
-
-## 3. Bảng kiểm toán đầy đủ Tụ điện (`C1`–`C9`) & Diode dập xung (`D1`–`D2`) theo Datasheet
-
-| Ký hiệu | Loại | Giá trị | Điện áp / Dòng | Phân cực | Vị trí & Chân nối | Vai trò & Datasheet |
-| :--- | :--- | :---: | :---: | :--- | :--- | :--- |
-| `C1` | Tụ hóa | `470µF` | `16V` | Có cực (`+` → `+5V`, `−` → `GND`) | Trên PCB Hub cạnh `J1/J3` (Servo) | Gánh dòng đỉnh Servo SG90 (`Nichicon UVR/UHE`) |
-| `C2` | Tụ hóa | `470µF` | `16V` | Có cực (`+` → `+5V`, `−` → `GND`) | Trên PCB Hub cạnh `J1/J2` (Bơm) | Ổn áp dòng khởi động máy bơm mini (`Nichicon UVR/UHE`) |
-| `C3` | Tụ gốm | `100nF` | `50V` | Không phân cực | Trên PCB Hub sát `U1.15` (`+5V ↔ GND`) | Lọc nhiễu cao tần nguồn `+5V` (`Murata RDE`) |
-| `C4` | Tụ hóa | `10µF` | `16V` | Có cực (`+` → `D3`, `−` → `R5`) | Trên PCB Hub nối tiếp `D3_AUDIO_PWM → AUD_AC` | Tụ chặn DC cô lập chân boot `GPIO0` (`PAM8403 Datasheet`) |
-| `C5` | Tụ gốm | `10nF` | `50V` | Không phân cực | Trên PCB Hub tại `J12.1` (`AUD_OUT ↔ GND`) | Lọc thông thấp RC cùng `R5/R6 2.2kΩ` (`fc ≈ 14.5 kHz`) |
-| `C6` | Tụ gốm | `100nF` | `50V` | Không phân cực | Trên PCB Hub sát `J11` (`AMP_5V ↔ GND`) | Lọc nhiễu cao tần cho nguồn `PAM8403` (`PAM8403 Datasheet`) |
-| `C7` | Tụ gốm | `100nF` | `50V` | Không phân cực | Trên PCB Hub sát `J14.3` (`A0_SOIL ↔ GND`) | Lọc nhiễu tương tự `ADC0` cảm biến đất (`ESP8266 TRM`) |
-| `C8` | Tụ gốm | `100nF` | `50V` | Không phân cực | Ngoài bo trên Breadboard/Header `+3V3 ↔ GND` (`U1.11/U2.6`, `J13–J15`) | Tách nhiễu cao tần `+3.3V` + tụ `10µF` AMS1117 trên NodeMCU (`ESP8266 HDG Sec. 2.1`) |
-| `C9` | Tụ hóa | `100µF` | `16V` | Có cực (`+` → `AMP_5V`, `−` → `GND`) | Ngoài bo tại chân `J11` / pad `5V+/5V-` `PAM8403` (song song `C6`) | Dự trữ dòng tầng công suất Class-D `PAM8403` (`Diodes Inc. PAM8403`) |
-| `D1` | Diode dập xung | `1N4007` | `1000V / 1A` | Vạch bạc `K` → `PUMP_5V`, `A` → `GND` | Trên PCB Hub song song `J2.1 ↔ J2.2` (Bơm) | Triệt xung cảm ứng ngược máy bơm 3–6V (`Vishay 1N4007`) |
-| `D2` | Diode dập xung | `1N4007` | `1000V / 1A` | Vạch bạc `K` → `+5V`, `A` → `BUZZ_K` (`Q1.C`) | Trên PCB Hub song song `J6.1 ↔ J6.2` (Còi 5V) | Bảo vệ transistor NPN `Q1 S8050` khỏi xung ngược cuộn còi (`Vishay 1N4007`) |
+| Module khuếch đại PAM8403 + Loa 28 mm 8 Ω | `J11` (nguồn) + `J12` (tín hiệu) | `D3 / GPIO0` | `J11`: AMP_5V/GND; `J12`: AUD_OUT/GND (qua `C4,R5,R6,C5`) |
+| Cảm biến nhiệt độ & độ ẩm DHT11 | `J13` (`DHT11_D2`) | `D2 / GPIO4` | 3.3V / D2 (có `R3` 10k pull-up) / GND |
+| Cảm biến độ ẩm đất YL-69 + mạch LM393 | `J14` (`SOIL_A0`) | `A0` | 3.3V / GND / AO→A0 (có `C7` 100nF lọc nhiễu) |
+| Cảm biến âm thanh KY-037 / KY-038 | `J15` (`KY037_D5`) | `D5 / GPIO14` | 3.3V / GND / DO→D5 |

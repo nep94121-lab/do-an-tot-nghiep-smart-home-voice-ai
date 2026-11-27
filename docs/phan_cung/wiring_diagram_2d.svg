@@ -11,11 +11,11 @@
 <rect x="14.00" y="14.00" width="1172.00" height="797.00" rx="2.0" ry="2.0" fill="none" stroke="#CBD5E1" stroke-width="0.6"/>
 <rect x="16.00" y="16.00" width="1168.00" height="36.00" rx="3.0" ry="3.0" fill="#0F172A" stroke="none" stroke-width="1.0"/>
 <rect x="16.00" y="16.00" width="6.00" height="36.00" rx="1.5" ry="1.5" fill="#0EA5E9" stroke="none" stroke-width="1.0"/>
-<text x="30.00" y="31.00" class="sans" font-size="10.30" font-weight="700" fill="#FFFFFF" text-anchor="start">SMART HOME VOICE AI — COMPLETE SYSTEM 2D WIRING DIAGRAM (TYPE 1 CENTRAL HUB PCB + ALL PLUG-IN MODULES)</text>
-<text x="30.00" y="44.83" class="sans" font-size="6.85" font-weight="400" fill="#CBD5E1" text-anchor="start">40 Physical Wires (36 Hub PCB J1–J15 + 4 Inter-Module)  |  10 Locked ESP8266 Pins (D0–D8, A0)  |  14 Off-Board Modules  |  5V/3.3V DC ONLY — NO Fan · NO AC · NO IR</text>
+<text x="30.00" y="30.93" class="sans" font-size="10.10" font-weight="700" fill="#FFFFFF" text-anchor="start">SMART HOME VOICE AI — PCB-DIRECT 2D WIRING DIAGRAM (HUB DIY v3 PCB + ALL PLUG-IN MODULES · ZERO BREADBOARD)</text>
+<text x="30.00" y="44.73" class="sans" font-size="6.55" font-weight="400" fill="#CBD5E1" text-anchor="start">40 Physical Wires (36 Hub J1–J15 + 4 Inter-Module · 40/40 &lt;=30cm: 3.8–27.5cm)  |  On-Board C1–C9 &amp; D1–D2  |  5V/3.3V DC — NO Breadboard · NO Fan · NO AC · NO IR</text>
 <rect x="1002.00" y="22.00" width="174.00" height="24.00" rx="3.0" ry="3.0" fill="#1E293B" stroke="#38BDF8" stroke-width="0.8"/>
 <text x="1089.00" y="32.07" class="mono" font-size="6.10" font-weight="700" fill="#38BDF8" text-anchor="middle">SSOT: hardware/wiring_contract.py</text>
-<text x="1089.00" y="41.40" class="sans" font-size="5.60" font-weight="400" fill="#E2E8F0" text-anchor="middle">KiCad 100×80mm 1L  |  NodeMCU v2</text>
+<text x="1089.00" y="41.40" class="sans" font-size="5.60" font-weight="400" fill="#E2E8F0" text-anchor="middle">KiCad 100×80mm v3  |  NodeMCU v2</text>
 <rect x="339.00" y="231.00" width="480.00" height="354.00" rx="7.0" ry="7.0" fill="#CBD5E1" stroke="none" stroke-width="1.0"/>
 <rect x="336.00" y="228.00" width="480.00" height="354.00" rx="7.0" ry="7.0" fill="#ECFDF5" stroke="#065F46" stroke-width="2.0"/>
 <rect x="340.00" y="232.00" width="472.00" height="346.00" rx="5.0" ry="5.0" fill="none" stroke="#A7F3D0" stroke-width="0.7"/>
@@ -31,8 +31,8 @@
 <circle cx="803.00" cy="569.00" r="5.80" fill="#D1FAE5" stroke="#047857" stroke-width="1.0"/>
 <circle cx="803.00" cy="569.00" r="3.20" fill="#FFFFFF" stroke="#475569" stroke-width="0.9"/>
 <text x="803.00" y="560.13" class="mono" font-size="4.80" font-weight="700" fill="#065F46" text-anchor="middle">H4</text>
-<rect x="430.00" y="277.00" width="292.00" height="16.00" rx="3.0" ry="3.0" fill="#065F46" stroke="none" stroke-width="1.0"/>
-<text x="576.00" y="287.04" class="sans" font-size="6.00" font-weight="700" fill="#ECFDF5" text-anchor="middle">CENTRAL HUB DIY PCB — 100.0 × 80.0 × 1.6 mm 1L FR4 (49 Footprints)</text>
+<rect x="422.00" y="277.00" width="308.00" height="16.00" rx="3.0" ry="3.0" fill="#065F46" stroke="none" stroke-width="1.0"/>
+<text x="576.00" y="286.99" class="sans" font-size="5.85" font-weight="700" fill="#ECFDF5" text-anchor="middle">CENTRAL HUB DIY PCB v3 — 100×80×1.6mm 1L FR4 (51 Footprints · PCB-Direct)</text>
 <rect x="480.00" y="304.00" width="192.00" height="206.00" rx="5.0" ry="5.0" fill="#0F172A" stroke="#334155" stroke-width="1.5"/>
 <rect x="550.00" y="312.00" width="52.00" height="14.00" rx="2.0" ry="2.0" fill="#1E293B" stroke="#F59E0B" stroke-width="0.7"/>
 <text x="576.00" y="320.67" class="mono" font-size="4.90" font-weight="700" fill="#FBBF24" text-anchor="middle">PCB ANT</text>
@@ -120,21 +120,21 @@
 <rect x="678.00" y="454.00" width="66.00" height="30.00" rx="3.0" ry="3.0" fill="#E0F2FE" stroke="#0284C7" stroke-width="0.85"/>
 <text x="711.00" y="465.88" class="mono" font-size="4.95" font-weight="700" fill="#0F172A" text-anchor="middle">C6 100nF 50V</text>
 <text x="711.00" y="477.11" class="sans" font-size="4.45" font-weight="400" fill="#334155" text-anchor="middle">AMP_5V↔GND</text>
-<rect x="416.00" y="513.00" width="160.00" height="23.00" rx="3.0" ry="3.0" fill="#EFF6FF" stroke="#2563EB" stroke-width="0.85" stroke-dasharray="3,2"/>
+<rect x="416.00" y="513.00" width="160.00" height="23.00" rx="3.0" ry="3.0" fill="#DCFCE7" stroke="#15803D" stroke-width="0.85"/>
 <line x1="419.00" y1="524.50" x2="423.10" y2="524.50" stroke="#0F172A" stroke-width="0.8" stroke-linecap="round"/>
 <line x1="425.90" y1="524.50" x2="430.00" y2="524.50" stroke="#0F172A" stroke-width="0.8" stroke-linecap="round"/>
 <line x1="423.10" y1="521.50" x2="423.10" y2="527.50" stroke="#0F172A" stroke-width="1.05" stroke-linecap="round"/>
 <line x1="425.90" y1="521.50" x2="425.90" y2="527.50" stroke="#0F172A" stroke-width="1.05" stroke-linecap="round"/>
-<text x="503.50" y="522.50" class="mono" font-size="4.95" font-weight="700" fill="#0F172A" text-anchor="middle">C8 100nF 50V [Header/BB]</text>
-<text x="503.50" y="531.07" class="sans" font-size="4.45" font-weight="400" fill="#334155" text-anchor="middle">+3V3(U1.11/U2.6/J13-15)↔GND (+AMS1117 10µF)</text>
-<rect x="584.00" y="513.00" width="160.00" height="23.00" rx="3.0" ry="3.0" fill="#FEFCE8" stroke="#CA8A04" stroke-width="0.85" stroke-dasharray="3,2"/>
+<text x="503.50" y="522.50" class="mono" font-size="4.95" font-weight="700" fill="#0F172A" text-anchor="middle">C8 100nF 50V [On-Board PCB]</text>
+<text x="503.50" y="531.07" class="sans" font-size="4.45" font-weight="400" fill="#334155" text-anchor="middle">+3V3(Near J14)↔GND · +AMS1117 10µF</text>
+<rect x="584.00" y="513.00" width="160.00" height="23.00" rx="3.0" ry="3.0" fill="#DCFCE7" stroke="#15803D" stroke-width="0.85"/>
 <line x1="587.00" y1="524.50" x2="591.10" y2="524.50" stroke="#0F172A" stroke-width="0.8" stroke-linecap="round"/>
 <line x1="593.90" y1="524.50" x2="598.00" y2="524.50" stroke="#0F172A" stroke-width="0.8" stroke-linecap="round"/>
 <line x1="591.10" y1="521.50" x2="591.10" y2="527.50" stroke="#0F172A" stroke-width="1.05" stroke-linecap="round"/>
 <line x1="593.90" y1="521.50" x2="593.90" y2="527.50" stroke="#0F172A" stroke-width="1.05" stroke-linecap="round"/>
 <text x="588.90" y="522.66" class="sans" font-size="4.60" font-weight="700" fill="#DC2626" text-anchor="middle">+</text>
-<text x="671.50" y="522.50" class="mono" font-size="4.95" font-weight="700" fill="#0F172A" text-anchor="middle">C9 100µF 16V (+) [At J11/PAM8403]</text>
-<text x="671.50" y="531.07" class="sans" font-size="4.45" font-weight="400" fill="#334155" text-anchor="middle">AMP_5V(+) ↔ GND(-) · Parallel C6 100nF</text>
+<text x="671.50" y="522.50" class="mono" font-size="4.95" font-weight="700" fill="#0F172A" text-anchor="middle">C9 100µF 16V (+) [On-Board PCB]</text>
+<text x="671.50" y="531.07" class="sans" font-size="4.45" font-weight="400" fill="#334155" text-anchor="middle">AMP_5V(+)↔GND(-) · Near J11 // C6</text>
 <rect x="369.00" y="234.00" width="78.00" height="37.00" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.1"/>
 <text x="408.00" y="257.27" class="mono" font-size="5.20" font-weight="700" fill="#065F46" text-anchor="middle">J14 SOIL_A0</text>
 <circle cx="388.00" cy="241.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
@@ -363,8 +363,8 @@
 <text x="963.00" y="132.59" class="sans" font-size="5.25" font-weight="700" fill="#B91C1C" text-anchor="start">• LM393 (J14) &amp; KY-037 (J15): 3.3V ONLY!</text>
 <text x="963.00" y="142.78" class="sans" font-size="5.25" font-weight="700" fill="#B91C1C" text-anchor="start">• PAM8403 BTL: NEVER tie L_OUT- to GND!</text>
 <text x="963.00" y="152.98" class="sans" font-size="5.25" font-weight="400" fill="#1E293B" text-anchor="start">• Pump/Buzz: D1/D2 1N4007 + C1/C2 470µF</text>
-<text x="963.00" y="163.18" class="sans" font-size="5.25" font-weight="400" fill="#1E293B" text-anchor="start">• Decoupling: C8 100nF(+3V3), C9 100µF(AMP)</text>
-<text x="963.00" y="173.38" class="sans" font-size="5.25" font-weight="700" fill="#B91C1C" text-anchor="start">• Scope Lock: NO Fan · NO AC · NO IR</text>
+<text x="963.00" y="163.18" class="sans" font-size="5.25" font-weight="400" fill="#1E293B" text-anchor="start">• On-Board: C8 100nF(+3V3), C9 100µF(AMP)</text>
+<text x="963.00" y="173.38" class="sans" font-size="5.25" font-weight="700" fill="#B91C1C" text-anchor="start">• PCB-Direct: NO Breadboard · NO Fan/AC/IR</text>
 <rect x="26.00" y="216.20" width="228.00" height="122.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
 <rect x="24.00" y="214.00" width="228.00" height="122.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#0284C7" stroke-width="1.4"/>
 <rect x="24.00" y="214.00" width="228.00" height="24.00" rx="6.0" ry="6.0" fill="#E0F2FE" stroke="#0284C7" stroke-width="1.2"/>
@@ -600,208 +600,208 @@
 <text x="963.00" y="725.87" class="mono" font-size="5.50" font-weight="700" fill="#0F172A" text-anchor="start">(W29) SPK -</text>
 <rect x="964.00" y="748.00" width="138.00" height="17.00" rx="3.0" ry="3.0" fill="#FEE2E2" stroke="#DC2626" stroke-width="0.9"/>
 <text x="1033.00" y="758.32" class="sans" font-size="5.35" font-weight="700" fill="#991B1B" text-anchor="middle">BTL: NEVER TIE SPK- TO GND!</text>
-<g class="pcb-wire" data-wire-id="W01" data-module-id="psu_5v" data-hub-ref="J1" data-hub-pin="1" data-net="+5V" data-color="Red">
+<g class="pcb-wire" data-wire-id="W01" data-module-id="psu_5v" data-hub-ref="J1" data-hub-pin="1" data-net="+5V" data-color="Red" data-length-cm="9.58" data-std-cm="10">
 <path d="M 349.50 448.50 L 301.57 448.50 Q 300.00 448.50 300.00 450.07 L 300.00 450.43 Q 300.00 452.00 298.43 452.00 L 252.00 452.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 349.50 448.50 L 301.57 448.50 Q 300.00 448.50 300.00 450.07 L 300.00 450.43 Q 300.00 452.00 298.43 452.00 L 252.00 452.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 349.50 448.50 L 301.57 448.50 Q 300.00 448.50 300.00 450.07 L 300.00 450.43 Q 300.00 452.00 298.43 452.00 L 252.00 452.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W02" data-module-id="psu_5v" data-hub-ref="J1" data-hub-pin="2" data-net="GND" data-color="Black">
+<g class="pcb-wire" data-wire-id="W02" data-module-id="psu_5v" data-hub-ref="J1" data-hub-pin="2" data-net="GND" data-color="Black" data-length-cm="9.10" data-std-cm="10">
 <path d="M 349.50 464.50 L 293.38 464.50 Q 290.00 464.50 290.00 467.88 L 290.00 468.62 Q 290.00 472.00 286.62 472.00 L 252.00 472.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 349.50 464.50 L 293.38 464.50 Q 290.00 464.50 290.00 467.88 L 290.00 468.62 Q 290.00 472.00 286.62 472.00 L 252.00 472.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 349.50 464.50 L 293.38 464.50 Q 290.00 464.50 290.00 467.88 L 290.00 468.62 Q 290.00 472.00 286.62 472.00 L 252.00 472.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W15" data-module-id="pump_unit" data-hub-ref="J2" data-hub-pin="1" data-net="PUMP_5V" data-color="Red">
+<g class="pcb-wire" data-wire-id="W15" data-module-id="pump_unit" data-hub-ref="J2" data-hub-pin="1" data-net="PUMP_5V" data-color="Red" data-length-cm="26.45" data-std-cm="30">
 <path d="M 349.50 316.50 L 304.73 316.50 Q 300.00 316.50 300.00 311.77 L 300.00 310.73 Q 300.00 306.00 295.27 306.00 L 252.00 306.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 349.50 316.50 L 304.73 316.50 Q 300.00 316.50 300.00 311.77 L 300.00 310.73 Q 300.00 306.00 295.27 306.00 L 252.00 306.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 349.50 316.50 L 304.73 316.50 Q 300.00 316.50 300.00 311.77 L 300.00 310.73 Q 300.00 306.00 295.27 306.00 L 252.00 306.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W16" data-module-id="pump_unit" data-hub-ref="J2" data-hub-pin="2" data-net="GND" data-color="Black">
+<g class="pcb-wire" data-wire-id="W16" data-module-id="pump_unit" data-hub-ref="J2" data-hub-pin="2" data-net="GND" data-color="Black" data-length-cm="26.22" data-std-cm="30">
 <path d="M 349.50 332.50 L 293.82 332.50 Q 290.00 332.50 290.00 328.68 L 290.00 327.82 Q 290.00 324.00 286.18 324.00 L 252.00 324.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 349.50 332.50 L 293.82 332.50 Q 290.00 332.50 290.00 328.68 L 290.00 327.82 Q 290.00 324.00 286.18 324.00 L 252.00 324.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 349.50 332.50 L 293.82 332.50 Q 290.00 332.50 290.00 328.68 L 290.00 327.82 Q 290.00 324.00 286.18 324.00 L 252.00 324.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W33" data-module-id="soil_lm393" data-hub-ref="J14" data-hub-pin="1" data-net="+3V3" data-color="Red">
+<g class="pcb-wire" data-wire-id="W33" data-module-id="soil_lm393" data-hub-ref="J14" data-hub-pin="1" data-net="+3V3" data-color="Red" data-length-cm="26.36" data-std-cm="30">
 <path d="M 388.00 241.50 L 388.00 196.00 Q 388.00 190.00 382.00 190.00 L 344.00 190.00 Q 338.00 190.00 338.00 184.00 L 338.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 388.00 241.50 L 388.00 196.00 Q 388.00 190.00 382.00 190.00 L 344.00 190.00 Q 338.00 190.00 338.00 184.00 L 338.00 164.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 388.00 241.50 L 388.00 196.00 Q 388.00 190.00 382.00 190.00 L 344.00 190.00 Q 338.00 190.00 338.00 184.00 L 338.00 164.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W34" data-module-id="soil_lm393" data-hub-ref="J14" data-hub-pin="2" data-net="GND" data-color="Black">
+<g class="pcb-wire" data-wire-id="W34" data-module-id="soil_lm393" data-hub-ref="J14" data-hub-pin="2" data-net="GND" data-color="Black" data-length-cm="26.36" data-std-cm="30">
 <path d="M 408.00 241.50 L 408.00 204.00 Q 408.00 198.00 402.00 198.00 L 382.00 198.00 Q 376.00 198.00 376.00 192.00 L 376.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 408.00 241.50 L 408.00 204.00 Q 408.00 198.00 402.00 198.00 L 382.00 198.00 Q 376.00 198.00 376.00 192.00 L 376.00 164.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 408.00 241.50 L 408.00 204.00 Q 408.00 198.00 402.00 198.00 L 382.00 198.00 Q 376.00 198.00 376.00 192.00 L 376.00 164.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W35" data-module-id="soil_lm393" data-hub-ref="J14" data-hub-pin="3" data-net="A0_SOIL" data-color="Green">
+<g class="pcb-wire" data-wire-id="W35" data-module-id="soil_lm393" data-hub-ref="J14" data-hub-pin="3" data-net="A0_SOIL" data-color="Green" data-length-cm="26.36" data-std-cm="30">
 <path d="M 428.00 241.50 L 428.00 212.00 Q 428.00 206.00 422.00 206.00 L 420.00 206.00 Q 414.00 206.00 414.00 200.00 L 414.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 428.00 241.50 L 428.00 212.00 Q 428.00 206.00 422.00 206.00 L 420.00 206.00 Q 414.00 206.00 414.00 200.00 L 414.00 164.00" fill="none" stroke="#16A34A" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 428.00 241.50 L 428.00 212.00 Q 428.00 206.00 422.00 206.00 L 420.00 206.00 Q 414.00 206.00 414.00 200.00 L 414.00 164.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W36" data-module-id="soil_probe" data-hub-ref="LM393" data-hub-pin="P1" data-net="SOIL_PROBE_A" data-color="Yellow">
+<g class="pcb-wire" data-wire-id="W36" data-module-id="soil_probe" data-hub-ref="LM393" data-hub-pin="P1" data-net="SOIL_PROBE_A" data-color="Yellow" data-length-cm="13.82" data-std-cm="20">
 <path d="M 206.00 111.00 L 172.00 111.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 206.00 111.00 L 172.00 111.00" fill="none" stroke="#854D0E" stroke-width="2.85" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 206.00 111.00 L 172.00 111.00" fill="none" stroke="#EAB308" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 206.00 111.00 L 172.00 111.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W37" data-module-id="soil_probe" data-hub-ref="LM393" data-hub-pin="P2" data-net="SOIL_PROBE_B" data-color="Orange">
+<g class="pcb-wire" data-wire-id="W37" data-module-id="soil_probe" data-hub-ref="LM393" data-hub-pin="P2" data-net="SOIL_PROBE_B" data-color="Orange" data-length-cm="13.40" data-std-cm="20">
 <path d="M 206.00 127.00 L 172.00 127.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 206.00 127.00 L 172.00 127.00" fill="none" stroke="#EA580C" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 206.00 127.00 L 172.00 127.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W30" data-module-id="dht11_sensor" data-hub-ref="J13" data-hub-pin="1" data-net="+3V3" data-color="Red">
+<g class="pcb-wire" data-wire-id="W30" data-module-id="dht11_sensor" data-hub-ref="J13" data-hub-pin="1" data-net="+3V3" data-color="Red" data-length-cm="19.15" data-std-cm="20">
 <path d="M 500.00 241.50 L 500.00 198.00 Q 500.00 192.00 494.00 192.00 L 488.00 192.00 Q 482.00 192.00 482.00 186.00 L 482.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 500.00 241.50 L 500.00 198.00 Q 500.00 192.00 494.00 192.00 L 488.00 192.00 Q 482.00 192.00 482.00 186.00 L 482.00 164.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 500.00 241.50 L 500.00 198.00 Q 500.00 192.00 494.00 192.00 L 488.00 192.00 Q 482.00 192.00 482.00 186.00 L 482.00 164.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W31" data-module-id="dht11_sensor" data-hub-ref="J13" data-hub-pin="2" data-net="D2_DHT11" data-color="Blue">
+<g class="pcb-wire" data-wire-id="W31" data-module-id="dht11_sensor" data-hub-ref="J13" data-hub-pin="2" data-net="D2_DHT11" data-color="Blue" data-length-cm="19.59" data-std-cm="20">
 <path d="M 520.00 241.50 L 520.00 199.90 Q 520.00 199.00 520.90 199.00 L 521.10 199.00 Q 522.00 199.00 522.00 198.10 L 522.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 520.00 241.50 L 520.00 199.90 Q 520.00 199.00 520.90 199.00 L 521.10 199.00 Q 522.00 199.00 522.00 198.10 L 522.00 164.00" fill="none" stroke="#2563EB" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 520.00 241.50 L 520.00 199.90 Q 520.00 199.00 520.90 199.00 L 521.10 199.00 Q 522.00 199.00 522.00 198.10 L 522.00 164.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W32" data-module-id="dht11_sensor" data-hub-ref="J13" data-hub-pin="3" data-net="GND" data-color="Black">
+<g class="pcb-wire" data-wire-id="W32" data-module-id="dht11_sensor" data-hub-ref="J13" data-hub-pin="3" data-net="GND" data-color="Black" data-length-cm="20.05" data-std-cm="30">
 <path d="M 540.00 241.50 L 540.00 212.00 Q 540.00 206.00 546.00 206.00 L 556.00 206.00 Q 562.00 206.00 562.00 200.00 L 562.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 540.00 241.50 L 540.00 212.00 Q 540.00 206.00 546.00 206.00 L 556.00 206.00 Q 562.00 206.00 562.00 200.00 L 562.00 164.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 540.00 241.50 L 540.00 212.00 Q 540.00 206.00 546.00 206.00 L 556.00 206.00 Q 562.00 206.00 562.00 200.00 L 562.00 164.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W06" data-module-id="led_living" data-hub-ref="J4" data-hub-pin="1" data-net="LED_LR_A" data-color="Yellow">
+<g class="pcb-wire" data-wire-id="W06" data-module-id="led_living" data-hub-ref="J4" data-hub-pin="1" data-net="LED_LR_A" data-color="Yellow" data-length-cm="21.16" data-std-cm="30">
 <path d="M 639.00 241.50 L 639.00 199.85 Q 639.00 194.00 644.85 194.00 L 646.15 194.00 Q 652.00 194.00 652.00 188.15 L 652.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 639.00 241.50 L 639.00 199.85 Q 639.00 194.00 644.85 194.00 L 646.15 194.00 Q 652.00 194.00 652.00 188.15 L 652.00 164.00" fill="none" stroke="#854D0E" stroke-width="2.85" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 639.00 241.50 L 639.00 199.85 Q 639.00 194.00 644.85 194.00 L 646.15 194.00 Q 652.00 194.00 652.00 188.15 L 652.00 164.00" fill="none" stroke="#EAB308" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 639.00 241.50 L 639.00 199.85 Q 639.00 194.00 644.85 194.00 L 646.15 194.00 Q 652.00 194.00 652.00 188.15 L 652.00 164.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W07" data-module-id="led_living" data-hub-ref="J4" data-hub-pin="2" data-net="GND" data-color="Black">
+<g class="pcb-wire" data-wire-id="W07" data-module-id="led_living" data-hub-ref="J4" data-hub-pin="2" data-net="GND" data-color="Black" data-length-cm="20.72" data-std-cm="30">
 <path d="M 661.00 241.50 L 661.00 210.00 Q 661.00 204.00 667.00 204.00 L 708.00 204.00 Q 714.00 204.00 714.00 198.00 L 714.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 661.00 241.50 L 661.00 210.00 Q 661.00 204.00 667.00 204.00 L 708.00 204.00 Q 714.00 204.00 714.00 198.00 L 714.00 164.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 661.00 241.50 L 661.00 210.00 Q 661.00 204.00 667.00 204.00 L 708.00 204.00 Q 714.00 204.00 714.00 198.00 L 714.00 164.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W08" data-module-id="led_bedroom" data-hub-ref="J5" data-hub-pin="1" data-net="LED_BR_A" data-color="Purple">
+<g class="pcb-wire" data-wire-id="W08" data-module-id="led_bedroom" data-hub-ref="J5" data-hub-pin="1" data-net="LED_BR_A" data-color="Purple" data-length-cm="27.48" data-std-cm="30">
 <path d="M 737.00 241.50 L 737.00 200.00 Q 737.00 194.00 743.00 194.00 L 816.00 194.00 Q 822.00 194.00 822.00 188.00 L 822.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 737.00 241.50 L 737.00 200.00 Q 737.00 194.00 743.00 194.00 L 816.00 194.00 Q 822.00 194.00 822.00 188.00 L 822.00 164.00" fill="none" stroke="#9333EA" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 737.00 241.50 L 737.00 200.00 Q 737.00 194.00 743.00 194.00 L 816.00 194.00 Q 822.00 194.00 822.00 188.00 L 822.00 164.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W09" data-module-id="led_bedroom" data-hub-ref="J5" data-hub-pin="2" data-net="D4_LED_BR" data-color="White">
+<g class="pcb-wire" data-wire-id="W09" data-module-id="led_bedroom" data-hub-ref="J5" data-hub-pin="2" data-net="D4_LED_BR" data-color="White" data-length-cm="27.45" data-std-cm="30">
 <path d="M 759.00 241.50 L 759.00 210.00 Q 759.00 204.00 765.00 204.00 L 886.00 204.00 Q 892.00 204.00 892.00 198.00 L 892.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 759.00 241.50 L 759.00 210.00 Q 759.00 204.00 765.00 204.00 L 886.00 204.00 Q 892.00 204.00 892.00 198.00 L 892.00 164.00" fill="none" stroke="#334155" stroke-width="3.45" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 759.00 241.50 L 759.00 210.00 Q 759.00 204.00 765.00 204.00 L 886.00 204.00 Q 892.00 204.00 892.00 198.00 L 892.00 164.00" fill="none" stroke="#F8FAFC" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 759.00 241.50 L 759.00 210.00 Q 759.00 204.00 765.00 204.00 L 886.00 204.00 Q 892.00 204.00 892.00 198.00 L 892.00 164.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W03" data-module-id="sg90_servo" data-hub-ref="J3" data-hub-pin="1" data-net="D1_SERVO" data-color="Orange">
+<g class="pcb-wire" data-wire-id="W03" data-module-id="sg90_servo" data-hub-ref="J3" data-hub-pin="1" data-net="D1_SERVO" data-color="Orange" data-length-cm="15.46" data-std-cm="20">
 <path d="M 802.50 304.25 L 848.00 304.25 Q 854.00 304.25 854.00 298.25 L 854.00 252.00 Q 854.00 246.00 860.00 246.00 L 956.00 246.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 304.25 L 848.00 304.25 Q 854.00 304.25 854.00 298.25 L 854.00 252.00 Q 854.00 246.00 860.00 246.00 L 956.00 246.00" fill="none" stroke="#EA580C" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 802.50 304.25 L 848.00 304.25 Q 854.00 304.25 854.00 298.25 L 854.00 252.00 Q 854.00 246.00 860.00 246.00 L 956.00 246.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W04" data-module-id="sg90_servo" data-hub-ref="J3" data-hub-pin="2" data-net="+5V" data-color="Red">
+<g class="pcb-wire" data-wire-id="W04" data-module-id="sg90_servo" data-hub-ref="J3" data-hub-pin="2" data-net="+5V" data-color="Red" data-length-cm="15.46" data-std-cm="20">
 <path d="M 802.50 317.75 L 858.00 317.75 Q 864.00 317.75 864.00 311.75 L 864.00 268.00 Q 864.00 262.00 870.00 262.00 L 956.00 262.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 317.75 L 858.00 317.75 Q 864.00 317.75 864.00 311.75 L 864.00 268.00 Q 864.00 262.00 870.00 262.00 L 956.00 262.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 802.50 317.75 L 858.00 317.75 Q 864.00 317.75 864.00 311.75 L 864.00 268.00 Q 864.00 262.00 870.00 262.00 L 956.00 262.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W05" data-module-id="sg90_servo" data-hub-ref="J3" data-hub-pin="3" data-net="GND" data-color="Black">
+<g class="pcb-wire" data-wire-id="W05" data-module-id="sg90_servo" data-hub-ref="J3" data-hub-pin="3" data-net="GND" data-color="Black" data-length-cm="15.46" data-std-cm="20">
 <path d="M 802.50 331.25 L 868.00 331.25 Q 874.00 331.25 874.00 325.25 L 874.00 284.00 Q 874.00 278.00 880.00 278.00 L 956.00 278.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 331.25 L 868.00 331.25 Q 874.00 331.25 874.00 325.25 L 874.00 284.00 Q 874.00 278.00 880.00 278.00 L 956.00 278.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 802.50 331.25 L 868.00 331.25 Q 874.00 331.25 874.00 325.25 L 874.00 284.00 Q 874.00 278.00 880.00 278.00 L 956.00 278.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W38" data-module-id="ky037_sound" data-hub-ref="J15" data-hub-pin="1" data-net="+3V3" data-color="Red">
+<g class="pcb-wire" data-wire-id="W38" data-module-id="ky037_sound" data-hub-ref="J15" data-hub-pin="1" data-net="+3V3" data-color="Red" data-length-cm="11.22" data-std-cm="20">
 <path d="M 802.50 374.25 L 848.00 374.25 Q 854.00 374.25 854.00 368.25 L 854.00 362.00 Q 854.00 356.00 860.00 356.00 L 956.00 356.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 374.25 L 848.00 374.25 Q 854.00 374.25 854.00 368.25 L 854.00 362.00 Q 854.00 356.00 860.00 356.00 L 956.00 356.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 802.50 374.25 L 848.00 374.25 Q 854.00 374.25 854.00 368.25 L 854.00 362.00 Q 854.00 356.00 860.00 356.00 L 956.00 356.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W39" data-module-id="ky037_sound" data-hub-ref="J15" data-hub-pin="2" data-net="GND" data-color="Black">
+<g class="pcb-wire" data-wire-id="W39" data-module-id="ky037_sound" data-hub-ref="J15" data-hub-pin="2" data-net="GND" data-color="Black" data-length-cm="11.49" data-std-cm="20">
 <path d="M 802.50 387.75 L 858.00 387.75 Q 864.00 387.75 864.00 381.75 L 864.00 378.00 Q 864.00 372.00 870.00 372.00 L 956.00 372.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 387.75 L 858.00 387.75 Q 864.00 387.75 864.00 381.75 L 864.00 378.00 Q 864.00 372.00 870.00 372.00 L 956.00 372.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 802.50 387.75 L 858.00 387.75 Q 864.00 387.75 864.00 381.75 L 864.00 378.00 Q 864.00 372.00 870.00 372.00 L 956.00 372.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W40" data-module-id="ky037_sound" data-hub-ref="J15" data-hub-pin="3" data-net="D5_MIC_DO" data-color="Yellow">
+<g class="pcb-wire" data-wire-id="W40" data-module-id="ky037_sound" data-hub-ref="J15" data-hub-pin="3" data-net="D5_MIC_DO" data-color="Yellow" data-length-cm="11.80" data-std-cm="20">
 <path d="M 802.50 401.25 L 868.04 401.25 Q 874.00 401.25 874.00 395.29 L 874.00 393.96 Q 874.00 388.00 879.96 388.00 L 956.00 388.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 401.25 L 868.04 401.25 Q 874.00 401.25 874.00 395.29 L 874.00 393.96 Q 874.00 388.00 879.96 388.00 L 956.00 388.00" fill="none" stroke="#854D0E" stroke-width="2.85" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 401.25 L 868.04 401.25 Q 874.00 401.25 874.00 395.29 L 874.00 393.96 Q 874.00 388.00 879.96 388.00 L 956.00 388.00" fill="none" stroke="#EAB308" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 802.50 401.25 L 868.04 401.25 Q 874.00 401.25 874.00 395.29 L 874.00 393.96 Q 874.00 388.00 879.96 388.00 L 956.00 388.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W10" data-module-id="relay1_pump" data-hub-ref="J7" data-hub-pin="1" data-net="+5V" data-color="Red">
+<g class="pcb-wire" data-wire-id="W10" data-module-id="relay1_pump" data-hub-ref="J7" data-hub-pin="1" data-net="+5V" data-color="Red" data-length-cm="7.89" data-std-cm="10">
 <path d="M 802.50 444.25 L 868.00 444.25 Q 874.00 444.25 874.00 450.25 L 874.00 472.00 Q 874.00 478.00 880.00 478.00 L 956.00 478.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 444.25 L 868.00 444.25 Q 874.00 444.25 874.00 450.25 L 874.00 472.00 Q 874.00 478.00 880.00 478.00 L 956.00 478.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 802.50 444.25 L 868.00 444.25 Q 874.00 444.25 874.00 450.25 L 874.00 472.00 Q 874.00 478.00 880.00 478.00 L 956.00 478.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W11" data-module-id="relay1_pump" data-hub-ref="J7" data-hub-pin="2" data-net="GND" data-color="Black">
+<g class="pcb-wire" data-wire-id="W11" data-module-id="relay1_pump" data-hub-ref="J7" data-hub-pin="2" data-net="GND" data-color="Black" data-length-cm="7.89" data-std-cm="10">
 <path d="M 802.50 457.75 L 858.00 457.75 Q 864.00 457.75 864.00 463.75 L 864.00 486.00 Q 864.00 492.00 870.00 492.00 L 956.00 492.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 457.75 L 858.00 457.75 Q 864.00 457.75 864.00 463.75 L 864.00 486.00 Q 864.00 492.00 870.00 492.00 L 956.00 492.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 802.50 457.75 L 858.00 457.75 Q 864.00 457.75 864.00 463.75 L 864.00 486.00 Q 864.00 492.00 870.00 492.00 L 956.00 492.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W12" data-module-id="relay1_pump" data-hub-ref="J7" data-hub-pin="3" data-net="D6_RLY1_PUMP" data-color="Green">
+<g class="pcb-wire" data-wire-id="W12" data-module-id="relay1_pump" data-hub-ref="J7" data-hub-pin="3" data-net="D6_RLY1_PUMP" data-color="Green" data-length-cm="7.89" data-std-cm="10">
 <path d="M 802.50 471.25 L 848.00 471.25 Q 854.00 471.25 854.00 477.25 L 854.00 500.00 Q 854.00 506.00 860.00 506.00 L 956.00 506.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 471.25 L 848.00 471.25 Q 854.00 471.25 854.00 477.25 L 854.00 500.00 Q 854.00 506.00 860.00 506.00 L 956.00 506.00" fill="none" stroke="#16A34A" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 802.50 471.25 L 848.00 471.25 Q 854.00 471.25 854.00 477.25 L 854.00 500.00 Q 854.00 506.00 860.00 506.00 L 956.00 506.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W17" data-module-id="buzzer_alarm" data-hub-ref="J6" data-hub-pin="1" data-net="+5V" data-color="Red">
+<g class="pcb-wire" data-wire-id="W17" data-module-id="buzzer_alarm" data-hub-ref="J6" data-hub-pin="1" data-net="+5V" data-color="Red" data-length-cm="25.41" data-std-cm="30">
 <path d="M 802.50 516.50 L 858.00 516.50 Q 864.00 516.50 864.00 522.50 L 864.00 626.00 Q 864.00 632.00 870.00 632.00 L 956.00 632.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 516.50 L 858.00 516.50 Q 864.00 516.50 864.00 522.50 L 864.00 626.00 Q 864.00 632.00 870.00 632.00 L 956.00 632.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 802.50 516.50 L 858.00 516.50 Q 864.00 516.50 864.00 522.50 L 864.00 626.00 Q 864.00 632.00 870.00 632.00 L 956.00 632.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W18" data-module-id="buzzer_alarm" data-hub-ref="J6" data-hub-pin="2" data-net="BUZZ_K" data-color="Orange">
+<g class="pcb-wire" data-wire-id="W18" data-module-id="buzzer_alarm" data-hub-ref="J6" data-hub-pin="2" data-net="BUZZ_K" data-color="Orange" data-length-cm="25.81" data-std-cm="30">
 <path d="M 802.50 530.50 L 848.00 530.50 Q 854.00 530.50 854.00 536.50 L 854.00 640.00 Q 854.00 646.00 860.00 646.00 L 956.00 646.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 530.50 L 848.00 530.50 Q 854.00 530.50 854.00 536.50 L 854.00 640.00 Q 854.00 646.00 860.00 646.00 L 956.00 646.00" fill="none" stroke="#EA580C" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 802.50 530.50 L 848.00 530.50 Q 854.00 530.50 854.00 536.50 L 854.00 640.00 Q 854.00 646.00 860.00 646.00 L 956.00 646.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W19" data-module-id="relay2_speaker" data-hub-ref="J9" data-hub-pin="1" data-net="+5V" data-color="Red">
+<g class="pcb-wire" data-wire-id="W19" data-module-id="relay2_speaker" data-hub-ref="J9" data-hub-pin="1" data-net="+5V" data-color="Red" data-length-cm="6.26" data-std-cm="10">
 <path d="M 431.00 568.50 L 431.00 604.00 Q 431.00 610.00 425.00 610.00 L 362.00 610.00 Q 356.00 610.00 356.00 616.00 L 356.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 431.00 568.50 L 431.00 604.00 Q 431.00 610.00 425.00 610.00 L 362.00 610.00 Q 356.00 610.00 356.00 616.00 L 356.00 682.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 431.00 568.50 L 431.00 604.00 Q 431.00 610.00 425.00 610.00 L 362.00 610.00 Q 356.00 610.00 356.00 616.00 L 356.00 682.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W20" data-module-id="relay2_speaker" data-hub-ref="J9" data-hub-pin="2" data-net="GND" data-color="Black">
+<g class="pcb-wire" data-wire-id="W20" data-module-id="relay2_speaker" data-hub-ref="J9" data-hub-pin="2" data-net="GND" data-color="Black" data-length-cm="6.26" data-std-cm="10">
 <path d="M 450.00 568.50 L 450.00 614.00 Q 450.00 620.00 444.00 620.00 L 432.00 620.00 Q 426.00 620.00 426.00 626.00 L 426.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 450.00 568.50 L 450.00 614.00 Q 450.00 620.00 444.00 620.00 L 432.00 620.00 Q 426.00 620.00 426.00 626.00 L 426.00 682.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 450.00 568.50 L 450.00 614.00 Q 450.00 620.00 444.00 620.00 L 432.00 620.00 Q 426.00 620.00 426.00 626.00 L 426.00 682.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W21" data-module-id="relay2_speaker" data-hub-ref="J9" data-hub-pin="3" data-net="D7_RLY2_AMP" data-color="Cyan">
+<g class="pcb-wire" data-wire-id="W21" data-module-id="relay2_speaker" data-hub-ref="J9" data-hub-pin="3" data-net="D7_RLY2_AMP" data-color="Cyan" data-length-cm="6.26" data-std-cm="10">
 <path d="M 469.00 568.50 L 469.00 627.75 Q 469.00 630.00 466.75 630.00 L 466.25 630.00 Q 464.00 630.00 464.00 632.25 L 464.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 469.00 568.50 L 469.00 627.75 Q 469.00 630.00 466.75 630.00 L 466.25 630.00 Q 464.00 630.00 464.00 632.25 L 464.00 682.00" fill="none" stroke="#0891B2" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 469.00 568.50 L 469.00 627.75 Q 469.00 630.00 466.75 630.00 L 466.25 630.00 Q 464.00 630.00 464.00 632.25 L 464.00 682.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W22" data-module-id="relay2_speaker" data-hub-ref="J10" data-hub-pin="1" data-net="+5V" data-color="Red">
+<g class="pcb-wire" data-wire-id="W22" data-module-id="relay2_speaker" data-hub-ref="J10" data-hub-pin="1" data-net="+5V" data-color="Red" data-length-cm="18.75" data-std-cm="20">
 <path d="M 537.00 568.50 L 537.00 608.00 Q 537.00 614.00 531.00 614.00 L 518.00 614.00 Q 512.00 614.00 512.00 620.00 L 512.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 537.00 568.50 L 537.00 608.00 Q 537.00 614.00 531.00 614.00 L 518.00 614.00 Q 512.00 614.00 512.00 620.00 L 512.00 682.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 537.00 568.50 L 537.00 608.00 Q 537.00 614.00 531.00 614.00 L 518.00 614.00 Q 512.00 614.00 512.00 620.00 L 512.00 682.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W23" data-module-id="relay2_speaker" data-hub-ref="J10" data-hub-pin="2" data-net="AMP_5V" data-color="Orange">
+<g class="pcb-wire" data-wire-id="W23" data-module-id="relay2_speaker" data-hub-ref="J10" data-hub-pin="2" data-net="AMP_5V" data-color="Orange" data-length-cm="18.53" data-std-cm="20">
 <path d="M 559.00 568.50 L 559.00 622.65 Q 559.00 624.00 557.65 624.00 L 557.35 624.00 Q 556.00 624.00 556.00 625.35 L 556.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 559.00 568.50 L 559.00 622.65 Q 559.00 624.00 557.65 624.00 L 557.35 624.00 Q 556.00 624.00 556.00 625.35 L 556.00 682.00" fill="none" stroke="#EA580C" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 559.00 568.50 L 559.00 622.65 Q 559.00 624.00 557.65 624.00 L 557.35 624.00 Q 556.00 624.00 556.00 625.35 L 556.00 682.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W24" data-module-id="pam8403_amp" data-hub-ref="J11" data-hub-pin="1" data-net="AMP_5V" data-color="Red">
+<g class="pcb-wire" data-wire-id="W24" data-module-id="pam8403_amp" data-hub-ref="J11" data-hub-pin="1" data-net="AMP_5V" data-color="Red" data-length-cm="15.71" data-std-cm="20">
 <path d="M 639.00 568.50 L 639.00 608.00 Q 639.00 614.00 645.00 614.00 L 670.00 614.00 Q 676.00 614.00 676.00 620.00 L 676.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 639.00 568.50 L 639.00 608.00 Q 639.00 614.00 645.00 614.00 L 670.00 614.00 Q 676.00 614.00 676.00 620.00 L 676.00 682.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 639.00 568.50 L 639.00 608.00 Q 639.00 614.00 645.00 614.00 L 670.00 614.00 Q 676.00 614.00 676.00 620.00 L 676.00 682.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W25" data-module-id="pam8403_amp" data-hub-ref="J11" data-hub-pin="2" data-net="GND" data-color="Black">
+<g class="pcb-wire" data-wire-id="W25" data-module-id="pam8403_amp" data-hub-ref="J11" data-hub-pin="2" data-net="GND" data-color="Black" data-length-cm="15.76" data-std-cm="20">
 <path d="M 661.00 568.50 L 661.00 618.00 Q 661.00 624.00 667.00 624.00 L 712.00 624.00 Q 718.00 624.00 718.00 630.00 L 718.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 661.00 568.50 L 661.00 618.00 Q 661.00 624.00 667.00 624.00 L 712.00 624.00 Q 718.00 624.00 718.00 630.00 L 718.00 682.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 661.00 568.50 L 661.00 618.00 Q 661.00 624.00 667.00 624.00 L 712.00 624.00 Q 718.00 624.00 718.00 630.00 L 718.00 682.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W26" data-module-id="pam8403_amp" data-hub-ref="J12" data-hub-pin="1" data-net="AUD_OUT" data-color="White">
+<g class="pcb-wire" data-wire-id="W26" data-module-id="pam8403_amp" data-hub-ref="J12" data-hub-pin="1" data-net="AUD_OUT" data-color="White" data-length-cm="13.08" data-std-cm="20">
 <path d="M 737.00 568.50 L 737.00 608.00 Q 737.00 614.00 743.00 614.00 L 760.00 614.00 Q 766.00 614.00 766.00 620.00 L 766.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 737.00 568.50 L 737.00 608.00 Q 737.00 614.00 743.00 614.00 L 760.00 614.00 Q 766.00 614.00 766.00 620.00 L 766.00 682.00" fill="none" stroke="#334155" stroke-width="3.45" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 737.00 568.50 L 737.00 608.00 Q 737.00 614.00 743.00 614.00 L 760.00 614.00 Q 766.00 614.00 766.00 620.00 L 766.00 682.00" fill="none" stroke="#F8FAFC" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 737.00 568.50 L 737.00 608.00 Q 737.00 614.00 743.00 614.00 L 760.00 614.00 Q 766.00 614.00 766.00 620.00 L 766.00 682.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W27" data-module-id="pam8403_amp" data-hub-ref="J12" data-hub-pin="2" data-net="GND" data-color="Black">
+<g class="pcb-wire" data-wire-id="W27" data-module-id="pam8403_amp" data-hub-ref="J12" data-hub-pin="2" data-net="GND" data-color="Black" data-length-cm="13.13" data-std-cm="20">
 <path d="M 759.00 568.50 L 759.00 618.00 Q 759.00 624.00 765.00 624.00 L 800.00 624.00 Q 806.00 624.00 806.00 630.00 L 806.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 759.00 568.50 L 759.00 618.00 Q 759.00 624.00 765.00 624.00 L 800.00 624.00 Q 806.00 624.00 806.00 630.00 L 806.00 682.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 759.00 568.50 L 759.00 618.00 Q 759.00 624.00 765.00 624.00 L 800.00 624.00 Q 806.00 624.00 806.00 630.00 L 806.00 682.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W28" data-module-id="speaker_mini" data-hub-ref="PAM8403" data-hub-pin="L_OUT+" data-net="SPK_BTL_P" data-color="Yellow">
+<g class="pcb-wire" data-wire-id="W28" data-module-id="speaker_mini" data-hub-ref="PAM8403" data-hub-pin="L_OUT+" data-net="SPK_BTL_P" data-color="Yellow" data-length-cm="4.04" data-std-cm="10">
 <path d="M 910.00 706.00 L 956.00 706.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 910.00 706.00 L 956.00 706.00" fill="none" stroke="#854D0E" stroke-width="2.85" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 910.00 706.00 L 956.00 706.00" fill="none" stroke="#EAB308" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 910.00 706.00 L 956.00 706.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W29" data-module-id="speaker_mini" data-hub-ref="PAM8403" data-hub-pin="L_OUT-" data-net="SPK_BTL_N" data-color="Brown">
+<g class="pcb-wire" data-wire-id="W29" data-module-id="speaker_mini" data-hub-ref="PAM8403" data-hub-pin="L_OUT-" data-net="SPK_BTL_N" data-color="Brown" data-length-cm="3.84" data-std-cm="10">
 <path d="M 910.00 724.00 L 956.00 724.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 910.00 724.00 L 956.00 724.00" fill="none" stroke="#78350F" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 910.00 724.00 L 956.00 724.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W13" data-module-id="relay1_pump" data-hub-ref="J8" data-hub-pin="1" data-net="+5V" data-color="Red">
+<g class="pcb-wire" data-wire-id="W13" data-module-id="relay1_pump" data-hub-ref="J8" data-hub-pin="1" data-net="+5V" data-color="Red" data-length-cm="17.91" data-std-cm="20">
 <path d="M 418.50 319.50 L 407.00 319.50 Q 401.00 319.50 401.00 325.50 L 401.00 652.00 Q 401.00 658.00 407.00 658.00 L 898.00 658.00 Q 904.00 658.00 904.00 652.00 L 904.00 538.00 Q 904.00 532.00 910.00 532.00 L 956.00 532.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 418.50 319.50 L 407.00 319.50 Q 401.00 319.50 401.00 325.50 L 401.00 652.00 Q 401.00 658.00 407.00 658.00 L 898.00 658.00 Q 904.00 658.00 904.00 652.00 L 904.00 538.00 Q 904.00 532.00 910.00 532.00 L 956.00 532.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="pcb-wire-hit" d="M 418.50 319.50 L 407.00 319.50 Q 401.00 319.50 401.00 325.50 L 401.00 652.00 Q 401.00 658.00 407.00 658.00 L 898.00 658.00 Q 904.00 658.00 904.00 652.00 L 904.00 538.00 Q 904.00 532.00 910.00 532.00 L 956.00 532.00" fill="none" stroke="transparent" stroke-width="11.0" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<g class="pcb-wire" data-wire-id="W14" data-module-id="relay1_pump" data-hub-ref="J8" data-hub-pin="2" data-net="PUMP_5V" data-color="Yellow">
+<g class="pcb-wire" data-wire-id="W14" data-module-id="relay1_pump" data-hub-ref="J8" data-hub-pin="2" data-net="PUMP_5V" data-color="Yellow" data-length-cm="17.94" data-std-cm="20">
 <path d="M 418.50 334.50 L 412.18 334.50 Q 407.00 334.50 407.00 339.68 L 407.00 662.00 Q 407.00 668.00 413.00 668.00 L 910.00 668.00 Q 916.00 668.00 916.00 662.00 L 916.00 554.00 Q 916.00 548.00 922.00 548.00 L 956.00 548.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 418.50 334.50 L 412.18 334.50 Q 407.00 334.50 407.00 339.68 L 407.00 662.00 Q 407.00 668.00 413.00 668.00 L 910.00 668.00 Q 916.00 668.00 916.00 662.00 L 916.00 554.00 Q 916.00 548.00 922.00 548.00 L 956.00 548.00" fill="none" stroke="#854D0E" stroke-width="2.85" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 418.50 334.50 L 412.18 334.50 Q 407.00 334.50 407.00 339.68 L 407.00 662.00 Q 407.00 668.00 413.00 668.00 L 910.00 668.00 Q 916.00 668.00 916.00 662.00 L 916.00 554.00 Q 916.00 548.00 922.00 548.00 L 956.00 548.00" fill="none" stroke="#EAB308" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/>

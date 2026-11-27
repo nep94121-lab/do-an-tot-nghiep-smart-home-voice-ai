@@ -1,12 +1,12 @@
 # Smart Home Voice AI `v1.0` — Trợ lý Nhà Thông Minh Giọng Nói Tiếng Việt
 
-Trợ lý AI điều khiển nhà thông minh phản hồi tức thì bằng **100% tiếng Việt** (đầu vào và đầu ra chỉ sử dụng tiếng Việt), tích hợp **FastAPI Backend**, **Web 3D Digital Twin (Three.js)**, **ứng dụng Android gốc (Jetpack Compose)** và phần cứng **NodeMCU ESP8266 v2 Amica** theo hợp đồng khóa cứng **6 thiết bị chấp hành + 3 cảm biến**.
+Trợ lý AI điều khiển nhà thông minh phản hồi tức thì bằng **100% tiếng Việt** (đầu vào và đầu ra chỉ sử dụng tiếng Việt), tích hợp **FastAPI Backend**, **Web 3D Digital Twin (Three.js)**, **ứng dụng Android gốc (Jetpack Compose)** và phần cứng **PCB-Direct Hub DIY v3 (`100 × 80 × 1.6 mm`, không dùng breadboard trắng)** cùng **NodeMCU ESP8266 v2 Amica (`48.26 × 25.40 mm`, CP2102)** theo hợp đồng khóa cứng **6 thiết bị chấp hành + 3 cảm biến**.
 
 ---
 
-## 1. Phạm vi Phần cứng Khóa cứng (6 Thiết bị + 3 Cảm biến)
+## 1. Phạm vi Phần cứng Khóa cứng (6 Thiết bị + 3 Cảm biến · PCB-Direct)
 
-Hệ thống khóa cứng đúng 6 thiết bị chấp hành và 3 cảm biến trên 10 chân NodeMCU ESP8266 (`D0`–`D8`, `A0`). **Không hỗ trợ quạt (`fan`), điều hòa (`ac`) hay hồng ngoại (`IR` / `VS1838B`).**
+Hệ thống khóa cứng đúng 6 thiết bị chấp hành và 3 cảm biến trên 10 chân **NodeMCU ESP8266 v2 Amica (`48.26 × 25.40 mm`, hàng chân 0.9" — không phải v3 LoLin)** cắm trực tiếp trên mạch **PCB Hub DIY v3 (`100 × 80 × 1.6 mm`, `51 footprints`, `0 ERC / 0 DRC`)** với **toàn bộ `C1–C9` (kể cả `C8 100 nF` & `C9 100 µF 16V`) và `D1–D2 (1N4007)` hàn trực tiếp trên PCB**, và **40/40 dây nối `<= 30 cm` (`3.84 – 27.48 cm`)**. **Không dùng breadboard trắng; không hỗ trợ quạt (`fan`), điều hòa (`ac`) hay hồng ngoại (`IR` / `VS1838B`).**
 
 | Loại | Mã định danh | Tên hiển thị | Chân ESP8266 | Quyền truy cập tối thiểu |
 | :--- | :--- | :--- | :---: | :--- |
@@ -25,9 +25,9 @@ Hệ thống khóa cứng đúng 6 thiết bị chấp hành và 3 cảm biến 
 ## 2. Kiến trúc Tổng quan
 
 - **Backend (`backend/`):** FastAPI + SQLite 3NF (chế độ `WAL`) + bộ đồng bộ thời gian thực `SSE` (`/api/events`) & `WebSocket` (`/ws/live`), cầu nối MQTT tới ESP8266, phân quyền phiên 3 tầng (RBAC + OTP Gmail + mã mời QR dùng một lần), bộ xử lý giọng nói tiếng Việt (Gemini Live `Aoede` + STT/NLU cục bộ + Echo Guard), và bộ máy Tự động hóa (luật đơn, luật tổ hợp `AND`/`OR`, lịch lặp theo thứ, bộ hẹn giờ đếm ngược).
-- **Web Dashboard & Mobile Web (`web/`):** Mô hình ngôi nhà 3D tương tác (Three.js + `web/models/smarthome_villa.glb`), bảng điều khiển thiết bị/cảm biến, trang Tự động hóa (`/automation`), Quản lý xác thực (`/auth`), Nhật ký hệ thống (`/logs`), Mô phỏng phần cứng (`/wokwi`) và giao diện Mobile Web (`/app`).
+- **Web Dashboard & Mobile Web (`web/`):** Mô hình ngôi nhà 3D tương tác (Three.js + `web/models/smarthome_villa.glb` + 40 tuyến dây nối 3D thực tế từ `wiring_contract.json`), bảng điều khiển thiết bị/cảm biến, trang Tự động hóa (`/automation`), Quản lý xác thực (`/auth`), Nhật ký hệ thống (`/logs`), Hướng dẫn đấu nối PCB-Direct từng bước (`/wokwi`, mặc định Sơ đồ PCB 2D không breadboard) và giao diện Mobile Web (`/app`).
 - **Ứng dụng Android (`app/`):** Jetpack Compose (Kotlin) với cổng đăng nhập bắt buộc, quét mã QR khách, điều khiển 6 thiết bị, thẻ cảm biến DHT11 / độ ẩm đất / KY-037 và trợ lý giọng nói tiếng Việt.
-- **Firmware & Phần cứng (`firmware/`, `hardware/`):** Mã nguồn Arduino C++ cho ESP8266 (`firmware/esp8266_smarthome/esp8266_smarthome.ino`), mạch PCB 1 lớp DIY KiCad (`100 × 80 mm`, 0 lỗi DRC/ERC), mô hình nhà Mica cắt laser FreeCAD (19 mảnh, 0 va chạm 3D) và hợp đồng đấu nối 40 dây chuẩn hóa (`hardware/wiring_contract.py`).
+- **Firmware & Phần cứng (`firmware/`, `hardware/`):** Mã nguồn Arduino C++ cho ESP8266 (`firmware/esp8266_smarthome/esp8266_smarthome.ino`), mạch PCB 1 lớp DIY v3 KiCad (`100 × 80 mm`, `51 footprints`, `C1–C9` & `D1–D2` trên bo, 0 lỗi DRC/ERC), mô hình nhà Mica / In 3D v2 FreeCAD (0 va chạm 3D) và hợp đồng đấu nối 40 dây `<= 30 cm` (`hardware/wiring_contract.py`, `hardware/wire_lengths.json`, `hardware/component_dimensions_ssot.py`).
 
 ---
 
@@ -38,20 +38,22 @@ Hệ thống khóa cứng đúng 6 thiết bị chấp hành và 3 cảm biến 
 ├── backend/                # FastAPI server, API routers, Auth RBAC, Voice STT/NLU, Automation engine, SQLite data
 ├── web/                    # Web 3D Digital Twin UI, CSS/JS, mô hình 3D (.glb), Mobile Web (web/mobile/), redirect (web/public/)
 ├── app/                    # Ứng dụng Android gốc (Kotlin + Jetpack Compose, cấu hình Lightbuild)
-├── firmware/               # Firmware ESP8266 NodeMCU v2 (esp8266_smarthome/) và sơ đồ Wokwi (wokwi/)
+├── firmware/               # Firmware ESP8266 NodeMCU v2 Amica (esp8266_smarthome/) và sơ đồ Wokwi (wokwi/)
 ├── hardware/
-│   ├── kicad/              # Thiết kế PCB Hub 1 lớp DIY (smarthome_hub/) & bản lắp ghép 3D (smarthome_assembly/)
+│   ├── kicad/              # Thiết kế PCB Hub 1 lớp DIY v3 (smarthome_hub/, 51 footprints, C8/C9 trên bo) & bản lắp ghép 3D
 │   ├── mica/               # Mô hình vỏ nhà Mica 3mm tham số hóa trên FreeCAD (.FCStd + script kiểm định)
-│   ├── in 3 d/             # Bộ tệp In 3D vỏ nhà (khắc sẵn kích thước, chia mảnh 220x220mm) + 12 phụ kiện supot (STL/3MF/STEP)
+│   ├── in 3 d/             # Bộ tệp In 3D v2 lắp mộng không vít/keo + phụ kiện supot & nội thất (STL/3MF/STEP)
 │   ├── blender/            # Cảnh lắp ghép 3D dây nối (system_wired_assembly.glb)
+│   ├── component_dimensions_ssot.py # SSOT kích thước datasheet (NodeMCU v2 Amica 48.26x25.40 mm + 25 linh kiện)
+│   ├── wire_lengths.json   # Tọa độ đi dây 3D & chiều dài 40 dây (3.84–27.48 cm, 40/40 <= 30 cm)
 │   └── wiring_contract.py  # Nguồn sự thật duy nhất (SSOT) cho 40 dây nối & 10 chân ESP8266
 ├── docs/
-│   ├── HARDWARE_BUILD_GUIDE.md  # Chỉ mục chế tạo PCB, cắt Mica & đấu nối phần cứng
-│   ├── phan_cung/          # Bản in 1:1 Toner Transfer, bản vẽ DXF/PDF A3/A4, bảng đấu nối, BOM
+│   ├── HARDWARE_BUILD_GUIDE.md  # Chỉ mục chế tạo PCB-direct, cắt Mica / In 3D & đấu nối phần cứng
+│   ├── phan_cung/          # Bản in 1:1 Toner Transfer (diy_pcb/), DXF/PDF A3/A4, WIRING_TABLE, WIRE_LIST_LENGTHS, DIMENSIONS_AUDIT
 │   ├── kien_truc/          # Sơ đồ kiến trúc tương tác HTML (/architecture, /archify)
 │   └── screenshots/        # Thư mục ảnh chụp màn hình phát hành v1.0
 ├── tests/                  # Bộ kiểm thử tự động pytest, E2E & kiểm thử chính sách giọng nói
-├── scripts/                # Tiện ích di trú SQLite, sao lưu, dịch vụ chạy nền & kiểm tra phần cứng
+├── scripts/                # Tiện ích di trú SQLite, sao lưu, xuất wiring_contract.json & sinh sơ đồ 2D
 ├── test_audio/             # Mẫu âm thanh tiếng Việt phục vụ kiểm thử giọng nói
 ├── USER_GUIDE.md           # Hướng dẫn sử dụng tiếng Việt đầy đủ
 ├── KNOWN_ISSUES.md         # Danh mục các vấn đề nhỏ đã biết (hoãn sau v1.0)
@@ -89,6 +91,8 @@ Truy cập trình duyệt tại `http://127.0.0.1:8088/` (máy tính) hoặc `ht
 python -m pytest -q --timeout=90 \
   tests/test_release_v1_fixes_20261123.py \
   tests/test_hw_contract_6devices_20261120.py \
+  tests/test_wiring_guide_contract_parity.py \
+  tests/test_wiring_guide_ui.py \
   tests/test_challenger_m11_vercel_routing.py \
   tests/test_permanent_server_20261115.py \
   tests/test_autotool_20261122.py \
@@ -119,12 +123,15 @@ docker compose up --build -d
 
 ---
 
-## 6. Tài liệu Phát hành `v1.0`
+## 6. Tài liệu Phát hành `v1.0` & Hồ sơ Phần cứng PCB-Direct
 
 - [Hướng dẫn sử dụng (Tiếng Việt)](USER_GUIDE.md) — Tài khoản 3 cấp, mời QR, Web 3D, Tự động hóa, lệnh giọng nói, Android & Wokwi.
-- [Hướng dẫn chế tạo & đấu nối phần cứng](docs/HARDWARE_BUILD_GUIDE.md) — Chỉ mục KiCad PCB, cắt laser Mica, BOM linh kiện & sơ đồ 40 dây nối.
+- [Hướng dẫn chế tạo & đấu nối phần cứng](docs/HARDWARE_BUILD_GUIDE.md) — Chỉ mục KiCad PCB DIY v3 (không breadboard), cắt laser Mica / In 3D v2, BOM linh kiện & sơ đồ 40 dây nối.
+- [Hồ sơ Mạch PCB Hub DIY v3 (`docs/phan_cung/diy_pcb/`)](docs/phan_cung/diy_pcb/) — Ảnh render 2D/3D KiCad (`51 footprints`, `C1–C9` gồm `C8`/`C9` & `D1–D2` trên bo, `0 ERC / 0 DRC`), bản in 1:1 Toner Transfer, `bom.csv`, `DIY_GUIDE.md`.
+- [Danh sách 40 dây nối & chiều dài thực tế 3D (`WIRE_LIST_LENGTHS.md`)](docs/phan_cung/WIRE_LIST_LENGTHS.md) — 40/40 dây `<= 30 cm` (`3.84 – 27.48 cm`) và tổng hợp mua dây chuẩn `10 / 20 / 30 cm`.
+- [Kiểm định kích thước Datasheet (`DIMENSIONS_AUDIT.md`)](docs/phan_cung/DIMENSIONS_AUDIT.md) — Kích thước thực tế NodeMCU v2 Amica (`48.26 × 25.40 mm`) và 25 linh kiện phần cứng.
 - [Hướng dẫn nạp Firmware & cấu hình Wi-Fi ESP8266 qua USB](docs/phan_cung/HUONG_DAN_NAP_FIRMWARE_USB.md) — Nạp 1 lệnh bằng `hardware/flash_and_setup.ps1`, kiểm tra driver CP2102/CH340, cấu hình Wi-Fi runtime không lộ mật khẩu & xử lý sự cố.
-- [Bộ tệp In 3D Vỏ Nhà & Phụ Kiện Supot (`hardware/in 3 d/`)](hardware/in%203%20d/README.md) — Toàn bộ 25 mảnh vỏ nhà khắc kích thước + 12 phụ kiện supot (`STL`/`3MF`/`STEP`, bản vẽ kỹ thuật, thông số in & thứ tự lắp ráp).
+- [Bộ tệp In 3D Vỏ Nhà v2 & Phụ Kiện Supot (`hardware/in 3 d/`)](hardware/in%203%20d/README.md) — Vỏ nhà lắp mộng không vít/keo + phụ kiện supot & nội thất (`STL`/`3MF`/`STEP`, bản vẽ kỹ thuật, thông số in & thứ tự lắp ráp).
 - [Các vấn đề đã biết (`KNOWN_ISSUES.md`)](KNOWN_ISSUES.md) — Danh mục giới hạn nhỏ không ảnh hưởng vận hành lõi, hoãn sang sau `v1.0`.
 - [Nhật ký phát hành (`CHANGELOG.md`)](CHANGELOG.md) — Tổng hợp các nhánh tích hợp, bản vá và tái cấu trúc `v1.0`.
 
@@ -140,7 +147,7 @@ Thư mục ảnh chụp tuyển chọn cho bản phát hành `v1.0` được lư
 | [`02_dashboard_3d_desktop_1366x768.png`](docs/screenshots/02_dashboard_3d_desktop_1366x768.png) | Giao diện Web Dashboard 3D Digital Twin trên màn hình laptop (`1366x768`) |
 | [`03_dashboard_3d_mobile_390x844.png`](docs/screenshots/03_dashboard_3d_mobile_390x844.png) | Giao diện Web Dashboard đáp ứng di động (`390x844`) |
 | [`04_automation_panel_1440x900.png`](docs/screenshots/04_automation_panel_1440x900.png) | Trang Tự động hóa (`/automation`): luật `AND`/`OR`, lịch tuần & hẹn giờ |
-| [`05_wokwi_circuit_1440x900.png`](docs/screenshots/05_wokwi_circuit_1440x900.png) | Trang Mô phỏng Phần cứng 10 chân ESP8266 & PCB Hub 100×80mm (`/wokwi`) |
+| [`05_wokwi_circuit_1440x900.png`](docs/screenshots/05_wokwi_circuit_1440x900.png) | Trang Hướng dẫn Đấu nối PCB-Direct 10 chân ESP8266 & PCB Hub 100×80mm (`/wokwi`) |
 | [`06_auth_rbac_1440x900.png`](docs/screenshots/06_auth_rbac_1440x900.png) | Trang Quản lý Phiên & Phân quyền 3 cấp (`/auth`) |
 | [`07_logs_audit_1440x900.png`](docs/screenshots/07_logs_audit_1440x900.png) | Trang Nhật ký Hệ thống dành riêng cho Chủ nhà (`/logs`) |
 | [`08_mobile_pwa_390x844.png`](docs/screenshots/08_mobile_pwa_390x844.png) | Giao diện Ứng dụng Web Di động PWA (`/app`, `390x844`) |
@@ -148,5 +155,5 @@ Thư mục ảnh chụp tuyển chọn cho bản phát hành `v1.0` được lư
 | [`10_android_home_live.png`](docs/screenshots/10_android_home_live.png) | Ứng dụng Android gốc: màn hình chính & lưới 4 thông số cảm biến thực |
 | [`11_android_devices_6locked.png`](docs/screenshots/11_android_devices_6locked.png) | Ứng dụng Android gốc: danh sách thiết bị theo hợp đồng khóa cứng 6 thiết bị |
 | [`12_android_voice_vi.png`](docs/screenshots/12_android_voice_vi.png) | Ứng dụng Android gốc: trợ lý giọng nói tiếng Việt đồng bộ trực tiếp máy chủ |
-| [`13_hardware_wiring_2d.png`](docs/screenshots/13_hardware_wiring_2d.png) | Sơ đồ đấu nối tổng thể 2D 40 dây & 15 đầu nối PCB Hub 100×80mm |
+| [`13_hardware_wiring_2d.png`](docs/screenshots/13_hardware_wiring_2d.png) | Sơ đồ đấu nối tổng thể 2D PCB-Direct 40 dây & 15 đầu nối PCB Hub DIY v3 (`100×80 mm`) |
 | `08_hardware_pcb_mica.png` | Bố trí mạch PCB DIY `100 × 80 mm` & mô hình lắp ghép Mica |

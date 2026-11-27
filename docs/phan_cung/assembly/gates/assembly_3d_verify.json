@@ -1,0 +1,800 @@
+{
+  "schema_version": "1.0",
+  "source_of_truth": "hardware/wiring_contract.py",
+  "scale_contract": "1:1 physical millimeters (1 mm = 0.001 m)",
+  "summary": {
+    "total_modules_expected": 16,
+    "total_modules_present": 16,
+    "offboard_modules_count": 14,
+    "hub_connectors_connected": 15,
+    "all_15_hub_connectors_wired": true,
+    "all_dimensions_within_1mm": true,
+    "dimension_failures": [],
+    "module_collisions_count": 0,
+    "total_wires_expected": 40,
+    "total_wires_present": 40,
+    "all_wire_endpoints_within_0_5mm": true,
+    "endpoint_failures": [],
+    "wire_clipping_violations_count": 0,
+    "overall_pass": true,
+    "glb_mb": 2.709,
+    "glb_pass": true
+  },
+  "modules": {
+    "hub_pcb": {
+      "present": true,
+      "bbox_min_mm": [
+        -50.0,
+        -40.0,
+        4.095
+      ],
+      "bbox_max_mm": [
+        50.0,
+        40.0,
+        21.395
+      ],
+      "measured_size_mm": [
+        100.0,
+        80.0,
+        17.3
+      ],
+      "expected_footprint_mm": [
+        100.0,
+        80.0
+      ],
+      "expected_overall_h_mm": 17.3,
+      "max_error_mm": 0.0,
+      "pass": true
+    },
+    "nodemcu": {
+      "present": true,
+      "bbox_min_mm": [
+        -14.27,
+        -24.08,
+        16.1
+      ],
+      "bbox_max_mm": [
+        11.13,
+        25.35,
+        23.24
+      ],
+      "measured_size_mm": [
+        25.4,
+        49.43,
+        7.14
+      ],
+      "expected_footprint_mm": [
+        49.4,
+        25.4
+      ],
+      "expected_overall_h_mm": 7.14,
+      "max_error_mm": 0.03,
+      "pass": true
+    },
+    "psu_5v": {
+      "present": true,
+      "bbox_min_mm": [
+        -123.0,
+        -29.0,
+        0.0
+      ],
+      "bbox_max_mm": [
+        -89.0,
+        -7.0,
+        16.0
+      ],
+      "measured_size_mm": [
+        34.0,
+        22.0,
+        16.0
+      ],
+      "expected_footprint_mm": [
+        34.0,
+        22.0
+      ],
+      "expected_overall_h_mm": 16.0,
+      "max_error_mm": 0.0,
+      "pass": true
+    },
+    "sg90_servo": {
+      "present": true,
+      "bbox_min_mm": [
+        1.9,
+        71.9,
+        0.0
+      ],
+      "bbox_max_mm": [
+        34.1,
+        84.1,
+        31.0
+      ],
+      "measured_size_mm": [
+        32.2,
+        12.2,
+        31.0
+      ],
+      "expected_footprint_mm": [
+        32.2,
+        12.2
+      ],
+      "expected_overall_h_mm": 31.0,
+      "max_error_mm": 0.0,
+      "pass": true
+    },
+    "led_living": {
+      "present": true,
+      "bbox_min_mm": [
+        -10.9,
+        73.1,
+        6.0
+      ],
+      "bbox_max_mm": [
+        -5.1,
+        78.9,
+        14.6
+      ],
+      "measured_size_mm": [
+        5.8,
+        5.8,
+        8.6
+      ],
+      "expected_footprint_mm": [
+        5.8,
+        5.8
+      ],
+      "expected_overall_h_mm": 8.6,
+      "max_error_mm": 0.0,
+      "pass": true
+    },
+    "led_bedroom": {
+      "present": true,
+      "bbox_min_mm": [
+        85.1,
+        31.1,
+        6.0
+      ],
+      "bbox_max_mm": [
+        90.9,
+        36.9,
+        14.6
+      ],
+      "measured_size_mm": [
+        5.8,
+        5.8,
+        8.6
+      ],
+      "expected_footprint_mm": [
+        5.8,
+        5.8
+      ],
+      "expected_overall_h_mm": 8.6,
+      "max_error_mm": 0.0,
+      "pass": true
+    },
+    "relay1_pump": {
+      "present": true,
+      "bbox_min_mm": [
+        89.0,
+        -35.0,
+        0.0
+      ],
+      "bbox_max_mm": [
+        139.0,
+        -9.0,
+        18.5
+      ],
+      "measured_size_mm": [
+        50.0,
+        26.0,
+        18.5
+      ],
+      "expected_footprint_mm": [
+        50.0,
+        26.0
+      ],
+      "expected_overall_h_mm": 18.5,
+      "max_error_mm": 0.0,
+      "pass": true
+    },
+    "relay2_speaker": {
+      "present": true,
+      "bbox_min_mm": [
+        -67.0,
+        -97.0,
+        0.0
+      ],
+      "bbox_max_mm": [
+        -17.0,
+        -71.0,
+        18.5
+      ],
+      "measured_size_mm": [
+        50.0,
+        26.0,
+        18.5
+      ],
+      "expected_footprint_mm": [
+        50.0,
+        26.0
+      ],
+      "expected_overall_h_mm": 18.5,
+      "max_error_mm": 0.0,
+      "pass": true
+    },
+    "pump_unit": {
+      "present": true,
+      "bbox_min_mm": [
+        -134.5,
+        8.0,
+        -0.0
+      ],
+      "bbox_max_mm": [
+        -89.5,
+        32.0,
+        33.0
+      ],
+      "measured_size_mm": [
+        45.0,
+        24.0,
+        33.0
+      ],
+      "expected_footprint_mm": [
+        45.0,
+        24.0
+      ],
+      "expected_overall_h_mm": 33.0,
+      "max_error_mm": 0.0,
+      "pass": true
+    },
+    "buzzer_alarm": {
+      "present": true,
+      "bbox_min_mm": [
+        90.0,
+        -74.0,
+        0.0
+      ],
+      "bbox_max_mm": [
+        102.0,
+        -62.0,
+        9.52
+      ],
+      "measured_size_mm": [
+        12.0,
+        12.0,
+        9.52
+      ],
+      "expected_footprint_mm": [
+        12.0,
+        12.0
+      ],
+      "expected_overall_h_mm": 9.5,
+      "max_error_mm": 0.02,
+      "pass": true
+    },
+    "pam8403_amp": {
+      "present": true,
+      "bbox_min_mm": [
+        1.5,
+        -93.0,
+        0.0
+      ],
+      "bbox_max_mm": [
+        22.5,
+        -75.0,
+        3.1
+      ],
+      "measured_size_mm": [
+        21.0,
+        18.0,
+        3.1
+      ],
+      "expected_footprint_mm": [
+        21.0,
+        18.0
+      ],
+      "expected_overall_h_mm": 3.1,
+      "max_error_mm": 0.0,
+      "pass": true
+    },
+    "speaker_mini": {
+      "present": true,
+      "bbox_min_mm": [
+        40.0,
+        -98.0,
+        0.0
+      ],
+      "bbox_max_mm": [
+        68.0,
+        -70.0,
+        5.2
+      ],
+      "measured_size_mm": [
+        28.0,
+        28.0,
+        5.2
+      ],
+      "expected_footprint_mm": [
+        28.0,
+        28.0
+      ],
+      "expected_overall_h_mm": 5.2,
+      "max_error_mm": 0.0,
+      "pass": true
+    },
+    "dht11_sensor": {
+      "present": true,
+      "bbox_min_mm": [
+        47.0,
+        64.0,
+        0.0
+      ],
+      "bbox_max_mm": [
+        61.0,
+        92.0,
+        7.1
+      ],
+      "measured_size_mm": [
+        14.0,
+        28.0,
+        7.1
+      ],
+      "expected_footprint_mm": [
+        28.0,
+        14.0
+      ],
+      "expected_overall_h_mm": 7.1,
+      "max_error_mm": 0.0,
+      "pass": true
+    },
+    "soil_lm393": {
+      "present": true,
+      "bbox_min_mm": [
+        -63.0,
+        62.0,
+        0.0
+      ],
+      "bbox_max_mm": [
+        -49.0,
+        94.0,
+        12.1
+      ],
+      "measured_size_mm": [
+        14.0,
+        32.0,
+        12.1
+      ],
+      "expected_footprint_mm": [
+        32.0,
+        14.0
+      ],
+      "expected_overall_h_mm": 12.1,
+      "max_error_mm": 0.0,
+      "pass": true
+    },
+    "soil_probe": {
+      "present": true,
+      "bbox_min_mm": [
+        -150.0,
+        74.0,
+        0.0
+      ],
+      "bbox_max_mm": [
+        -90.0,
+        94.0,
+        1.6
+      ],
+      "measured_size_mm": [
+        60.0,
+        20.0,
+        1.6
+      ],
+      "expected_footprint_mm": [
+        60.0,
+        20.0
+      ],
+      "expected_overall_h_mm": 1.6,
+      "max_error_mm": 0.0,
+      "pass": true
+    },
+    "ky037_sound": {
+      "present": true,
+      "bbox_min_mm": [
+        88.5,
+        0.5,
+        0.0
+      ],
+      "bbox_max_mm": [
+        123.5,
+        15.5,
+        13.1
+      ],
+      "measured_size_mm": [
+        35.0,
+        15.0,
+        13.1
+      ],
+      "expected_footprint_mm": [
+        35.0,
+        15.0
+      ],
+      "expected_overall_h_mm": 13.1,
+      "max_error_mm": 0.0,
+      "pass": true
+    }
+  },
+  "module_collisions": [],
+  "wire_endpoints": [
+    {
+      "wire_id": "W01",
+      "hub": "J1.1",
+      "module": "psu_5v.+5V",
+      "color": "Red",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W02",
+      "hub": "J1.2",
+      "module": "psu_5v.GND",
+      "color": "Black",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W03",
+      "hub": "J3.1",
+      "module": "sg90_servo.PWM (Orange)",
+      "color": "Orange",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W04",
+      "hub": "J3.2",
+      "module": "sg90_servo.VCC (Red)",
+      "color": "Red",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W05",
+      "hub": "J3.3",
+      "module": "sg90_servo.GND (Brown)",
+      "color": "Black",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W06",
+      "hub": "J4.1",
+      "module": "led_living.Anode (+)",
+      "color": "Yellow",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W07",
+      "hub": "J4.2",
+      "module": "led_living.Cathode (-)",
+      "color": "Black",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W08",
+      "hub": "J5.1",
+      "module": "led_bedroom.Anode (+)",
+      "color": "Purple",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W09",
+      "hub": "J5.2",
+      "module": "led_bedroom.Cathode (-)",
+      "color": "White",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W10",
+      "hub": "J7.1",
+      "module": "relay1_pump.VCC",
+      "color": "Red",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W11",
+      "hub": "J7.2",
+      "module": "relay1_pump.GND",
+      "color": "Black",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W12",
+      "hub": "J7.3",
+      "module": "relay1_pump.IN",
+      "color": "Green",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W13",
+      "hub": "J8.1",
+      "module": "relay1_pump.COM (Screw)",
+      "color": "Red",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W14",
+      "hub": "J8.2",
+      "module": "relay1_pump.NO (Screw)",
+      "color": "Yellow",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W15",
+      "hub": "J2.1",
+      "module": "pump_unit.Pump + (Red)",
+      "color": "Red",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W16",
+      "hub": "J2.2",
+      "module": "pump_unit.Pump - (Black)",
+      "color": "Black",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W17",
+      "hub": "J6.1",
+      "module": "buzzer_alarm.Buzzer (+)",
+      "color": "Red",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W18",
+      "hub": "J6.2",
+      "module": "buzzer_alarm.Buzzer (-)",
+      "color": "Orange",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W19",
+      "hub": "J9.1",
+      "module": "relay2_speaker.DC+",
+      "color": "Red",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W20",
+      "hub": "J9.2",
+      "module": "relay2_speaker.DC-",
+      "color": "Black",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W21",
+      "hub": "J9.3",
+      "module": "relay2_speaker.IN",
+      "color": "Cyan",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W22",
+      "hub": "J10.1",
+      "module": "relay2_speaker.COM (Screw)",
+      "color": "Red",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W23",
+      "hub": "J10.2",
+      "module": "relay2_speaker.NO (Screw)",
+      "color": "Orange",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W24",
+      "hub": "J11.1",
+      "module": "pam8403_amp.5V+",
+      "color": "Red",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W25",
+      "hub": "J11.2",
+      "module": "pam8403_amp.5V-",
+      "color": "Black",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W26",
+      "hub": "J12.1",
+      "module": "pam8403_amp.L (Audio In)",
+      "color": "White",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W27",
+      "hub": "J12.2",
+      "module": "pam8403_amp.GND (Audio \u22a5)",
+      "color": "Black",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W28",
+      "hub": "PAM8403.L_OUT+",
+      "module": "speaker_mini.SPK +",
+      "color": "Yellow",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W29",
+      "hub": "PAM8403.L_OUT-",
+      "module": "speaker_mini.SPK -",
+      "color": "Brown",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W30",
+      "hub": "J13.1",
+      "module": "dht11_sensor.VCC (+)",
+      "color": "Red",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W31",
+      "hub": "J13.2",
+      "module": "dht11_sensor.DATA (OUT)",
+      "color": "Blue",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W32",
+      "hub": "J13.3",
+      "module": "dht11_sensor.GND (-)",
+      "color": "Black",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W33",
+      "hub": "J14.1",
+      "module": "soil_lm393.VCC",
+      "color": "Red",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W34",
+      "hub": "J14.2",
+      "module": "soil_lm393.GND",
+      "color": "Black",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W35",
+      "hub": "J14.3",
+      "module": "soil_lm393.AO",
+      "color": "Green",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W36",
+      "hub": "LM393.P1",
+      "module": "soil_probe.Prong A",
+      "color": "Yellow",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W37",
+      "hub": "LM393.P2",
+      "module": "soil_probe.Prong B",
+      "color": "Orange",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W38",
+      "hub": "J15.1",
+      "module": "ky037_sound.+ (VCC)",
+      "color": "Red",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W39",
+      "hub": "J15.2",
+      "module": "ky037_sound.G (GND)",
+      "color": "Black",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    },
+    {
+      "wire_id": "W40",
+      "hub": "J15.3",
+      "module": "ky037_sound.DO",
+      "color": "Yellow",
+      "start_err_mm": 0.0,
+      "end_err_mm": 0.0,
+      "pass": true
+    }
+  ],
+  "wire_clipping_violations": [],
+  "glb_audit": {
+    "glb_path": "C:\\Users\\LENOVO\\datn-wt\\hw12\\hardware\\blender\\system_wired_assembly.glb",
+    "glb_bytes": 2840080,
+    "glb_mb": 2.709,
+    "size_under_5mb": true,
+    "total_nodes": 468,
+    "wire_nodes_found": 40,
+    "missing_module_nodes": [],
+    "forbidden_nodes": [],
+    "pass": true
+  }
+}
