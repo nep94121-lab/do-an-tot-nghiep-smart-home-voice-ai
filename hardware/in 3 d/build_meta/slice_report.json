@@ -1,0 +1,3635 @@
+{
+  "slicer_cli": "C:\\Program Files\\Prusa3D\\PrusaSlicer\\prusa-slicer-console.exe",
+  "bed_mm": [
+    180.0,
+    200.0,
+    250.0
+  ],
+  "usable_mm": [
+    170.0,
+    190.0,
+    245.0
+  ],
+  "slice_profile": {
+    "arrange": false,
+    "center": false,
+    "layer_height_mm": 0.2,
+    "first_layer_height_mm": 0.2,
+    "nozzle_diameter_mm": 0.4,
+    "filament_diameter_mm": 1.75,
+    "filament_density_g_cm3": 1.24,
+    "perimeters": 3,
+    "fill_density": "20%",
+    "fill_pattern": "gyroid",
+    "support_material": 0,
+    "skirts": 1,
+    "skirt_distance_mm": 2
+  },
+  "all_passed": true,
+  "elapsed_sec": 111.85,
+  "parts_summary": {
+    "total_parts": 57,
+    "passed_parts": 57,
+    "failed_parts": [],
+    "all_manifold": true,
+    "all_flat_z0": true,
+    "all_fit_usable_rotatable": true
+  },
+  "totals": {
+    "total_plates": 17,
+    "plates_passed": 17,
+    "total_part_instances": 99,
+    "total_print_time_sec": 394252,
+    "total_print_time_str": "109h 30m 52s",
+    "total_print_time_hours": 109.51,
+    "total_filament_mm": 347313.58,
+    "total_filament_m": 347.31,
+    "total_filament_cm3": 835.39,
+    "total_filament_g": 1035.87,
+    "any_plate_needs_supports": false
+  },
+  "screwless_audit": {
+    "panel_pieces_audited": 30,
+    "support_parts_audited": 18,
+    "furniture_parts_audited": 9,
+    "stripped_fastener_holes_count": 106,
+    "kept_functional_holes_count": 69,
+    "mortise_slots_injected_count": 51,
+    "fastener_leaks": [],
+    "glue_mentions": [],
+    "passed": true
+  },
+  "failed_plates": [],
+  "plates": [
+    {
+      "plate_index": 1,
+      "plate_id": "PLATE01_base_walls",
+      "stl_file": "plates/PLATE01_base_walls.stl",
+      "threemf_file": "plates/PLATE01_base_walls.3mf",
+      "expected_part_count": 6,
+      "unique_parts": [
+        "P01B_BASE_HOUSE_piece4of6",
+        "P08_DOOR_LEAF",
+        "P14_SOIL_BRIDGE",
+        "SUP07_RELAY_SNAP_CADDY",
+        "SUP10_DOOR_MORTISE_HINGE",
+        "SUP12_DHT11_SNAP_CRADLE"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        166.375,
+        189.95,
+        11.4
+      ],
+      "stl_min_mm": [
+        6.812,
+        5.025,
+        0.0
+      ],
+      "stl_max_mm": [
+        173.187,
+        194.975,
+        11.4
+      ],
+      "stl_facets": 27998,
+      "stl_volume_mm3": 85748.09,
+      "threemf_info_ok": true,
+      "threemf_object_count": 6,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            131.375,
+            130.95,
+            3.0
+          ],
+          "facets": 6364,
+          "manifold": true,
+          "volume_mm3": 48249.77
+        },
+        {
+          "index": 2,
+          "size_mm": [
+            100.0,
+            56.0,
+            3.0
+          ],
+          "facets": 6206,
+          "manifold": true,
+          "volume_mm3": 14150.79
+        },
+        {
+          "index": 3,
+          "size_mm": [
+            32.0,
+            126.0,
+            3.0
+          ],
+          "facets": 4434,
+          "manifold": true,
+          "volume_mm3": 11468.8
+        },
+        {
+          "index": 4,
+          "size_mm": [
+            30.4,
+            54.4,
+            11.4
+          ],
+          "facets": 6248,
+          "manifold": true,
+          "volume_mm3": 6862.56
+        },
+        {
+          "index": 5,
+          "size_mm": [
+            28.0,
+            32.4,
+            11.0
+          ],
+          "facets": 1784,
+          "manifold": true,
+          "volume_mm3": 4383.07
+        },
+        {
+          "index": 6,
+          "size_mm": [
+            27.2,
+            12.7,
+            6.2
+          ],
+          "facets": 2962,
+          "manifold": true,
+          "volume_mm3": 634.32
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [
+        "print warning: Detected print stability issues:",
+        "SUP10_DOOR_MORTISE_HINGE_copy2of2",
+        "Low bed adhesion",
+        "Consider enabling supports.",
+        "Also consider enabling brim."
+      ],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": true,
+      "low_bed_adhesion_parts": [
+        "SUP10_DOOR_MORTISE_HINGE_copy2of2"
+      ],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (in nam phang Z=0, overhang <= 45 deg). PrusaSlicer ghi chu 'Low bed adhesion' cho chi tiet nho phang (SUP10_DOOR_MORTISE_HINGE_copy2of2) -> khuyen nghi ban PEI sach hoac brim tuy chon, khong can support.",
+      "estimated_time_str": "7h 22m 38s",
+      "estimated_time_sec": 26558,
+      "filament_mm": 22525.83,
+      "filament_m": 22.53,
+      "filament_cm3": 54.18,
+      "filament_g": 67.18,
+      "layer_count": 57,
+      "extrusion_moves": 247436,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 4.633,
+        "x_max": 175.366,
+        "y_min": 2.846,
+        "y_max": 197.154,
+        "z_min": 0.2,
+        "z_max": 11.4
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 7.012,
+        "x_max": 172.987,
+        "y_min": 5.225,
+        "y_max": 194.775,
+        "z_min": 0.2,
+        "z_max": 11.4
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 6.53,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 2,
+      "plate_id": "PLATE02_base_tech",
+      "stl_file": "plates/PLATE02_base_tech.stl",
+      "threemf_file": "plates/PLATE02_base_tech.3mf",
+      "expected_part_count": 12,
+      "unique_parts": [
+        "FUR01_SOFA",
+        "FUR02_TV_STAND",
+        "FUR07_MINI_TREE",
+        "FUR09_FLOOR_TENON_PEG",
+        "P01B_BASE_HOUSE_piece1of6",
+        "P15_TECH_FASCIA_piece1of2",
+        "SUP05B_CARRIER_TENON_PEG",
+        "SUP15_WATER_TANK_LINER"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        167.95,
+        189.45,
+        45.0
+      ],
+      "stl_min_mm": [
+        6.025,
+        5.275,
+        0.0
+      ],
+      "stl_max_mm": [
+        173.975,
+        194.725,
+        45.0
+      ],
+      "stl_facets": 27310,
+      "stl_volume_mm3": 159813.38,
+      "threemf_info_ok": true,
+      "threemf_object_count": 12,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            130.95,
+            90.45,
+            3.0
+          ],
+          "facets": 6822,
+          "manifold": true,
+          "volume_mm3": 33380.12
+        },
+        {
+          "index": 2,
+          "size_mm": [
+            142.95,
+            45.0,
+            3.0
+          ],
+          "facets": 5140,
+          "manifold": true,
+          "volume_mm3": 11030.01
+        },
+        {
+          "index": 3,
+          "size_mm": [
+            119.0,
+            46.5,
+            45.0
+          ],
+          "facets": 2986,
+          "manifold": true,
+          "volume_mm3": 40535.66
+        },
+        {
+          "index": 4,
+          "size_mm": [
+            34.0,
+            76.0,
+            34.0
+          ],
+          "facets": 3014,
+          "manifold": true,
+          "volume_mm3": 51009.84
+        },
+        {
+          "index": 5,
+          "size_mm": [
+            43.0,
+            38.0,
+            3.0
+          ],
+          "facets": 2092,
+          "manifold": true,
+          "volume_mm3": 2027.64
+        },
+        {
+          "index": 6,
+          "size_mm": [
+            22.0,
+            56.0,
+            18.0
+          ],
+          "facets": 1912,
+          "manifold": true,
+          "volume_mm3": 20959.29
+        },
+        {
+          "index": 7,
+          "size_mm": [
+            7.0,
+            6.0,
+            4.0
+          ],
+          "facets": 1312,
+          "manifold": true,
+          "volume_mm3": 165.63
+        },
+        {
+          "index": 8,
+          "size_mm": [
+            6.0,
+            6.0,
+            3.0
+          ],
+          "facets": 48,
+          "manifold": true,
+          "volume_mm3": 106.69
+        },
+        {
+          "index": 9,
+          "size_mm": [
+            6.0,
+            7.0,
+            4.0
+          ],
+          "facets": 1312,
+          "manifold": true,
+          "volume_mm3": 165.63
+        },
+        {
+          "index": 10,
+          "size_mm": [
+            6.0,
+            6.0,
+            3.0
+          ],
+          "facets": 48,
+          "manifold": true,
+          "volume_mm3": 106.69
+        },
+        {
+          "index": 11,
+          "size_mm": [
+            6.0,
+            7.0,
+            4.0
+          ],
+          "facets": 1312,
+          "manifold": true,
+          "volume_mm3": 165.63
+        },
+        {
+          "index": 12,
+          "size_mm": [
+            6.0,
+            7.0,
+            4.0
+          ],
+          "facets": 1312,
+          "manifold": true,
+          "volume_mm3": 165.63
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [
+        "print warning: Detected print stability issues:",
+        "Low bed adhesion",
+        "FUR09_FLOOR_TENON_PEG_copy3of10, FUR09_FLOOR_TENON_PEG_copy1of10, FUR09_FLOOR_TENON_PEG_copy7of10, FUR09_FLOOR_TENON_PEG_copy5of10",
+        "Consider enabling supports.",
+        "Also consider enabling brim."
+      ],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": true,
+      "low_bed_adhesion_parts": [
+        "FUR09_FLOOR_TENON_PEG_copy3of10",
+        "FUR09_FLOOR_TENON_PEG_copy1of10",
+        "FUR09_FLOOR_TENON_PEG_copy7of10",
+        "FUR09_FLOOR_TENON_PEG_copy5of10"
+      ],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (overhang <= 45 deg); chi co hoc mong san rong 4.3 mm phia duoi FUR01_SOFA, FUR02_TV_STAND (short bridge PLA 0.4mm). PrusaSlicer ghi chu 'Low bed adhesion' cho chi tiet nho phang (FUR09_FLOOR_TENON_PEG_copy3of10, FUR09_FLOOR_TENON_PEG_copy1of10, FUR09_FLOOR_TENON_PEG_copy7of10, FUR09_FLOOR_TENON_PEG_copy5of10) -> khuyen nghi ban PEI sach hoac brim tuy chon, khong can support.",
+      "estimated_time_str": "11h 9m 13s",
+      "estimated_time_sec": 40153,
+      "filament_mm": 39270.34,
+      "filament_m": 39.27,
+      "filament_cm3": 94.46,
+      "filament_g": 117.13,
+      "layer_count": 225,
+      "extrusion_moves": 388580,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 3.846,
+        "x_max": 176.154,
+        "y_min": 3.096,
+        "y_max": 196.704,
+        "z_min": 0.2,
+        "z_max": 45.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 6.225,
+        "x_max": 173.775,
+        "y_min": 5.475,
+        "y_max": 194.5,
+        "z_min": 0.2,
+        "z_max": 45.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 9.41,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 3,
+      "plate_id": "PLATE03_base",
+      "stl_file": "plates/PLATE03_base.stl",
+      "threemf_file": "plates/PLATE03_base.3mf",
+      "expected_part_count": 1,
+      "unique_parts": [
+        "P01A_BASE_TECH_piece2of3"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        160.95,
+        181.875,
+        3.0
+      ],
+      "stl_min_mm": [
+        9.525,
+        9.062,
+        0.0
+      ],
+      "stl_max_mm": [
+        170.475,
+        190.937,
+        3.0
+      ],
+      "stl_facets": 6886,
+      "stl_volume_mm3": 80526.73,
+      "threemf_info_ok": true,
+      "threemf_object_count": 1,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            160.95,
+            181.875,
+            3.0
+          ],
+          "facets": 6886,
+          "manifold": true,
+          "volume_mm3": 80526.9
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": false,
+      "low_bed_adhesion_parts": [],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (in nam phang Z=0, overhang <= 45 deg).",
+      "estimated_time_str": "6h 17m 26s",
+      "estimated_time_sec": 22646,
+      "filament_mm": 19154.9,
+      "filament_m": 19.15,
+      "filament_cm3": 46.07,
+      "filament_g": 57.13,
+      "layer_count": 15,
+      "extrusion_moves": 176245,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 7.346,
+        "x_max": 172.654,
+        "y_min": 6.883,
+        "y_max": 193.116,
+        "z_min": 0.2,
+        "z_max": 3.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 9.725,
+        "x_max": 170.275,
+        "y_min": 9.262,
+        "y_max": 190.737,
+        "z_min": 0.2,
+        "z_max": 3.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 2.7,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 4,
+      "plate_id": "PLATE04_base_mounts",
+      "stl_file": "plates/PLATE04_base_mounts.stl",
+      "threemf_file": "plates/PLATE04_base_mounts.3mf",
+      "expected_part_count": 9,
+      "unique_parts": [
+        "FUR05_BEDSIDE_TABLE",
+        "P01B_BASE_HOUSE_piece2of6",
+        "P01B_BASE_HOUSE_piece3of6",
+        "P17_BASE_JOINER",
+        "SUP03_SEAM_U_CLIP",
+        "SUP05B_CARRIER_TENON_PEG",
+        "SUP05_P16_TENON_RISER",
+        "SUP10_DOOR_MORTISE_HINGE"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        168.45,
+        186.45,
+        28.0
+      ],
+      "stl_min_mm": [
+        5.775,
+        6.775,
+        0.0
+      ],
+      "stl_max_mm": [
+        174.225,
+        193.225,
+        28.0
+      ],
+      "stl_facets": 30204,
+      "stl_volume_mm3": 91458.23,
+      "threemf_info_ok": true,
+      "threemf_object_count": 9,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            150.45,
+            90.45,
+            3.0
+          ],
+          "facets": 7380,
+          "manifold": true,
+          "volume_mm3": 37094.26
+        },
+        {
+          "index": 2,
+          "size_mm": [
+            136.5,
+            90.45,
+            3.0
+          ],
+          "facets": 8078,
+          "manifold": true,
+          "volume_mm3": 34136.21
+        },
+        {
+          "index": 3,
+          "size_mm": [
+            28.0,
+            64.0,
+            6.0
+          ],
+          "facets": 4478,
+          "manifold": true,
+          "volume_mm3": 5739.26
+        },
+        {
+          "index": 4,
+          "size_mm": [
+            22.0,
+            26.0,
+            28.0
+          ],
+          "facets": 2306,
+          "manifold": true,
+          "volume_mm3": 10583.33
+        },
+        {
+          "index": 5,
+          "size_mm": [
+            12.7,
+            27.2,
+            6.2
+          ],
+          "facets": 2962,
+          "manifold": true,
+          "volume_mm3": 634.32
+        },
+        {
+          "index": 6,
+          "size_mm": [
+            9.2,
+            34.0,
+            9.0
+          ],
+          "facets": 2586,
+          "manifold": true,
+          "volume_mm3": 2160.26
+        },
+        {
+          "index": 7,
+          "size_mm": [
+            14.0,
+            12.0,
+            9.0
+          ],
+          "facets": 2318,
+          "manifold": true,
+          "volume_mm3": 897.71
+        },
+        {
+          "index": 8,
+          "size_mm": [
+            6.0,
+            6.0,
+            3.0
+          ],
+          "facets": 48,
+          "manifold": true,
+          "volume_mm3": 106.69
+        },
+        {
+          "index": 9,
+          "size_mm": [
+            6.0,
+            6.0,
+            3.0
+          ],
+          "facets": 48,
+          "manifold": true,
+          "volume_mm3": 106.69
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [
+        "print warning: Detected print stability issues:",
+        "SUP10_DOOR_MORTISE_HINGE_copy1of2",
+        "Low bed adhesion",
+        "Consider enabling supports.",
+        "Also consider enabling brim."
+      ],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": true,
+      "low_bed_adhesion_parts": [
+        "SUP10_DOOR_MORTISE_HINGE_copy1of2"
+      ],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (overhang <= 45 deg); chi co hoc mong san rong 4.3 mm phia duoi FUR05_BEDSIDE_TABLE (short bridge PLA 0.4mm). PrusaSlicer ghi chu 'Low bed adhesion' cho chi tiet nho phang (SUP10_DOOR_MORTISE_HINGE_copy1of2) -> khuyen nghi ban PEI sach hoac brim tuy chon, khong can support.",
+      "estimated_time_str": "7h 18m 56s",
+      "estimated_time_sec": 26336,
+      "filament_mm": 22542.03,
+      "filament_m": 22.54,
+      "filament_cm3": 54.22,
+      "filament_g": 67.23,
+      "layer_count": 140,
+      "extrusion_moves": 242038,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 3.596,
+        "x_max": 176.404,
+        "y_min": 4.596,
+        "y_max": 195.404,
+        "z_min": 0.2,
+        "z_max": 28.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 5.975,
+        "x_max": 174.025,
+        "y_min": 6.975,
+        "y_max": 193.025,
+        "z_min": 0.2,
+        "z_max": 28.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 7.73,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 5,
+      "plate_id": "PLATE05_base_mounts",
+      "stl_file": "plates/PLATE05_base_mounts.stl",
+      "threemf_file": "plates/PLATE05_base_mounts.3mf",
+      "expected_part_count": 10,
+      "unique_parts": [
+        "FUR09_FLOOR_TENON_PEG",
+        "P01B_BASE_HOUSE_piece6of6",
+        "P15_TECH_FASCIA_piece2of2",
+        "SUP01_CORNER_CLIP_WALL",
+        "SUP04_BASE_FOOT_CLIP",
+        "SUP05B_CARRIER_TENON_PEG",
+        "SUP07_RELAY_SNAP_CADDY",
+        "SUP08_PAM8403_SNAP_TRAY",
+        "SUP11_SG90_SNAP_SADDLE",
+        "SUP13_KY037_SNAP_CRADLE"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        169.5,
+        190.0,
+        14.0
+      ],
+      "stl_min_mm": [
+        5.25,
+        5.0,
+        0.0
+      ],
+      "stl_max_mm": [
+        174.75,
+        195.0,
+        14.0
+      ],
+      "stl_facets": 40320,
+      "stl_volume_mm3": 90347.23,
+      "threemf_info_ok": true,
+      "threemf_object_count": 10,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            136.5,
+            131.375,
+            3.0
+          ],
+          "facets": 7618,
+          "manifold": true,
+          "volume_mm3": 48953.63
+        },
+        {
+          "index": 2,
+          "size_mm": [
+            107.0,
+            51.0,
+            3.0
+          ],
+          "facets": 8886,
+          "manifold": true,
+          "volume_mm3": 10534.58
+        },
+        {
+          "index": 3,
+          "size_mm": [
+            30.4,
+            54.4,
+            11.4
+          ],
+          "facets": 6248,
+          "manifold": true,
+          "volume_mm3": 6862.56
+        },
+        {
+          "index": 4,
+          "size_mm": [
+            23.0,
+            36.0,
+            8.8
+          ],
+          "facets": 5936,
+          "manifold": true,
+          "volume_mm3": 4404.38
+        },
+        {
+          "index": 5,
+          "size_mm": [
+            30.0,
+            30.0,
+            14.0
+          ],
+          "facets": 4666,
+          "manifold": true,
+          "volume_mm3": 10375.37
+        },
+        {
+          "index": 6,
+          "size_mm": [
+            19.4,
+            46.0,
+            11.0
+          ],
+          "facets": 2112,
+          "manifold": true,
+          "volume_mm3": 3301.71
+        },
+        {
+          "index": 7,
+          "size_mm": [
+            18.0,
+            42.0,
+            8.6
+          ],
+          "facets": 1498,
+          "manifold": true,
+          "volume_mm3": 1889.76
+        },
+        {
+          "index": 8,
+          "size_mm": [
+            24.0,
+            24.0,
+            14.0
+          ],
+          "facets": 1996,
+          "manifold": true,
+          "volume_mm3": 3750.98
+        },
+        {
+          "index": 9,
+          "size_mm": [
+            7.0,
+            6.0,
+            4.0
+          ],
+          "facets": 1312,
+          "manifold": true,
+          "volume_mm3": 165.63
+        },
+        {
+          "index": 10,
+          "size_mm": [
+            6.0,
+            6.0,
+            3.0
+          ],
+          "facets": 48,
+          "manifold": true,
+          "volume_mm3": 106.69
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [
+        "print warning: Detected print stability issues:",
+        "FUR09_FLOOR_TENON_PEG_copy10of10",
+        "Low bed adhesion",
+        "Consider enabling supports.",
+        "Also consider enabling brim."
+      ],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": true,
+      "low_bed_adhesion_parts": [
+        "FUR09_FLOOR_TENON_PEG_copy10of10"
+      ],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (in nam phang Z=0, overhang <= 45 deg). PrusaSlicer ghi chu 'Low bed adhesion' cho chi tiet nho phang (FUR09_FLOOR_TENON_PEG_copy10of10) -> khuyen nghi ban PEI sach hoac brim tuy chon, khong can support.",
+      "estimated_time_str": "7h 48m 54s",
+      "estimated_time_sec": 28134,
+      "filament_mm": 23862.12,
+      "filament_m": 23.86,
+      "filament_cm3": 57.4,
+      "filament_g": 71.17,
+      "layer_count": 70,
+      "extrusion_moves": 286673,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 3.071,
+        "x_max": 176.928,
+        "y_min": 2.821,
+        "y_max": 197.179,
+        "z_min": 0.2,
+        "z_max": 14.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 5.45,
+        "x_max": 174.55,
+        "y_min": 5.2,
+        "y_max": 194.8,
+        "z_min": 0.2,
+        "z_max": 14.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 3.44,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 6,
+      "plate_id": "PLATE06_base_garden",
+      "stl_file": "plates/PLATE06_base_garden.stl",
+      "threemf_file": "plates/PLATE06_base_garden.3mf",
+      "expected_part_count": 9,
+      "unique_parts": [
+        "FUR09_FLOOR_TENON_PEG",
+        "P01A_BASE_TECH_piece1of3",
+        "P07_SERVO_SHELF",
+        "P10_WATER_DIVIDER",
+        "SUP01_CORNER_CLIP_WALL",
+        "SUP04_BASE_FOOT_CLIP",
+        "SUP05B_CARRIER_TENON_PEG"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        169.95,
+        187.125,
+        14.0
+      ],
+      "stl_min_mm": [
+        5.025,
+        6.438,
+        0.0
+      ],
+      "stl_max_mm": [
+        174.975,
+        193.563,
+        14.0
+      ],
+      "stl_facets": 23918,
+      "stl_volume_mm3": 89765.51,
+      "threemf_info_ok": true,
+      "threemf_object_count": 9,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            99.95,
+            181.875,
+            3.0
+          ],
+          "facets": 6878,
+          "manifold": true,
+          "volume_mm3": 51715.07
+        },
+        {
+          "index": 2,
+          "size_mm": [
+            57.0,
+            126.0,
+            3.0
+          ],
+          "facets": 4584,
+          "manifold": true,
+          "volume_mm3": 19619.43
+        },
+        {
+          "index": 3,
+          "size_mm": [
+            34.0,
+            49.125,
+            3.0
+          ],
+          "facets": 4338,
+          "manifold": true,
+          "volume_mm3": 3819.97
+        },
+        {
+          "index": 4,
+          "size_mm": [
+            30.0,
+            30.0,
+            14.0
+          ],
+          "facets": 4666,
+          "manifold": true,
+          "volume_mm3": 10375.37
+        },
+        {
+          "index": 5,
+          "size_mm": [
+            24.0,
+            24.0,
+            14.0
+          ],
+          "facets": 1996,
+          "manifold": true,
+          "volume_mm3": 3750.98
+        },
+        {
+          "index": 6,
+          "size_mm": [
+            6.0,
+            6.0,
+            3.0
+          ],
+          "facets": 48,
+          "manifold": true,
+          "volume_mm3": 106.69
+        },
+        {
+          "index": 7,
+          "size_mm": [
+            6.0,
+            6.0,
+            3.0
+          ],
+          "facets": 48,
+          "manifold": true,
+          "volume_mm3": 106.69
+        },
+        {
+          "index": 8,
+          "size_mm": [
+            6.0,
+            6.0,
+            3.0
+          ],
+          "facets": 48,
+          "manifold": true,
+          "volume_mm3": 106.69
+        },
+        {
+          "index": 9,
+          "size_mm": [
+            7.0,
+            6.0,
+            4.0
+          ],
+          "facets": 1312,
+          "manifold": true,
+          "volume_mm3": 165.63
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [
+        "print warning: Detected print stability issues:",
+        "FUR09_FLOOR_TENON_PEG_copy6of10",
+        "Low bed adhesion",
+        "Consider enabling supports.",
+        "Also consider enabling brim."
+      ],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": true,
+      "low_bed_adhesion_parts": [
+        "FUR09_FLOOR_TENON_PEG_copy6of10"
+      ],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (in nam phang Z=0, overhang <= 45 deg). PrusaSlicer ghi chu 'Low bed adhesion' cho chi tiet nho phang (FUR09_FLOOR_TENON_PEG_copy6of10) -> khuyen nghi ban PEI sach hoac brim tuy chon, khong can support.",
+      "estimated_time_str": "6h 52m 24s",
+      "estimated_time_sec": 24744,
+      "filament_mm": 21830.47,
+      "filament_m": 21.83,
+      "filament_cm3": 52.51,
+      "filament_g": 65.11,
+      "layer_count": 70,
+      "extrusion_moves": 217253,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 2.846,
+        "x_max": 177.154,
+        "y_min": 4.259,
+        "y_max": 195.742,
+        "z_min": 0.2,
+        "z_max": 14.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 5.225,
+        "x_max": 174.775,
+        "y_min": 6.638,
+        "y_max": 193.363,
+        "z_min": 0.2,
+        "z_max": 14.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 1.87,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 7,
+      "plate_id": "PLATE07_base",
+      "stl_file": "plates/PLATE07_base.stl",
+      "threemf_file": "plates/PLATE07_base.3mf",
+      "expected_part_count": 1,
+      "unique_parts": [
+        "P01A_BASE_TECH_piece3of3"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        157.0,
+        181.875,
+        3.0
+      ],
+      "stl_min_mm": [
+        11.5,
+        9.062,
+        0.0
+      ],
+      "stl_max_mm": [
+        168.5,
+        190.937,
+        3.0
+      ],
+      "stl_facets": 6980,
+      "stl_volume_mm3": 77849.88,
+      "threemf_info_ok": true,
+      "threemf_object_count": 1,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            157.0,
+            181.875,
+            3.0
+          ],
+          "facets": 6980,
+          "manifold": true,
+          "volume_mm3": 77849.8
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": false,
+      "low_bed_adhesion_parts": [],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (in nam phang Z=0, overhang <= 45 deg).",
+      "estimated_time_str": "6h 13m 27s",
+      "estimated_time_sec": 22407,
+      "filament_mm": 18758.73,
+      "filament_m": 18.76,
+      "filament_cm3": 45.12,
+      "filament_g": 55.95,
+      "layer_count": 15,
+      "extrusion_moves": 177243,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 9.321,
+        "x_max": 170.679,
+        "y_min": 6.883,
+        "y_max": 193.116,
+        "z_min": 0.2,
+        "z_max": 3.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 11.7,
+        "x_max": 168.3,
+        "y_min": 9.262,
+        "y_max": 190.737,
+        "z_min": 0.2,
+        "z_max": 3.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 1.92,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 8,
+      "plate_id": "PLATE08_base_garden",
+      "stl_file": "plates/PLATE08_base_garden.stl",
+      "threemf_file": "plates/PLATE08_base_garden.3mf",
+      "expected_part_count": 4,
+      "unique_parts": [
+        "FUR07_MINI_TREE",
+        "P01B_BASE_HOUSE_piece5of6",
+        "P11_GARDEN_RIGHT",
+        "SUP03_SEAM_U_CLIP"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        167.0,
+        189.575,
+        9.0
+      ],
+      "stl_min_mm": [
+        6.5,
+        5.213,
+        0.0
+      ],
+      "stl_max_mm": [
+        173.5,
+        194.788,
+        9.0
+      ],
+      "stl_facets": 15504,
+      "stl_volume_mm3": 75548.12,
+      "threemf_info_ok": true,
+      "threemf_object_count": 4,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            150.45,
+            131.375,
+            3.0
+          ],
+          "facets": 6984,
+          "manifold": true,
+          "volume_mm3": 53658.56
+        },
+        {
+          "index": 2,
+          "size_mm": [
+            126.0,
+            51.0,
+            3.0
+          ],
+          "facets": 3842,
+          "manifold": true,
+          "volume_mm3": 17700.91
+        },
+        {
+          "index": 3,
+          "size_mm": [
+            38.0,
+            43.0,
+            3.0
+          ],
+          "facets": 2092,
+          "manifold": true,
+          "volume_mm3": 2027.64
+        },
+        {
+          "index": 4,
+          "size_mm": [
+            34.0,
+            9.2,
+            9.0
+          ],
+          "facets": 2586,
+          "manifold": true,
+          "volume_mm3": 2160.26
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": false,
+      "low_bed_adhesion_parts": [],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (in nam phang Z=0, overhang <= 45 deg).",
+      "estimated_time_str": "6h 2m 35s",
+      "estimated_time_sec": 21755,
+      "filament_mm": 18853.97,
+      "filament_m": 18.85,
+      "filament_cm3": 45.35,
+      "filament_g": 56.23,
+      "layer_count": 45,
+      "extrusion_moves": 180756,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 4.321,
+        "x_max": 175.679,
+        "y_min": 3.034,
+        "y_max": 196.967,
+        "z_min": 0.2,
+        "z_max": 9.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 6.7,
+        "x_max": 173.3,
+        "y_min": 5.413,
+        "y_max": 194.588,
+        "z_min": 0.2,
+        "z_max": 9.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 1.71,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 9,
+      "plate_id": "PLATE09_walls_furniture",
+      "stl_file": "plates/PLATE09_walls_furniture.stl",
+      "threemf_file": "plates/PLATE09_walls_furniture.3mf",
+      "expected_part_count": 3,
+      "unique_parts": [
+        "FUR03_TV_SCREEN",
+        "P05_WALL_FRONT_piece2of3",
+        "P05_WALL_FRONT_piece3of3"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        168.0,
+        190.0,
+        5.0
+      ],
+      "stl_min_mm": [
+        6.0,
+        5.0,
+        0.0
+      ],
+      "stl_max_mm": [
+        174.0,
+        195.0,
+        5.0
+      ],
+      "stl_facets": 15236,
+      "stl_volume_mm3": 45786.39,
+      "threemf_info_ok": true,
+      "threemf_object_count": 3,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            167.45,
+            150.0,
+            3.0
+          ],
+          "facets": 7214,
+          "manifold": true,
+          "volume_mm3": 28034.65
+        },
+        {
+          "index": 2,
+          "size_mm": [
+            117.0,
+            37.0,
+            3.0
+          ],
+          "facets": 5864,
+          "manifold": true,
+          "volume_mm3": 11556.34
+        },
+        {
+          "index": 3,
+          "size_mm": [
+            48.0,
+            35.0,
+            5.0
+          ],
+          "facets": 2158,
+          "manifold": true,
+          "volume_mm3": 6195.48
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": false,
+      "low_bed_adhesion_parts": [],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (in nam phang Z=0, overhang <= 45 deg).",
+      "estimated_time_str": "3h 43m 52s",
+      "estimated_time_sec": 13432,
+      "filament_mm": 11829.72,
+      "filament_m": 11.83,
+      "filament_cm3": 28.45,
+      "filament_g": 35.28,
+      "layer_count": 25,
+      "extrusion_moves": 128842,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 3.821,
+        "x_max": 176.179,
+        "y_min": 2.821,
+        "y_max": 197.179,
+        "z_min": 0.2,
+        "z_max": 5.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 6.2,
+        "x_max": 173.8,
+        "y_min": 5.2,
+        "y_max": 194.8,
+        "z_min": 0.2,
+        "z_max": 5.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 1.65,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 10,
+      "plate_id": "PLATE10_walls_mounts",
+      "stl_file": "plates/PLATE10_walls_mounts.stl",
+      "threemf_file": "plates/PLATE10_walls_mounts.3mf",
+      "expected_part_count": 8,
+      "unique_parts": [
+        "FUR04_BED",
+        "FUR09_FLOOR_TENON_PEG",
+        "P02_WALL_BACK_piece2of3",
+        "SUP03_SEAM_U_CLIP",
+        "SUP05B_CARRIER_TENON_PEG",
+        "SUP05_P16_TENON_RISER",
+        "SUP06_HUB_PCB_SNAP_CARRIER"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        169.0,
+        189.95,
+        28.0
+      ],
+      "stl_min_mm": [
+        5.5,
+        5.025,
+        0.0
+      ],
+      "stl_max_mm": [
+        174.5,
+        194.975,
+        28.0
+      ],
+      "stl_facets": 28884,
+      "stl_volume_mm3": 157680.25,
+      "threemf_info_ok": true,
+      "threemf_object_count": 8,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            150.0,
+            96.95,
+            3.0
+          ],
+          "facets": 6546,
+          "manifold": true,
+          "volume_mm3": 38888.41
+        },
+        {
+          "index": 2,
+          "size_mm": [
+            104.0,
+            84.0,
+            13.6
+          ],
+          "facets": 10840,
+          "manifold": true,
+          "volume_mm3": 16653.95
+        },
+        {
+          "index": 3,
+          "size_mm": [
+            62.0,
+            90.0,
+            28.0
+          ],
+          "facets": 2648,
+          "manifold": true,
+          "volume_mm3": 96651.2
+        },
+        {
+          "index": 4,
+          "size_mm": [
+            9.2,
+            34.0,
+            9.0
+          ],
+          "facets": 2586,
+          "manifold": true,
+          "volume_mm3": 2160.26
+        },
+        {
+          "index": 5,
+          "size_mm": [
+            9.2,
+            34.0,
+            9.0
+          ],
+          "facets": 2586,
+          "manifold": true,
+          "volume_mm3": 2160.26
+        },
+        {
+          "index": 6,
+          "size_mm": [
+            14.0,
+            12.0,
+            9.0
+          ],
+          "facets": 2318,
+          "manifold": true,
+          "volume_mm3": 897.71
+        },
+        {
+          "index": 7,
+          "size_mm": [
+            6.0,
+            7.0,
+            4.0
+          ],
+          "facets": 1312,
+          "manifold": true,
+          "volume_mm3": 165.63
+        },
+        {
+          "index": 8,
+          "size_mm": [
+            6.0,
+            6.0,
+            3.0
+          ],
+          "facets": 48,
+          "manifold": true,
+          "volume_mm3": 106.69
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [
+        "print warning: Detected print stability issues:",
+        "FUR09_FLOOR_TENON_PEG_copy9of10",
+        "Low bed adhesion",
+        "Consider enabling supports.",
+        "Also consider enabling brim."
+      ],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": true,
+      "low_bed_adhesion_parts": [
+        "FUR09_FLOOR_TENON_PEG_copy9of10"
+      ],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (overhang <= 45 deg); chi co hoc mong san rong 4.3 mm phia duoi FUR04_BED (short bridge PLA 0.4mm). PrusaSlicer ghi chu 'Low bed adhesion' cho chi tiet nho phang (FUR09_FLOOR_TENON_PEG_copy9of10) -> khuyen nghi ban PEI sach hoac brim tuy chon, khong can support.",
+      "estimated_time_str": "8h 50m 37s",
+      "estimated_time_sec": 31837,
+      "filament_mm": 29997.58,
+      "filament_m": 30.0,
+      "filament_cm3": 72.15,
+      "filament_g": 89.47,
+      "layer_count": 140,
+      "extrusion_moves": 451835,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 3.321,
+        "x_max": 176.679,
+        "y_min": 2.846,
+        "y_max": 197.154,
+        "z_min": 0.2,
+        "z_max": 28.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 5.7,
+        "x_max": 174.3,
+        "y_min": 5.225,
+        "y_max": 194.775,
+        "z_min": 0.2,
+        "z_max": 28.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 13.36,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 11,
+      "plate_id": "PLATE11_walls",
+      "stl_file": "plates/PLATE11_walls.stl",
+      "threemf_file": "plates/PLATE11_walls.3mf",
+      "expected_part_count": 1,
+      "unique_parts": [
+        "P06_WALL_MID"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        150.0,
+        190.0,
+        3.0
+      ],
+      "stl_min_mm": [
+        15.0,
+        5.0,
+        0.0
+      ],
+      "stl_max_mm": [
+        165.0,
+        195.0,
+        3.0
+      ],
+      "stl_facets": 6790,
+      "stl_volume_mm3": 63429.48,
+      "threemf_info_ok": true,
+      "threemf_object_count": 1,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            150.0,
+            190.0,
+            3.0
+          ],
+          "facets": 6790,
+          "manifold": true,
+          "volume_mm3": 63429.41
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": false,
+      "low_bed_adhesion_parts": [],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (in nam phang Z=0, overhang <= 45 deg).",
+      "estimated_time_str": "4h 51m 43s",
+      "estimated_time_sec": 17503,
+      "filament_mm": 15252.01,
+      "filament_m": 15.25,
+      "filament_cm3": 36.69,
+      "filament_g": 45.49,
+      "layer_count": 15,
+      "extrusion_moves": 138597,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 12.821,
+        "x_max": 167.179,
+        "y_min": 2.821,
+        "y_max": 197.179,
+        "z_min": 0.2,
+        "z_max": 3.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 15.2,
+        "x_max": 164.8,
+        "y_min": 5.2,
+        "y_max": 194.8,
+        "z_min": 0.2,
+        "z_max": 3.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 1.45,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 12,
+      "plate_id": "PLATE12_walls",
+      "stl_file": "plates/PLATE12_walls.stl",
+      "threemf_file": "plates/PLATE12_walls.3mf",
+      "expected_part_count": 1,
+      "unique_parts": [
+        "P03_WALL_LEFT"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        150.0,
+        190.0,
+        3.0
+      ],
+      "stl_min_mm": [
+        15.0,
+        5.0,
+        0.0
+      ],
+      "stl_max_mm": [
+        165.0,
+        195.0,
+        3.0
+      ],
+      "stl_facets": 6468,
+      "stl_volume_mm3": 60955.53,
+      "threemf_info_ok": true,
+      "threemf_object_count": 1,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            150.0,
+            190.0,
+            3.0
+          ],
+          "facets": 6468,
+          "manifold": true,
+          "volume_mm3": 60955.53
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": false,
+      "low_bed_adhesion_parts": [],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (in nam phang Z=0, overhang <= 45 deg).",
+      "estimated_time_str": "4h 39m 44s",
+      "estimated_time_sec": 16784,
+      "filament_mm": 14522.26,
+      "filament_m": 14.52,
+      "filament_cm3": 34.93,
+      "filament_g": 43.31,
+      "layer_count": 15,
+      "extrusion_moves": 133165,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 12.821,
+        "x_max": 167.179,
+        "y_min": 2.821,
+        "y_max": 197.179,
+        "z_min": 0.2,
+        "z_max": 3.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 15.2,
+        "x_max": 164.8,
+        "y_min": 5.2,
+        "y_max": 194.8,
+        "z_min": 0.2,
+        "z_max": 3.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 1.37,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 13,
+      "plate_id": "PLATE13_walls",
+      "stl_file": "plates/PLATE13_walls.stl",
+      "threemf_file": "plates/PLATE13_walls.3mf",
+      "expected_part_count": 1,
+      "unique_parts": [
+        "P04_WALL_RIGHT"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        150.0,
+        190.0,
+        3.0
+      ],
+      "stl_min_mm": [
+        15.0,
+        5.0,
+        0.0
+      ],
+      "stl_max_mm": [
+        165.0,
+        195.0,
+        3.0
+      ],
+      "stl_facets": 6484,
+      "stl_volume_mm3": 58694.92,
+      "threemf_info_ok": true,
+      "threemf_object_count": 1,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            150.0,
+            190.0,
+            3.0
+          ],
+          "facets": 6484,
+          "manifold": true,
+          "volume_mm3": 58694.96
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": false,
+      "low_bed_adhesion_parts": [],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (in nam phang Z=0, overhang <= 45 deg).",
+      "estimated_time_str": "4h 29m 5s",
+      "estimated_time_sec": 16145,
+      "filament_mm": 13975.59,
+      "filament_m": 13.98,
+      "filament_cm3": 33.62,
+      "filament_g": 41.68,
+      "layer_count": 15,
+      "extrusion_moves": 125908,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 12.821,
+        "x_max": 167.179,
+        "y_min": 2.821,
+        "y_max": 197.179,
+        "z_min": 0.2,
+        "z_max": 3.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 15.2,
+        "x_max": 164.8,
+        "y_min": 5.2,
+        "y_max": 194.8,
+        "z_min": 0.2,
+        "z_max": 3.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 1.49,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 14,
+      "plate_id": "PLATE14_walls",
+      "stl_file": "plates/PLATE14_walls.stl",
+      "threemf_file": "plates/PLATE14_walls.3mf",
+      "expected_part_count": 1,
+      "unique_parts": [
+        "P02_WALL_BACK_piece3of3"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        150.0,
+        182.5,
+        3.0
+      ],
+      "stl_min_mm": [
+        15.0,
+        8.75,
+        0.0
+      ],
+      "stl_max_mm": [
+        165.0,
+        191.25,
+        3.0
+      ],
+      "stl_facets": 7958,
+      "stl_volume_mm3": 53798.54,
+      "threemf_info_ok": true,
+      "threemf_object_count": 1,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            150.0,
+            182.5,
+            3.0
+          ],
+          "facets": 7958,
+          "manifold": true,
+          "volume_mm3": 53798.62
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": false,
+      "low_bed_adhesion_parts": [],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (in nam phang Z=0, overhang <= 45 deg).",
+      "estimated_time_str": "4h 11m 28s",
+      "estimated_time_sec": 15088,
+      "filament_mm": 13230.77,
+      "filament_m": 13.23,
+      "filament_cm3": 31.82,
+      "filament_g": 39.46,
+      "layer_count": 15,
+      "extrusion_moves": 123581,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 12.821,
+        "x_max": 167.179,
+        "y_min": 6.571,
+        "y_max": 193.429,
+        "z_min": 0.2,
+        "z_max": 3.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 15.2,
+        "x_max": 164.8,
+        "y_min": 8.95,
+        "y_max": 191.05,
+        "z_min": 0.2,
+        "z_max": 3.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 2.07,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 15,
+      "plate_id": "PLATE15_walls_garden",
+      "stl_file": "plates/PLATE15_walls_garden.stl",
+      "threemf_file": "plates/PLATE15_walls_garden.3mf",
+      "expected_part_count": 3,
+      "unique_parts": [
+        "P02_WALL_BACK_piece1of3",
+        "P09_GARDEN_LEFT",
+        "P17_BASE_JOINER"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        157.0,
+        185.45,
+        6.0
+      ],
+      "stl_min_mm": [
+        11.5,
+        7.275,
+        0.0
+      ],
+      "stl_max_mm": [
+        168.5,
+        192.725,
+        6.0
+      ],
+      "stl_facets": 16486,
+      "stl_volume_mm3": 76326.36,
+      "threemf_info_ok": true,
+      "threemf_object_count": 3,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            150.0,
+            118.45,
+            3.0
+          ],
+          "facets": 7000,
+          "manifold": true,
+          "volume_mm3": 50974.2
+        },
+        {
+          "index": 2,
+          "size_mm": [
+            126.0,
+            57.0,
+            3.0
+          ],
+          "facets": 5008,
+          "manifold": true,
+          "volume_mm3": 19613.18
+        },
+        {
+          "index": 3,
+          "size_mm": [
+            28.0,
+            64.0,
+            6.0
+          ],
+          "facets": 4478,
+          "manifold": true,
+          "volume_mm3": 5739.26
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": false,
+      "low_bed_adhesion_parts": [],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (in nam phang Z=0, overhang <= 45 deg).",
+      "estimated_time_str": "5h 59m 47s",
+      "estimated_time_sec": 21587,
+      "filament_mm": 18514.15,
+      "filament_m": 18.51,
+      "filament_cm3": 44.53,
+      "filament_g": 55.22,
+      "layer_count": 30,
+      "extrusion_moves": 176485,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 9.321,
+        "x_max": 170.679,
+        "y_min": 5.096,
+        "y_max": 194.904,
+        "z_min": 0.2,
+        "z_max": 6.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 11.7,
+        "x_max": 168.3,
+        "y_min": 7.475,
+        "y_max": 192.525,
+        "z_min": 0.2,
+        "z_max": 6.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 2.54,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 16,
+      "plate_id": "PLATE16_walls_garden",
+      "stl_file": "plates/PLATE16_walls_garden.stl",
+      "threemf_file": "plates/PLATE16_walls_garden.3mf",
+      "expected_part_count": 16,
+      "unique_parts": [
+        "FUR09_FLOOR_TENON_PEG",
+        "P05_WALL_FRONT_piece1of3",
+        "P13_GARDEN_BACK",
+        "SUP01B_T_CLIP_WALL",
+        "SUP02_CORNER_CLIP_LOW",
+        "SUP03_SEAM_U_CLIP",
+        "SUP04_BASE_FOOT_CLIP",
+        "SUP05B_CARRIER_TENON_PEG",
+        "SUP09_SPEAKER_SNAP_RETAINER",
+        "SUP10B_SERVO_LINK_CLIP",
+        "SUP14_LM393_SNAP_CRADLE"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        170.0,
+        180.6,
+        14.0
+      ],
+      "stl_min_mm": [
+        5.0,
+        9.7,
+        0.0
+      ],
+      "stl_max_mm": [
+        175.0,
+        190.3,
+        14.0
+      ],
+      "stl_facets": 44666,
+      "stl_volume_mm3": 78569.16,
+      "threemf_info_ok": true,
+      "threemf_object_count": 16,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            123.0,
+            109.45,
+            3.0
+          ],
+          "facets": 7052,
+          "manifold": true,
+          "volume_mm3": 17696.29
+        },
+        {
+          "index": 2,
+          "size_mm": [
+            130.0,
+            57.0,
+            3.0
+          ],
+          "facets": 4762,
+          "manifold": true,
+          "volume_mm3": 19435.74
+        },
+        {
+          "index": 3,
+          "size_mm": [
+            30.0,
+            30.0,
+            14.0
+          ],
+          "facets": 4666,
+          "manifold": true,
+          "volume_mm3": 10375.37
+        },
+        {
+          "index": 4,
+          "size_mm": [
+            30.0,
+            30.0,
+            14.0
+          ],
+          "facets": 4666,
+          "manifold": true,
+          "volume_mm3": 10375.37
+        },
+        {
+          "index": 5,
+          "size_mm": [
+            44.0,
+            18.4,
+            11.0
+          ],
+          "facets": 1510,
+          "manifold": true,
+          "volume_mm3": 3103.56
+        },
+        {
+          "index": 6,
+          "size_mm": [
+            44.0,
+            14.0,
+            12.0
+          ],
+          "facets": 2840,
+          "manifold": true,
+          "volume_mm3": 3366.14
+        },
+        {
+          "index": 7,
+          "size_mm": [
+            28.0,
+            22.0,
+            14.0
+          ],
+          "facets": 2608,
+          "manifold": true,
+          "volume_mm3": 3330.02
+        },
+        {
+          "index": 8,
+          "size_mm": [
+            18.0,
+            18.0,
+            10.0
+          ],
+          "facets": 2280,
+          "manifold": true,
+          "volume_mm3": 1749.66
+        },
+        {
+          "index": 9,
+          "size_mm": [
+            18.0,
+            18.0,
+            10.0
+          ],
+          "facets": 2280,
+          "manifold": true,
+          "volume_mm3": 1749.66
+        },
+        {
+          "index": 10,
+          "size_mm": [
+            34.0,
+            9.2,
+            9.0
+          ],
+          "facets": 2586,
+          "manifold": true,
+          "volume_mm3": 2160.26
+        },
+        {
+          "index": 11,
+          "size_mm": [
+            9.2,
+            34.0,
+            9.0
+          ],
+          "facets": 2586,
+          "manifold": true,
+          "volume_mm3": 2160.26
+        },
+        {
+          "index": 12,
+          "size_mm": [
+            9.2,
+            34.0,
+            9.0
+          ],
+          "facets": 2586,
+          "manifold": true,
+          "volume_mm3": 2160.26
+        },
+        {
+          "index": 13,
+          "size_mm": [
+            10.0,
+            13.0,
+            9.0
+          ],
+          "facets": 1572,
+          "manifold": true,
+          "volume_mm3": 465.7
+        },
+        {
+          "index": 14,
+          "size_mm": [
+            6.0,
+            7.0,
+            4.0
+          ],
+          "facets": 1312,
+          "manifold": true,
+          "volume_mm3": 165.63
+        },
+        {
+          "index": 15,
+          "size_mm": [
+            6.0,
+            7.0,
+            4.0
+          ],
+          "facets": 1312,
+          "manifold": true,
+          "volume_mm3": 165.63
+        },
+        {
+          "index": 16,
+          "size_mm": [
+            6.0,
+            6.0,
+            3.0
+          ],
+          "facets": 48,
+          "manifold": true,
+          "volume_mm3": 106.69
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [
+        "print warning: Detected print stability issues:",
+        "Low bed adhesion",
+        "FUR09_FLOOR_TENON_PEG_copy4of10, FUR09_FLOOR_TENON_PEG_copy8of10",
+        "Consider enabling supports.",
+        "Also consider enabling brim."
+      ],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": true,
+      "low_bed_adhesion_parts": [
+        "FUR09_FLOOR_TENON_PEG_copy4of10",
+        "FUR09_FLOOR_TENON_PEG_copy8of10"
+      ],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (in nam phang Z=0, overhang <= 45 deg). PrusaSlicer ghi chu 'Low bed adhesion' cho chi tiet nho phang (FUR09_FLOOR_TENON_PEG_copy4of10, FUR09_FLOOR_TENON_PEG_copy8of10) -> khuyen nghi ban PEI sach hoac brim tuy chon, khong can support.",
+      "estimated_time_str": "6h 26m 37s",
+      "estimated_time_sec": 23197,
+      "filament_mm": 20991.83,
+      "filament_m": 20.99,
+      "filament_cm3": 50.49,
+      "filament_g": 62.61,
+      "layer_count": 70,
+      "extrusion_moves": 223269,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 2.821,
+        "x_max": 177.179,
+        "y_min": 7.521,
+        "y_max": 192.479,
+        "z_min": 0.2,
+        "z_max": 14.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 5.2,
+        "x_max": 174.8,
+        "y_min": 9.9,
+        "y_max": 190.1,
+        "z_min": 0.2,
+        "z_max": 14.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 3.6,
+      "plate_passed": true
+    },
+    {
+      "plate_index": 17,
+      "plate_id": "PLATE17_tech_garden",
+      "stl_file": "plates/PLATE17_tech_garden.stl",
+      "threemf_file": "plates/PLATE17_tech_garden.3mf",
+      "expected_part_count": 13,
+      "unique_parts": [
+        "FUR06_PLANT_POT_LARGE",
+        "FUR08_PLANT_POT_SMALL",
+        "FUR09_FLOOR_TENON_PEG",
+        "P12_GARDEN_FRONT",
+        "P16_PCB_PLATE",
+        "SUP02_CORNER_CLIP_LOW",
+        "SUP03_SEAM_U_CLIP",
+        "SUP05_P16_TENON_RISER"
+      ],
+      "stl_info_ok": true,
+      "stl_manifold": true,
+      "stl_size_mm": [
+        170.0,
+        170.0,
+        18.0
+      ],
+      "stl_min_mm": [
+        5.0,
+        15.0,
+        0.0
+      ],
+      "stl_max_mm": [
+        175.0,
+        185.0,
+        18.0
+      ],
+      "stl_facets": 35840,
+      "stl_volume_mm3": 84485.32,
+      "threemf_info_ok": true,
+      "threemf_object_count": 13,
+      "threemf_count_matches": true,
+      "all_objects_manifold": true,
+      "threemf_objects": [
+        {
+          "index": 1,
+          "size_mm": [
+            130.0,
+            110.0,
+            3.0
+          ],
+          "facets": 6932,
+          "manifold": true,
+          "volume_mm3": 42216.63
+        },
+        {
+          "index": 2,
+          "size_mm": [
+            130.0,
+            57.0,
+            3.0
+          ],
+          "facets": 4472,
+          "manifold": true,
+          "volume_mm3": 19310.94
+        },
+        {
+          "index": 3,
+          "size_mm": [
+            20.0,
+            20.0,
+            18.0
+          ],
+          "facets": 2266,
+          "manifold": true,
+          "volume_mm3": 4865.99
+        },
+        {
+          "index": 4,
+          "size_mm": [
+            18.0,
+            18.0,
+            10.0
+          ],
+          "facets": 2280,
+          "manifold": true,
+          "volume_mm3": 1749.66
+        },
+        {
+          "index": 5,
+          "size_mm": [
+            20.0,
+            20.0,
+            18.0
+          ],
+          "facets": 2266,
+          "manifold": true,
+          "volume_mm3": 4865.99
+        },
+        {
+          "index": 6,
+          "size_mm": [
+            18.0,
+            18.0,
+            10.0
+          ],
+          "facets": 2280,
+          "manifold": true,
+          "volume_mm3": 1749.66
+        },
+        {
+          "index": 7,
+          "size_mm": [
+            18.0,
+            18.0,
+            10.0
+          ],
+          "facets": 2280,
+          "manifold": true,
+          "volume_mm3": 1749.66
+        },
+        {
+          "index": 8,
+          "size_mm": [
+            18.0,
+            18.0,
+            10.0
+          ],
+          "facets": 2280,
+          "manifold": true,
+          "volume_mm3": 1749.66
+        },
+        {
+          "index": 9,
+          "size_mm": [
+            9.2,
+            34.0,
+            9.0
+          ],
+          "facets": 2586,
+          "manifold": true,
+          "volume_mm3": 2160.26
+        },
+        {
+          "index": 10,
+          "size_mm": [
+            16.0,
+            16.0,
+            14.0
+          ],
+          "facets": 2250,
+          "manifold": true,
+          "volume_mm3": 2106.83
+        },
+        {
+          "index": 11,
+          "size_mm": [
+            14.0,
+            12.0,
+            9.0
+          ],
+          "facets": 2318,
+          "manifold": true,
+          "volume_mm3": 897.71
+        },
+        {
+          "index": 12,
+          "size_mm": [
+            14.0,
+            12.0,
+            9.0
+          ],
+          "facets": 2318,
+          "manifold": true,
+          "volume_mm3": 897.71
+        },
+        {
+          "index": 13,
+          "size_mm": [
+            6.0,
+            7.0,
+            4.0
+          ],
+          "facets": 1312,
+          "manifold": true,
+          "volume_mm3": 165.63
+        }
+      ],
+      "slice_ok": true,
+      "slicer_returncode": 0,
+      "slicer_warnings": [
+        "print warning: Detected print stability issues:",
+        "FUR09_FLOOR_TENON_PEG_copy2of10",
+        "Low bed adhesion",
+        "Consider enabling supports.",
+        "Also consider enabling brim."
+      ],
+      "outside_volume_warning": false,
+      "overhang_warning": false,
+      "low_bed_adhesion_advisory": true,
+      "low_bed_adhesion_parts": [
+        "FUR09_FLOOR_TENON_PEG_copy2of10"
+      ],
+      "needs_supports": false,
+      "support_note": "Khong can support slicer (overhang <= 45 deg); chi co hoc mong san rong 4.3 mm phia duoi FUR06_PLANT_POT_LARGE, FUR08_PLANT_POT_SMALL (short bridge PLA 0.4mm). PrusaSlicer ghi chu 'Low bed adhesion' cho chi tiet nho phang (FUR09_FLOOR_TENON_PEG_copy2of10) -> khuyen nghi ban PEI sach hoac brim tuy chon, khong can support.",
+      "estimated_time_str": "7h 12m 26s",
+      "estimated_time_sec": 25946,
+      "filament_mm": 22201.28,
+      "filament_m": 22.2,
+      "filament_cm3": 53.4,
+      "filament_g": 66.22,
+      "layer_count": 90,
+      "extrusion_moves": 241837,
+      "gcode_extrusion_bounds_mm": {
+        "x_min": 2.821,
+        "x_max": 177.179,
+        "y_min": 12.821,
+        "y_max": 187.179,
+        "z_min": 0.2,
+        "z_max": 18.0
+      },
+      "gcode_part_bounds_mm": {
+        "x_min": 5.2,
+        "x_max": 174.8,
+        "y_min": 15.2,
+        "y_max": 184.8,
+        "z_min": 0.2,
+        "z_max": 18.0
+      },
+      "bed_bounds_ok": true,
+      "elapsed_slice_sec": 3.85,
+      "plate_passed": true
+    }
+  ],
+  "parts": [
+    {
+      "part_id": "FUR01_SOFA",
+      "stl_file": "parts/FUR01_SOFA.stl",
+      "kind": "furniture",
+      "qty": 1,
+      "size_mm": [
+        76.0,
+        34.0,
+        34.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 3014,
+      "shells": 1,
+      "volume_mm3": 51009.84,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "FUR02_TV_STAND",
+      "stl_file": "parts/FUR02_TV_STAND.stl",
+      "kind": "furniture",
+      "qty": 1,
+      "size_mm": [
+        56.0,
+        22.0,
+        18.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 1912,
+      "shells": 1,
+      "volume_mm3": 20959.29,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "FUR03_TV_SCREEN",
+      "stl_file": "parts/FUR03_TV_SCREEN.stl",
+      "kind": "furniture",
+      "qty": 1,
+      "size_mm": [
+        48.0,
+        35.0,
+        5.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 2158,
+      "shells": 1,
+      "volume_mm3": 6195.49,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "FUR04_BED",
+      "stl_file": "parts/FUR04_BED.stl",
+      "kind": "furniture",
+      "qty": 1,
+      "size_mm": [
+        90.0,
+        62.0,
+        28.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 2648,
+      "shells": 1,
+      "volume_mm3": 96651.17,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "FUR05_BEDSIDE_TABLE",
+      "stl_file": "parts/FUR05_BEDSIDE_TABLE.stl",
+      "kind": "furniture",
+      "qty": 1,
+      "size_mm": [
+        26.0,
+        22.0,
+        28.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 2306,
+      "shells": 1,
+      "volume_mm3": 10583.34,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "FUR06_PLANT_POT_LARGE",
+      "stl_file": "parts/FUR06_PLANT_POT_LARGE.stl",
+      "kind": "furniture",
+      "qty": 2,
+      "size_mm": [
+        20.0,
+        20.0,
+        18.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 2266,
+      "shells": 1,
+      "volume_mm3": 4866.0,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "FUR07_MINI_TREE",
+      "stl_file": "parts/FUR07_MINI_TREE.stl",
+      "kind": "furniture",
+      "qty": 2,
+      "size_mm": [
+        43.0,
+        38.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 2092,
+      "shells": 2,
+      "volume_mm3": 2027.64,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "FUR08_PLANT_POT_SMALL",
+      "stl_file": "parts/FUR08_PLANT_POT_SMALL.stl",
+      "kind": "furniture",
+      "qty": 1,
+      "size_mm": [
+        16.0,
+        16.0,
+        14.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 2250,
+      "shells": 1,
+      "volume_mm3": 2106.82,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "FUR09_FLOOR_TENON_PEG",
+      "stl_file": "parts/FUR09_FLOOR_TENON_PEG.stl",
+      "kind": "furniture",
+      "qty": 10,
+      "size_mm": [
+        6.0,
+        7.0,
+        4.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 1312,
+      "shells": 1,
+      "volume_mm3": 165.63,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P01A_BASE_TECH_piece1of3",
+      "stl_file": "parts/P01A_BASE_TECH_piece1of3.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        99.95,
+        181.875,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 6878,
+      "shells": 1,
+      "volume_mm3": 51715.03,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P01A_BASE_TECH_piece2of3",
+      "stl_file": "parts/P01A_BASE_TECH_piece2of3.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        160.95,
+        181.875,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 6886,
+      "shells": 1,
+      "volume_mm3": 80526.73,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P01A_BASE_TECH_piece3of3",
+      "stl_file": "parts/P01A_BASE_TECH_piece3of3.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        157.0,
+        181.875,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 6980,
+      "shells": 1,
+      "volume_mm3": 77849.88,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P01B_BASE_HOUSE_piece1of6",
+      "stl_file": "parts/P01B_BASE_HOUSE_piece1of6.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        130.95,
+        90.45,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 6822,
+      "shells": 1,
+      "volume_mm3": 33380.16,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P01B_BASE_HOUSE_piece2of6",
+      "stl_file": "parts/P01B_BASE_HOUSE_piece2of6.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        150.45,
+        90.45,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 7380,
+      "shells": 1,
+      "volume_mm3": 37094.26,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P01B_BASE_HOUSE_piece3of6",
+      "stl_file": "parts/P01B_BASE_HOUSE_piece3of6.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        136.5,
+        90.45,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 8078,
+      "shells": 1,
+      "volume_mm3": 34136.21,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P01B_BASE_HOUSE_piece4of6",
+      "stl_file": "parts/P01B_BASE_HOUSE_piece4of6.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        130.95,
+        131.375,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 6364,
+      "shells": 1,
+      "volume_mm3": 48249.74,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P01B_BASE_HOUSE_piece5of6",
+      "stl_file": "parts/P01B_BASE_HOUSE_piece5of6.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        150.45,
+        131.375,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 6984,
+      "shells": 1,
+      "volume_mm3": 53658.5,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P01B_BASE_HOUSE_piece6of6",
+      "stl_file": "parts/P01B_BASE_HOUSE_piece6of6.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        136.5,
+        131.375,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 7618,
+      "shells": 1,
+      "volume_mm3": 48953.69,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P02_WALL_BACK_piece1of3",
+      "stl_file": "parts/P02_WALL_BACK_piece1of3.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        118.45,
+        150.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 7000,
+      "shells": 1,
+      "volume_mm3": 50974.22,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P02_WALL_BACK_piece2of3",
+      "stl_file": "parts/P02_WALL_BACK_piece2of3.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        96.95,
+        150.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 6546,
+      "shells": 1,
+      "volume_mm3": 38888.46,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P02_WALL_BACK_piece3of3",
+      "stl_file": "parts/P02_WALL_BACK_piece3of3.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        182.5,
+        150.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 7958,
+      "shells": 1,
+      "volume_mm3": 53798.56,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": true,
+      "passed": true
+    },
+    {
+      "part_id": "P03_WALL_LEFT",
+      "stl_file": "parts/P03_WALL_LEFT.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        190.0,
+        150.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 6468,
+      "shells": 1,
+      "volume_mm3": 60955.53,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": true,
+      "passed": true
+    },
+    {
+      "part_id": "P04_WALL_RIGHT",
+      "stl_file": "parts/P04_WALL_RIGHT.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        190.0,
+        150.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 6484,
+      "shells": 1,
+      "volume_mm3": 58694.92,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": true,
+      "passed": true
+    },
+    {
+      "part_id": "P05_WALL_FRONT_piece1of3",
+      "stl_file": "parts/P05_WALL_FRONT_piece1of3.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        109.45,
+        123.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 7052,
+      "shells": 1,
+      "volume_mm3": 17696.3,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P05_WALL_FRONT_piece2of3",
+      "stl_file": "parts/P05_WALL_FRONT_piece2of3.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        167.45,
+        150.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 7214,
+      "shells": 1,
+      "volume_mm3": 28034.64,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P05_WALL_FRONT_piece3of3",
+      "stl_file": "parts/P05_WALL_FRONT_piece3of3.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        117.0,
+        37.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 5864,
+      "shells": 1,
+      "volume_mm3": 11556.34,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P06_WALL_MID",
+      "stl_file": "parts/P06_WALL_MID.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        190.0,
+        150.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 6790,
+      "shells": 1,
+      "volume_mm3": 63429.49,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": true,
+      "passed": true
+    },
+    {
+      "part_id": "P07_SERVO_SHELF",
+      "stl_file": "parts/P07_SERVO_SHELF.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        34.0,
+        49.125,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 4338,
+      "shells": 1,
+      "volume_mm3": 3819.97,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P08_DOOR_LEAF",
+      "stl_file": "parts/P08_DOOR_LEAF.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        56.0,
+        100.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 6206,
+      "shells": 1,
+      "volume_mm3": 14150.8,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P09_GARDEN_LEFT",
+      "stl_file": "parts/P09_GARDEN_LEFT.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        126.0,
+        57.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 5008,
+      "shells": 1,
+      "volume_mm3": 19613.15,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P10_WATER_DIVIDER",
+      "stl_file": "parts/P10_WATER_DIVIDER.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        126.0,
+        57.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 4584,
+      "shells": 1,
+      "volume_mm3": 19619.44,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P11_GARDEN_RIGHT",
+      "stl_file": "parts/P11_GARDEN_RIGHT.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        126.0,
+        51.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 3842,
+      "shells": 1,
+      "volume_mm3": 17700.88,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P12_GARDEN_FRONT",
+      "stl_file": "parts/P12_GARDEN_FRONT.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        130.0,
+        57.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 4472,
+      "shells": 1,
+      "volume_mm3": 19310.95,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P13_GARDEN_BACK",
+      "stl_file": "parts/P13_GARDEN_BACK.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        130.0,
+        57.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 4762,
+      "shells": 1,
+      "volume_mm3": 19435.71,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P14_SOIL_BRIDGE",
+      "stl_file": "parts/P14_SOIL_BRIDGE.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        32.0,
+        126.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 4434,
+      "shells": 1,
+      "volume_mm3": 11468.79,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P15_TECH_FASCIA_piece1of2",
+      "stl_file": "parts/P15_TECH_FASCIA_piece1of2.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        142.95,
+        45.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 5140,
+      "shells": 1,
+      "volume_mm3": 11030.01,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P15_TECH_FASCIA_piece2of2",
+      "stl_file": "parts/P15_TECH_FASCIA_piece2of2.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        107.0,
+        51.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 8886,
+      "shells": 1,
+      "volume_mm3": 10534.56,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P16_PCB_PLATE",
+      "stl_file": "parts/P16_PCB_PLATE.stl",
+      "kind": "panel",
+      "qty": 1,
+      "size_mm": [
+        130.0,
+        110.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 6932,
+      "shells": 1,
+      "volume_mm3": 42216.7,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "P17_BASE_JOINER",
+      "stl_file": "parts/P17_BASE_JOINER.stl",
+      "kind": "panel",
+      "qty": 2,
+      "size_mm": [
+        64.0,
+        28.0,
+        6.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 4478,
+      "shells": 1,
+      "volume_mm3": 5739.26,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP01_CORNER_CLIP_WALL",
+      "stl_file": "parts/SUP01_CORNER_CLIP_WALL.stl",
+      "kind": "support",
+      "qty": 2,
+      "size_mm": [
+        24.0,
+        24.0,
+        14.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 1996,
+      "shells": 1,
+      "volume_mm3": 3750.98,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP01B_T_CLIP_WALL",
+      "stl_file": "parts/SUP01B_T_CLIP_WALL.stl",
+      "kind": "support",
+      "qty": 1,
+      "size_mm": [
+        28.0,
+        22.0,
+        14.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 2608,
+      "shells": 1,
+      "volume_mm3": 3330.02,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP02_CORNER_CLIP_LOW",
+      "stl_file": "parts/SUP02_CORNER_CLIP_LOW.stl",
+      "kind": "support",
+      "qty": 6,
+      "size_mm": [
+        18.0,
+        18.0,
+        10.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 2280,
+      "shells": 1,
+      "volume_mm3": 1749.66,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP03_SEAM_U_CLIP",
+      "stl_file": "parts/SUP03_SEAM_U_CLIP.stl",
+      "kind": "support",
+      "qty": 8,
+      "size_mm": [
+        34.0,
+        9.2,
+        9.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 2586,
+      "shells": 1,
+      "volume_mm3": 2160.25,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP04_BASE_FOOT_CLIP",
+      "stl_file": "parts/SUP04_BASE_FOOT_CLIP.stl",
+      "kind": "support",
+      "qty": 4,
+      "size_mm": [
+        30.0,
+        30.0,
+        14.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 4666,
+      "shells": 1,
+      "volume_mm3": 10375.38,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP05_P16_TENON_RISER",
+      "stl_file": "parts/SUP05_P16_TENON_RISER.stl",
+      "kind": "support",
+      "qty": 4,
+      "size_mm": [
+        14.0,
+        12.0,
+        9.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 2318,
+      "shells": 1,
+      "volume_mm3": 897.71,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP05B_CARRIER_TENON_PEG",
+      "stl_file": "parts/SUP05B_CARRIER_TENON_PEG.stl",
+      "kind": "support",
+      "qty": 10,
+      "size_mm": [
+        6.0,
+        6.0,
+        3.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 48,
+      "shells": 1,
+      "volume_mm3": 106.69,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP06_HUB_PCB_SNAP_CARRIER",
+      "stl_file": "parts/SUP06_HUB_PCB_SNAP_CARRIER.stl",
+      "kind": "support",
+      "qty": 1,
+      "size_mm": [
+        104.0,
+        84.0,
+        13.6
+      ],
+      "min_z_mm": 0.0,
+      "facets": 10840,
+      "shells": 1,
+      "volume_mm3": 16654.04,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP07_RELAY_SNAP_CADDY",
+      "stl_file": "parts/SUP07_RELAY_SNAP_CADDY.stl",
+      "kind": "support",
+      "qty": 2,
+      "size_mm": [
+        54.4,
+        30.4,
+        11.4
+      ],
+      "min_z_mm": 0.0,
+      "facets": 6248,
+      "shells": 1,
+      "volume_mm3": 6862.56,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP08_PAM8403_SNAP_TRAY",
+      "stl_file": "parts/SUP08_PAM8403_SNAP_TRAY.stl",
+      "kind": "support",
+      "qty": 1,
+      "size_mm": [
+        36.0,
+        23.0,
+        8.8
+      ],
+      "min_z_mm": 0.0,
+      "facets": 5936,
+      "shells": 1,
+      "volume_mm3": 4404.38,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP09_SPEAKER_SNAP_RETAINER",
+      "stl_file": "parts/SUP09_SPEAKER_SNAP_RETAINER.stl",
+      "kind": "support",
+      "qty": 1,
+      "size_mm": [
+        44.0,
+        14.0,
+        12.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 2840,
+      "shells": 1,
+      "volume_mm3": 3366.14,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP10_DOOR_MORTISE_HINGE",
+      "stl_file": "parts/SUP10_DOOR_MORTISE_HINGE.stl",
+      "kind": "support",
+      "qty": 2,
+      "size_mm": [
+        27.2,
+        12.7,
+        6.2
+      ],
+      "min_z_mm": 0.0,
+      "facets": 2962,
+      "shells": 2,
+      "volume_mm3": 634.32,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP10B_SERVO_LINK_CLIP",
+      "stl_file": "parts/SUP10B_SERVO_LINK_CLIP.stl",
+      "kind": "support",
+      "qty": 1,
+      "size_mm": [
+        10.0,
+        13.0,
+        9.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 1572,
+      "shells": 1,
+      "volume_mm3": 465.7,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP11_SG90_SNAP_SADDLE",
+      "stl_file": "parts/SUP11_SG90_SNAP_SADDLE.stl",
+      "kind": "support",
+      "qty": 1,
+      "size_mm": [
+        18.0,
+        42.0,
+        8.6
+      ],
+      "min_z_mm": 0.0,
+      "facets": 1498,
+      "shells": 1,
+      "volume_mm3": 1889.76,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP12_DHT11_SNAP_CRADLE",
+      "stl_file": "parts/SUP12_DHT11_SNAP_CRADLE.stl",
+      "kind": "support",
+      "qty": 1,
+      "size_mm": [
+        28.0,
+        32.4,
+        11.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 1784,
+      "shells": 1,
+      "volume_mm3": 4383.08,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP13_KY037_SNAP_CRADLE",
+      "stl_file": "parts/SUP13_KY037_SNAP_CRADLE.stl",
+      "kind": "support",
+      "qty": 1,
+      "size_mm": [
+        46.0,
+        19.4,
+        11.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 2112,
+      "shells": 1,
+      "volume_mm3": 3301.71,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP14_LM393_SNAP_CRADLE",
+      "stl_file": "parts/SUP14_LM393_SNAP_CRADLE.stl",
+      "kind": "support",
+      "qty": 1,
+      "size_mm": [
+        44.0,
+        18.4,
+        11.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 1510,
+      "shells": 1,
+      "volume_mm3": 3103.56,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    },
+    {
+      "part_id": "SUP15_WATER_TANK_LINER",
+      "stl_file": "parts/SUP15_WATER_TANK_LINER.stl",
+      "kind": "support",
+      "qty": 1,
+      "size_mm": [
+        46.5,
+        119.0,
+        45.0
+      ],
+      "min_z_mm": 0.0,
+      "facets": 2986,
+      "shells": 1,
+      "volume_mm3": 40535.68,
+      "manifold": true,
+      "flat_z0": true,
+      "fits_usable_rotatable": true,
+      "rotation_90_needed": false,
+      "passed": true
+    }
+  ]
+}

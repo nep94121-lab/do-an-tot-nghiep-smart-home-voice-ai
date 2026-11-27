@@ -1,0 +1,49 @@
+{
+  "part_id": "FUR01_SOFA",
+  "kind": "furniture",
+  "room": "Living Room",
+  "category": "sofa",
+  "qty": 1,
+  "vi_name": "Ghe Sofa phong khach (mong chot san)",
+  "attachment": "2x floor mortise pegs (8x4 mm) pressing into P01B_BASE_HOUSE at X=56, 100, Y=352",
+  "assembly_placements": [
+    {
+      "x": 78.0,
+      "y": 352.0,
+      "z": 0.0,
+      "rot_z": 0.0
+    }
+  ],
+  "print_bbox_mm": [
+    76.0,
+    34.0,
+    34.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 51009.645,
+  "solids": 1,
+  "valid": true,
+  "engraved_ok": true,
+  "engrave_text": "FUR01 SOFA",
+  "bed_fit": true,
+  "color_rgb": [
+    0.36,
+    0.56,
+    0.72
+  ],
+  "notes": "Sofa 3 cho ty le nha thong minh, in nam phang khong can support, cam mong xuong san phong khach.",
+  "print_rotation_for_world": "identity",
+  "floor_sockets_local_xy": [
+    [
+      16.0,
+      17.0
+    ],
+    [
+      60.0,
+      17.0
+    ]
+  ],
+  "step_file": "parts/FUR01_SOFA.step",
+  "stl_file": "parts/FUR01_SOFA.stl",
+  "stl_facets": 3014
+}

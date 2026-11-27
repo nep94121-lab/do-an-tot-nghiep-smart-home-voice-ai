@@ -1,0 +1,98 @@
+{
+  "part_id": "FUR09_FLOOR_TENON_PEG",
+  "kind": "furniture",
+  "room": "Living Room / Bedroom / Outdoor",
+  "category": "floor_peg",
+  "qty": 10,
+  "vi_name": "Chot mong san noi that 6x4x7mm (cam san P01A/P01B)",
+  "attachment": "Floating press-fit floor tenons locking FUR01/02/04/05/06/08 into P01A/P01B floor mortises (zero supports)",
+  "assembly_placements": [
+    {
+      "x": 56.0,
+      "y": 352.0,
+      "z": -3.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 100.0,
+      "y": 352.0,
+      "z": -3.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 183.0,
+      "y": 288.0,
+      "z": -3.0,
+      "rot_z": 90.0
+    },
+    {
+      "x": 183.0,
+      "y": 320.0,
+      "z": -3.0,
+      "rot_z": 90.0
+    },
+    {
+      "x": 298.0,
+      "y": 336.0,
+      "z": -3.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 354.0,
+      "y": 336.0,
+      "z": -3.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 256.0,
+      "y": 350.0,
+      "z": -3.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 290.0,
+      "y": 13.0,
+      "z": -3.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 376.0,
+      "y": 163.0,
+      "z": -3.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 322.0,
+      "y": 13.0,
+      "z": -3.0,
+      "rot_z": 0.0
+    }
+  ],
+  "print_bbox_mm": [
+    6.0,
+    7.0,
+    4.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 165.627,
+  "solids": 1,
+  "valid": true,
+  "engraved_ok": true,
+  "engrave_text": "F09",
+  "bed_fit": true,
+  "color_rgb": [
+    0.68,
+    0.56,
+    0.42
+  ],
+  "notes": "Chot mong san in nam phang khong can support, cam giu toan bo noi that FUR01-FUR08 co dinh tren san.",
+  "print_rotation_for_world": "rot_x_90",
+  "cross_section_world_xy_mm": [
+    6.0,
+    4.0
+  ],
+  "vertical_length_world_z_mm": 7.0,
+  "step_file": "parts/FUR09_FLOOR_TENON_PEG.step",
+  "stl_file": "parts/FUR09_FLOOR_TENON_PEG.stl",
+  "stl_facets": 1312
+}

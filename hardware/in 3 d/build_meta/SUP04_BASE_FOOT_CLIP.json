@@ -1,0 +1,63 @@
+{
+  "part_id": "SUP04_BASE_FOOT_CLIP",
+  "kind": "support",
+  "category": "foot_clip",
+  "qty": 4,
+  "vi_name": "Chan de mong cai goc nang nha 11mm (khong vit)",
+  "mating_source": "Base corners 406x390 mm; clears P17_BASE_JOINER (Z=-6..-3 mm)",
+  "params": {
+    "size": 30.0,
+    "lift_h": 11.0,
+    "lip_h": 3.0,
+    "lip_t": 3.0
+  },
+  "assembly_placements": [
+    {
+      "x": -3.0,
+      "y": -3.0,
+      "z": -14.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 409.0,
+      "y": -3.0,
+      "z": -14.0,
+      "rot_z": 90.0
+    },
+    {
+      "x": 409.0,
+      "y": 393.0,
+      "z": -14.0,
+      "rot_z": 180.0
+    },
+    {
+      "x": -3.0,
+      "y": 393.0,
+      "z": -14.0,
+      "rot_z": -90.0
+    }
+  ],
+  "print_bbox_mm": [
+    30.0,
+    30.0,
+    14.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 10375.375,
+  "solids": 1,
+  "expected_solids": 1,
+  "valid": true,
+  "bed_fit": true,
+  "color_rgb": [
+    0.3,
+    0.36,
+    0.44
+  ],
+  "notes": "Chan de cai goc nang khung nha cao 11 mm khoi mat ban, khong lo vit.",
+  "engraved_ok": true,
+  "engrave_text": "SUP04 30x30x14",
+  "print_rotation_for_world": "identity",
+  "step_file": "parts/SUP04_BASE_FOOT_CLIP.step",
+  "stl_file": "parts/SUP04_BASE_FOOT_CLIP.stl",
+  "stl_facets": 4666
+}

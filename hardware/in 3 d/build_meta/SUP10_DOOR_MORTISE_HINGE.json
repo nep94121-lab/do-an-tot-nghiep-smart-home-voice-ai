@@ -1,0 +1,57 @@
+{
+  "part_id": "SUP10_DOOR_MORTISE_HINGE",
+  "kind": "support",
+  "category": "door_hinge",
+  "qty": 2,
+  "vi_name": "Ban le mong truc xoay cua chinh (khong vit)",
+  "mating_source": "P05_WALL_FRONT jamb mortise <-> P08_DOOR_LEAF mortise (2.0 mm gap, 0.30 mm pivot clr)",
+  "params": {
+    "jamb_to_door_span": 11.0,
+    "plate_len": 22.0,
+    "plate_h": 12.0,
+    "plate_t": 3.0,
+    "knuckle_od": 6.0,
+    "pin_d": 2.7,
+    "bore_d": 3.0,
+    "tenon_x": 4.0,
+    "tenon_y": 6.0,
+    "tenon_h": 3.0
+  },
+  "assembly_placements": [
+    {
+      "x": 78.0,
+      "y": 195.0,
+      "z": 18.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 78.0,
+      "y": 195.0,
+      "z": 86.0,
+      "rot_z": 0.0
+    }
+  ],
+  "print_bbox_mm": [
+    27.2,
+    12.7,
+    6.2
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 634.647,
+  "solids": 2,
+  "expected_solids": 2,
+  "valid": true,
+  "bed_fit": true,
+  "color_rgb": [
+    0.82,
+    0.48,
+    0.32
+  ],
+  "notes": "Cap ban le 2 nua in nam phang co truc xoay va chot mong ep khit vao P05 va P08.",
+  "engraved_ok": true,
+  "engrave_text": "10A | 10B",
+  "print_rotation_for_world": "split_2_leaves_leafA_identity_leafB_rot_y_180",
+  "step_file": "parts/SUP10_DOOR_MORTISE_HINGE.step",
+  "stl_file": "parts/SUP10_DOOR_MORTISE_HINGE.stl",
+  "stl_facets": 2962
+}

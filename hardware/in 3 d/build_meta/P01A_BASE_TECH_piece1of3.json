@@ -1,0 +1,76 @@
+{
+  "part_id": "P01A_BASE_TECH_piece1of3",
+  "kind": "panel",
+  "source_panel_id": "P01A_BASE_TECH",
+  "piece_index": 1,
+  "piece_count": 3,
+  "qty": 1,
+  "vi_name": "Tam day truoc (Khoang ky thuat & Vuon)",
+  "plane": "XY",
+  "origin_xyz": [
+    0.0,
+    0.0,
+    -3.0
+  ],
+  "extra_origins_xyz": [],
+  "explode_xyz": [
+    0.0,
+    -30.0,
+    -48.0
+  ],
+  "shift_u": -0.0,
+  "shift_v": -0.0,
+  "local_bbox_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "local_bbox_max": [
+    99.95,
+    181.875,
+    3.0
+  ],
+  "print_bbox_mm": [
+    99.95,
+    181.875,
+    3.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 51715.11,
+  "solids": 1,
+  "valid": true,
+  "engraved_ok": true,
+  "engrave_text": "P01A p1/3 | 100x182x3mm",
+  "dovetail_count": 2,
+  "mortise_count": 3,
+  "stripped_fastener_holes": [
+    "PLT_H1_M3",
+    "PLT_H2_M3",
+    "PLT_H3_M3",
+    "PLT_H4_M3",
+    "RLY1_H1_M3",
+    "RLY1_H2_M3",
+    "RLY1_H3_M3",
+    "RLY1_H4_M3",
+    "RLY2_H1_M3",
+    "RLY2_H2_M3",
+    "RLY2_H3_M3",
+    "RLY2_H4_M3",
+    "PAM_CLAMP_L",
+    "PAM_CLAMP_R",
+    "JOIN_L1_M3",
+    "JOIN_L2_M3",
+    "JOIN_R1_M3",
+    "JOIN_R2_M3"
+  ],
+  "kept_functional_holes": [],
+  "bed_fit": true,
+  "color_rgb": [
+    0.66,
+    0.83,
+    0.94
+  ],
+  "step_file": "parts/P01A_BASE_TECH_piece1of3.step",
+  "stl_file": "parts/P01A_BASE_TECH_piece1of3.stl",
+  "stl_facets": 6878
+}

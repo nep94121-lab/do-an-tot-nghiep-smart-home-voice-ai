@@ -1,0 +1,49 @@
+{
+  "part_id": "SUP11_SG90_SNAP_SADDLE",
+  "kind": "support",
+  "category": "sg90_saddle",
+  "qty": 1,
+  "vi_name": "Ngam mong khoa Servo SG90 tren ke P07 (khong vit)",
+  "mating_source": "SG90 (22.8x12.2 body, 32.2 mm ear span) + P07_SERVO_SHELF mortises (34.2 mm span)",
+  "params": {
+    "width_x": 14.0,
+    "length_y": 42.0,
+    "ear_clear_y": 32.6,
+    "ear_t": 2.6,
+    "tenon_span_y": 34.2,
+    "tenon_x": 6.0,
+    "tenon_y": 3.0,
+    "tenon_h": 3.0
+  },
+  "assembly_placements": [
+    {
+      "x": 51.0,
+      "y": 218.125,
+      "z": 29.5,
+      "rot_z": 0.0
+    }
+  ],
+  "print_bbox_mm": [
+    18.0,
+    42.0,
+    8.6
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 1889.755,
+  "solids": 1,
+  "expected_solids": 1,
+  "valid": true,
+  "bed_fit": true,
+  "color_rgb": [
+    0.18,
+    0.5,
+    0.88
+  ],
+  "notes": "Ngam chup cai mong xuong 2 ranh cua P07 ep giu tai Servo SG90, thay the hoan toan 2 vit M2.",
+  "engraved_ok": true,
+  "engrave_text": "SUP11",
+  "print_rotation_for_world": "rot_x_180",
+  "step_file": "parts/SUP11_SG90_SNAP_SADDLE.step",
+  "stl_file": "parts/SUP11_SG90_SNAP_SADDLE.stl",
+  "stl_facets": 1498
+}

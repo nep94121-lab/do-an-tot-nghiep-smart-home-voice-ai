@@ -1,0 +1,70 @@
+{
+  "part_id": "SUP05_P16_TENON_RISER",
+  "kind": "support",
+  "category": "tenon_riser",
+  "qty": 4,
+  "vi_name": "Chan mong nang tam P16_PCB_PLATE cao 6mm",
+  "mating_source": "P01A_BASE_TECH -> P16_PCB_PLATE 116x96 mm mortise slots (0.15 mm/side press fit)",
+  "params": {
+    "body_x": 14.0,
+    "body_y": 9.0,
+    "lift_h": 6.0,
+    "tenon_x": 8.0,
+    "tenon_y": 3.0,
+    "tenon_h": 3.0
+  },
+  "assembly_placements": [
+    {
+      "x": 24.0,
+      "y": 147.0,
+      "z": 0.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 140.0,
+      "y": 147.0,
+      "z": 0.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 24.0,
+      "y": 51.0,
+      "z": 0.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 140.0,
+      "y": 51.0,
+      "z": 0.0,
+      "rot_z": 0.0
+    }
+  ],
+  "print_bbox_mm": [
+    14.0,
+    12.0,
+    9.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 897.701,
+  "solids": 1,
+  "expected_solids": 1,
+  "valid": true,
+  "bed_fit": true,
+  "color_rgb": [
+    0.82,
+    0.66,
+    0.2
+  ],
+  "notes": "Tru mong 2 dau chot vuong 8x3 mm ep khit vao P01A va P16, thay the hoan toan tru vit M3x6.",
+  "engraved_ok": true,
+  "engrave_text": "SUP05",
+  "print_rotation_for_world": "rot_x_90",
+  "tenon_center_print": [
+    7.0,
+    6.0,
+    1.5
+  ],
+  "step_file": "parts/SUP05_P16_TENON_RISER.step",
+  "stl_file": "parts/SUP05_P16_TENON_RISER.stl",
+  "stl_facets": 2318
+}

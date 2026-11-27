@@ -1,27 +1,29 @@
-# Bộ Tệp In 3D Vỏ Nhà Thông Minh & Phụ Kiện Supot (`hardware/in 3 d/`)
+# Bộ Tệp In 3D Vỏ Nhà Thông Minh v2 — 100% Lắp Mộng, Bàn In 180×200×250 mm (`hardware/in 3 d/`)
 
-Thư mục này chứa toàn bộ bộ tệp **in 3D sẵn sàng cắt lớp (print-ready)** được chuyển đổi trực tiếp từ mô hình tham số gốc [`hardware/mica/smarthome_mica_house.FCStd`](../mica/smarthome_mica_house.FCStd) và [`hardware/mica/mica_design.py`](../mica/mica_design.py) — giữ nguyên 100% kích thước bao, toàn bộ lỗ khoan linh kiện, **khắc chìm sẵn mã chi tiết + kích thước ngay trên từng mảnh**, bổ sung **12 phụ kiện gia cố & giá đỡ (supot)** in 3D, và **tự động chia mảnh bằng khớp đuôi én** cho các tấm lớn vượt khổ bàn in.
-
-> **Nguồn sự thật duy nhất (SSOT):** Mọi hình học tấm, tọa độ 76 lỗ tròn, khoảng cách lỗ mạch `90 × 70 mm` (`P16_PCB_PLATE`), `44.5 × 20.5 mm` (`Relay 1/2`), và kiểm định va chạm đều sinh tự động từ mã nguồn tại [`scripts/`](scripts/) (không nhập tay kích thước).
+> **Nguyên tắc lắp ghép v2 (duy nhất):** Toàn bộ mô hình được thiết kế **100% bằng khớp mộng tự khóa (mộng đuôi én, mộng răng lược, kẹp chữ U, chốt mộng rời và chốt đàn hồi snap-fit) — không cần ốc vít, không cần keo dán** ở bất kỳ vị trí nào.
+> **Nguồn sự thật duy nhất (SSOT):** Mọi kích thước vỏ nhà lấy từ [`hardware/mica/mica_design.py`](../mica/mica_design.py), biên dạng mạch Hub PCB thực đọc trực tiếp từ [`hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb`](../kicad/smarthome_hub/smarthome_hub.kicad_pcb) (đã kiểm chứng bằng `kicad-cli`), và toàn bộ tệp in đều sinh tự động từ [`scripts/`](scripts/).
 
 ---
 
 ## 1. Tổng Quan & Kết Quả Kiểm Định Tự Động
 
-- **Khổ máy in 3D mục tiêu:** `220 × 220 × 250 mm` (chừa lề an toàn `5 mm` mỗi cạnh → vùng in khả dụng **`210 × 210 × 245 mm`**).
-- **Tổng số tệp chi tiết in 3D:** **`37` tệp duy nhất** gồm **`25` mảnh vỏ nhà** (chuyển đổi từ `18` tấm gốc / `19` tấm vật lý) và **`12` phụ kiện supot** (`SUP01`–`SUP12`).
-- **Định dạng xuất cho mỗi chi tiết:** `STL` ([`STL/`](STL/)), `3MF` ([`3MF/`](3MF/)), `STEP` ([`STEP/`](STEP/)), bản vẽ kỹ thuật có ghi kích thước `PDF + PNG` ([`drawings/`](drawings/)), và ảnh phối cảnh 3D `PNG` ([`previews/`](previews/)).
-- **Khắc chìm kích thước trực tiếp lên vật thể:** Khắc sâu `0.60 mm` lên **mặt hướng lên trên** khi đặt in (`Z = T_mm`), giữ mặt đáy `Z = 0` phẳng hoàn toàn để bám bàn in chắc chắn và **không cần support của slicer**.
-- **Dung sai ghép nối:** Khớp đuôi én có khe hở **`0.20 mm`** giữa mộng dương và rãnh âm (tái lắp ghép khít đúng kích thước tấm gốc với sai số **`0.000 mm`**).
-- **Kiểm định kỹ thuật (`verification_report.json`):**
-  - Khối kín manifold (`watertight`): **`37/37` ĐẠT** (`all_watertight = True`).
-  - Vừa vùng an toàn bàn in `210 × 210 mm` & đặt phẳng `Z = 0`: **`37/37` ĐẠT**.
-  - Cắt lớp thực tế bằng **`prusa-slicer-console.exe`** (PLA `0.20 mm`, không support): **`37/37` ĐẠT** — tổng thời gian in ước tính (tính đủ số lượng `qty`): **`96.13 giờ`**, tổng nhựa tiêu thụ ước tính: **`885.4 g`** (~1 cuộn PLA 1 kg).
-  - Kiểm tra va chạm 3D BRep toàn hệ thống (`26` mảnh vỏ + `41` phụ kiện supot): **`0` va chạm vỏ** (`max = 0.0 mm³`), **`0` va chạm phụ kiện** (`max = 0.0 mm³`), **`0` lỗi sai kích thước tái ghép**.
+- **Khổ máy in 3D mục tiêu:** **`180 × 200 × 250 mm`** (chừa lề an toàn `5 mm` mỗi cạnh → vùng in khả dụng **`170 × 190 × 245 mm`**).
+- **Quy mô bộ chi tiết:** **`57` chi tiết duy nhất / `99` bản thể vật lý**, gồm:
+  - **`30` mảnh vỏ nhà** (`P01A`–`P17`, đã tự động chia mảnh cho 5 tấm vượt khổ `170 × 190 mm` với khớp đuôi én và khắc chìm mã + kích thước trên mặt trên).
+  - **`18` phụ kiện kẹp góc, ngàm giữ mạch, bản lề & lòng bể nước liền khối** (`SUP01`–`SUP15`).
+  - **`9` món nội thất tỷ lệ nhà** (`FUR01`–`FUR09`: sofa, kệ + tivi phòng khách, giường + tủ đèn ngủ phòng ngủ, chậu cây + cây mini ngoài trời, chốt mộng sàn).
+- **Xếp bàn in tối ưu (`plates/`):** Toàn bộ `99` bản thể được đóng gói tự động bằng thuật toán 2D MaxRects (cho phép xoay `0°/90°`, khe hở `>= 3.0 mm`) vào đúng **`17` bàn in** (`PLATE01`–`PLATE17`, mỗi bàn có đủ tệp `STL` ghép sẵn và `3MF` đa đối tượng đặt đúng tọa độ bàn `180 × 200 mm`).
+  - **Cận dưới lý thuyết vs thực đạt:** Tổng diện tích hình chiếu đặc = `392797 mm²` → cận dưới diện tích đặc **`13` bàn** (`12.16`); tổng diện tích khung bao = `483932 mm²` → cận dưới khung bao **`15` bàn** (`14.98`); **đạt `17` bàn** (mật độ bàn in `76.6%` – `96.4%`, không có bàn nào chỉ chứa 1 chi tiết nhỏ lẻ).
+- **Kiểm chứng cắt lớp thực tế (`PrusaSlicer 2.9.7 CLI`, PLA `0.20 mm`, `3` thành, `20% gyroid`, `0% support`, `--dont-arrange`):**
+  - Toàn bộ **`57/57` chi tiết lẻ** và **`17/17` bàn in (`STL` + `3MF`)** đạt **`manifold = yes`** (`100%`).
+  - Toàn bộ **`17/17` bàn in** cắt lớp thành công không lỗi, đường chạy G-code nằm trọn trong bàn `180 × 200 × 250 mm`.
+  - **Tổng thời gian in ước tính:** **`109g 30p 52s`** (`109.51 giờ`).
+  - **Tổng nhựa PLA tiêu thụ:** **`1035.87 g`** (**`347.31 m`** sợi `1.75 mm`, ~`1.04` cuộn PLA `1 kg`).
+- **Kiểm định lắp ráp ảo 3D BRep (FreeCAD 1.1):** Sai số tái ghép mảnh chia **`0.0000 mm`**, **`0` va chạm** trên toàn bộ `31` mảnh vỏ + `47` kẹp/giá đỡ + `22` nội thất + `17` mạch/linh kiện + góc mở cửa `95°`; bảng lắp khít linh kiện đạt **`12/12` PASS**.
 
-![Mô hình lắp ráp hoàn chỉnh kèm phụ kiện supot in 3D](previews/_assembled_house_3dprint.png)
+![Mô hình lắp ráp hoàn chỉnh v2 kèm nội thất và mạch Hub PCB thực](previews/_assembled_house_furniture.png)
 
-![Hình chiếu phân rã 3D các mảnh vỏ nhà và phụ kiện supot](previews/_exploded_house_3dprint.png)
+![Hình chiếu phân rã 3D bộ chi tiết v2](previews/_exploded_house_v2.png)
 
 ---
 
@@ -30,173 +32,183 @@ Thư mục này chứa toàn bộ bộ tệp **in 3D sẵn sàng cắt lớp (pr
 ```text
 hardware/in 3 d/
 ├── README.md                  # Tài liệu hướng dẫn tiếng Việt này
-├── manifest.json              # Danh mục JSON đầy đủ kích thước, chia mảnh, thời gian & nhựa in
-├── verification_report.json   # Báo cáo kiểm định manifold, bàn in, cắt lớp & 0 va chạm 3D
-├── STL/                       # 37 tệp STL nhị phân kín khối, đặt phẳng Z = 0 sẵn sàng in
-├── 3MF/                       # 37 tệp 3MF chuẩn đơn vị mm (kèm siêu dữ liệu tên chi tiết)
-├── STEP/                      # 37 tệp CAD BRep chính xác để chỉnh sửa trong FreeCAD/SolidWorks
-├── drawings/                  # 37 bộ bản vẽ kỹ thuật có ghi kích thước (PDF + PNG)
-├── previews/                  # 37 ảnh xem trước 3D từng chi tiết + ảnh lắp ráp/phân rã/slicer
-└── scripts/                   # Bộ script tái tạo toàn bộ tệp tự động (FreeCADCmd + Python)
+├── manifest.json              # Danh mục JSON đầy đủ từng tệp, chi tiết, bàn in, kích thước & SHA-256
+├── verification_report.json   # Báo cáo kiểm định hợp nhất (lắp ráp, lắp khít, PrusaSlicer, R9)
+├── plates/                    # 17 bàn in hoàn chỉnh (PLATEnn_*.3mf đa đối tượng + PLATEnn_*.stl)
+├── parts/                     # 57 chi tiết rời (STL kín khối phẳng Z=0 + STEP CAD BRep)
+├── drawings/                  # 118 bản vẽ kỹ thuật PNG + PDF (57 chi tiết + cận cảnh mộng + lắp khít PCB)
+├── previews/                  # 23 ảnh xem trước 3D, bố cục từng bàn in 180x200 và đường chạy G-code
+└── scripts/                   # Bộ mã nguồn tái tạo toàn bộ tự động (FreeCAD 1.1 + Python + PrusaSlicer)
 ```
 
 ---
 
-## 3. Chiến Lược Chia Mảnh Cho 5 Tấm Lớn Vượt Bàn In `210 × 210 mm`
+## 3. Danh Mục 17 Bàn In Tối Ưu (`180 × 200 × 250 mm`, Sẵn Sàng Mở Trong PrusaSlicer)
 
-Trong `18` tấm vỏ gốc, có **`13` tấm vừa nguyên vẹn trong vùng an toàn `210 × 210 mm`** (in 1 mảnh duy nhất) và **`5` tấm vượt khổ** được tách tự động tại các dải trống không cắt ngang lỗ/khe linh kiện, ghép nối bằng khớp đuôi én khe hở **`0.20 mm`** và đặt tên theo quy ước `<TEN_TAM>_piece<k>of<n>`:
+Mở trực tiếp tệp `.3mf` trong [`plates/`](plates/) bằng **PrusaSlicer** (khổ bàn `180 × 200 mm`, chiều cao `250 mm`). Các vật thể đã nằm phẳng `Z = 0`, giữ đúng vị trí trong vùng an toàn `170 × 190 mm` (cách nhau `>= 3.0 mm`), chỉ cần chọn profile PLA `0.20 mm`, bật `Skirt = 1 vòng, khoảng cách 2 mm` và bấm **Slice**.
 
-| Tấm gốc | Kích thước gốc (mm) | Lưới chia | Số mảnh | Vị trí đường cắt (mm) | Danh sách tệp mảnh |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| `P01A_BASE_TECH` | `406.0 × 181.9 × 3.0` | `2×1` | `2` | `U=[205.0]` | `P01A_BASE_TECH_piece1of2`, `P01A_BASE_TECH_piece2of2` |
-| `P01B_BASE_HOUSE` | `406.0 × 215.9 × 3.0` | `2×2` | `4` | `U=[209.5], V=[90.5]` | `P01B_BASE_HOUSE_piece1of4`, `P01B_BASE_HOUSE_piece2of4`, `P01B_BASE_HOUSE_piece3of4`, `P01B_BASE_HOUSE_piece4of4` |
-| `P02_WALL_BACK` | `386.0 × 150.0 × 3.0` | `2×1` | `2` | `U=[204.5]` | `P02_WALL_BACK_piece1of2`, `P02_WALL_BACK_piece2of2` |
-| `P05_WALL_FRONT` | `386.0 × 150.0 × 3.0` | `2×1` | `2` | `U=[209.5]` | `P05_WALL_FRONT_piece1of2`, `P05_WALL_FRONT_piece2of2` |
-| `P15_TECH_FASCIA` | `246.0 × 51.0 × 3.0` | `2×1` | `2` | `U=[143.0]` | `P15_TECH_FASCIA_piece1of2`, `P15_TECH_FASCIA_piece2of2` |
+![Tổng quan bố cục 17 bàn in trên khổ 180x200 mm](previews/_plates_overview.png)
 
-![Ví dụ chia mảnh khớp đuôi én trên tấm tường sau P02_WALL_BACK](previews/_split_part_example.png)
+| Bàn in (`plates/`) | SL | Các chi tiết trên bàn | Khung sử dụng (mm) | Mật độ | Thời gian in | Nhựa (g / m) | Manifold / Slice | Bố cục |
+| :--- | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| [`PLATE01_base_walls`](plates/PLATE01_base_walls.3mf) ([STL](plates/PLATE01_base_walls.stl)) | `6` | `P01B_piece4of6`, `P08_DOOR_LEAF`, `P14_SOIL_BRIDGE`, `SUP07_RELAY_SNAP_CADDY`, `SUP12_DHT11_SNAP_CRADLE`, `SUP10_DOOR_MORTISE_HINGE` | `166.4×189.9×11.4` | `92.1%` | `7g 22p 38s` | `67.2 g` / `22.53 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate01_layout.png) |
+| [`PLATE02_base_tech`](plates/PLATE02_base_tech.3mf) ([STL](plates/PLATE02_base_tech.stl)) | `12` | `P01B_piece1of6`, `P15_piece1of2`, `SUP15_WATER_TANK_LINER`, `FUR01_SOFA`, `FUR07_MINI_TREE`, `FUR02_TV_STAND`, `FUR09_FLOOR_TENON_PEG`×4, `SUP05B_CARRIER_TENON_PEG`×2 | `167.9×189.4×45.0` | `91.3%` | `11g 09p 13s` | `117.1 g` / `39.27 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate02_layout.png) |
+| [`PLATE03_base`](plates/PLATE03_base.3mf) ([STL](plates/PLATE03_base.stl)) | `1` | `P01A_piece2of3` | `160.9×181.9×3.0` | `90.6%` | `6g 17p 26s` | `57.1 g` / `19.15 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate03_layout.png) |
+| [`PLATE04_base_mounts`](plates/PLATE04_base_mounts.3mf) ([STL](plates/PLATE04_base_mounts.stl)) | `9` | `P01B_piece2of6`, `P01B_piece3of6`, `P17_BASE_JOINER`, `FUR05_BEDSIDE_TABLE`, `SUP10_DOOR_MORTISE_HINGE`, `SUP03_SEAM_U_CLIP`, `SUP05_P16_TENON_RISER`, `SUP05B_CARRIER_TENON_PEG`×2 | `168.4×186.4×28.0` | `90.5%` | `7g 18p 56s` | `67.2 g` / `22.54 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate04_layout.png) |
+| [`PLATE05_base_mounts`](plates/PLATE05_base_mounts.3mf) ([STL](plates/PLATE05_base_mounts.stl)) | `10` | `P01B_piece6of6`, `P15_piece2of2`, `SUP07_RELAY_SNAP_CADDY`, `SUP08_PAM8403_SNAP_TRAY`, `SUP04_BASE_FOOT_CLIP`, `SUP13_KY037_SNAP_CRADLE`, `SUP11_SG90_SNAP_SADDLE`, `SUP01_CORNER_CLIP_WALL`, `FUR09_FLOOR_TENON_PEG`, `SUP05B_CARRIER_TENON_PEG` | `169.5×190.0×14.0` | `90.0%` | `7g 48p 54s` | `71.2 g` / `23.86 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate05_layout.png) |
+| [`PLATE06_base_garden`](plates/PLATE06_base_garden.3mf) ([STL](plates/PLATE06_base_garden.stl)) | `9` | `P01A_piece1of3`, `P10_WATER_DIVIDER`, `P07_SERVO_SHELF`, `SUP04_BASE_FOOT_CLIP`, `SUP01_CORNER_CLIP_WALL`, `SUP05B_CARRIER_TENON_PEG`×3, `FUR09_FLOOR_TENON_PEG` | `169.9×187.1×14.0` | `88.7%` | `6g 52p 24s` | `65.1 g` / `21.83 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate06_layout.png) |
+| [`PLATE07_base`](plates/PLATE07_base.3mf) ([STL](plates/PLATE07_base.stl)) | `1` | `P01A_piece3of3` | `157.0×181.9×3.0` | `88.4%` | `6g 13p 27s` | `56.0 g` / `18.76 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate07_layout.png) |
+| [`PLATE08_base_garden`](plates/PLATE08_base_garden.3mf) ([STL](plates/PLATE08_base_garden.stl)) | `4` | `P01B_piece5of6`, `P11_GARDEN_RIGHT`, `FUR07_MINI_TREE`, `SUP03_SEAM_U_CLIP` | `167.0×189.6×9.0` | `87.1%` | `6g 02p 35s` | `56.2 g` / `18.85 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate08_layout.png) |
+| [`PLATE09_walls_furniture`](plates/PLATE09_walls_furniture.3mf) ([STL](plates/PLATE09_walls_furniture.stl)) | `3` | `P05_piece2of3`, `P05_piece3of3`, `FUR03_TV_SCREEN` | `168.0×190.0×5.0` | `96.4%` | `3g 43p 52s` | `35.3 g` / `11.83 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate09_layout.png) |
+| [`PLATE10_walls_mounts`](plates/PLATE10_walls_mounts.3mf) ([STL](plates/PLATE10_walls_mounts.stl)) | `8` | `P02_piece2of3`, `SUP06_HUB_PCB_SNAP_CARRIER`, `FUR04_BED`, `SUP03_SEAM_U_CLIP`×2, `SUP05_P16_TENON_RISER`, `FUR09_FLOOR_TENON_PEG`, `SUP05B_CARRIER_TENON_PEG` | `169.0×189.9×28.0` | `92.0%` | `8g 50p 37s` | `89.5 g` / `30.00 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate10_layout.png) |
+| [`PLATE11_walls`](plates/PLATE11_walls.3mf) ([STL](plates/PLATE11_walls.stl)) | `1` | `P06_WALL_MID` | `150.0×190.0×3.0` | `88.2%` | `4g 51p 43s` | `45.5 g` / `15.25 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate11_layout.png) |
+| [`PLATE12_walls`](plates/PLATE12_walls.3mf) ([STL](plates/PLATE12_walls.stl)) | `1` | `P03_WALL_LEFT` | `150.0×190.0×3.0` | `88.2%` | `4g 39p 44s` | `43.3 g` / `14.52 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate12_layout.png) |
+| [`PLATE13_walls`](plates/PLATE13_walls.3mf) ([STL](plates/PLATE13_walls.stl)) | `1` | `P04_WALL_RIGHT` | `150.0×190.0×3.0` | `88.2%` | `4g 29p 05s` | `41.7 g` / `13.98 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate13_layout.png) |
+| [`PLATE14_walls`](plates/PLATE14_walls.3mf) ([STL](plates/PLATE14_walls.stl)) | `1` | `P02_piece3of3` | `150.0×182.5×3.0` | `84.8%` | `4g 11p 28s` | `39.5 g` / `13.23 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate14_layout.png) |
+| [`PLATE15_walls_garden`](plates/PLATE15_walls_garden.3mf) ([STL](plates/PLATE15_walls_garden.stl)) | `3` | `P02_piece1of3`, `P09_GARDEN_LEFT`, `P17_BASE_JOINER` | `157.0×185.4×6.0` | `82.8%` | `5g 59p 47s` | `55.2 g` / `18.51 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate15_layout.png) |
+| [`PLATE16_walls_garden`](plates/PLATE16_walls_garden.3mf) ([STL](plates/PLATE16_walls_garden.stl)) | `16` | `P05_piece1of3`, `P13_GARDEN_BACK`, `SUP04_BASE_FOOT_CLIP`×2, `SUP14_LM393_SNAP_CRADLE`, `SUP09_SPEAKER_SNAP_RETAINER`, `SUP01B_T_CLIP_WALL`, `SUP02_CORNER_CLIP_LOW`×2, `SUP03_SEAM_U_CLIP`×3, `SUP10B_SERVO_LINK_CLIP`, `FUR09_FLOOR_TENON_PEG`×2, `SUP05B_CARRIER_TENON_PEG` | `170.0×180.6×14.0` | `82.2%` | `6g 26p 37s` | `62.6 g` / `20.99 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate16_layout.png) |
+| [`PLATE17_tech_garden`](plates/PLATE17_tech_garden.3mf) ([STL](plates/PLATE17_tech_garden.stl)) | `13` | `P16_PCB_PLATE`, `P12_GARDEN_FRONT`, `FUR06_PLANT_POT_LARGE`×2, `SUP02_CORNER_CLIP_LOW`×4, `SUP03_SEAM_U_CLIP`, `FUR08_PLANT_POT_SMALL`, `SUP05_P16_TENON_RISER`×2, `FUR09_FLOOR_TENON_PEG` | `170.0×170.0×18.0` | `76.6%` | `7g 12p 26s` | `66.2 g` / `22.20 m` | `ĐẠT / ĐẠT` | [Xem](previews/_plate17_layout.png) |
+| **TỔNG CỘNG (17 bàn)** | **`99`** | **Đủ 57 chi tiết duy nhất (99 bản thể)** | **`<= 170×190×45`** | **TB `88.0%`** | **`109g 30p 52s`** | **`1035.87 g` / `347.31 m`** | **`17/17` ĐẠT** | [Tổng quan](previews/_plates_overview.png) |
 
----
+### Ghi chú Support Slicer & Thông số in khuyến nghị
+- **Đánh giá Support Slicer:** **`0/17` bàn in cần support** (`--support-material=0`). Mọi chi tiết đều đặt mặt phẳng lớn nhất xuống bàn in (`Z = 0`), góc vươn ngoài `<= 45°`, các hốc mộng ngầm trên `SUP06`/`SUP07`/`SUP08` có mái vòm `45°` tự đỡ, và hốc chốt sàn đáy nội thất chỉ có nhịp cầu ngắn `4.3 mm` tự bắt cầu sạch.
+- **Thông số in chuẩn:** Nhựa **PLA / PLA+** `1.75 mm`, đầu phun **`0.4 mm`**, lớp **`0.20 mm`**, **`3` thành (perimeters)**, ruột **`20% Gyroid`**, **`Skirt = 1 vòng` (khoảng cách `2 mm`)**, bật `Elephant foot compensation = 0.15 mm` để lắp mộng êm tay.
+- **Độ bám bàn cho chốt nhỏ:** Trên 8 bàn có chốt nhỏ (`FUR09`, `SUP05B`, `SUP10`), PrusaSlicer đưa khuyến nghị nhẹ `Low bed adhesion` — chỉ cần vệ sinh sạch mặt PEI (hoặc thêm `Brim 3 mm` cục bộ cho riêng chốt nhỏ), tuyệt đối không cần support.
+- **Lòng bể nước chống thấm (`SUP15_WATER_TANK_LINER`):** Nên in **`4` thành** và **6 lớp đáy** (`0.20 mm`) để thành bể kín nước hoàn toàn mà không cần bất kỳ chất trám nào.
 
-## 4. Danh Mục Chi Tiết 25 Mảnh Vỏ Nhà (`P01A` – `P17`)
-
-Mọi mảnh đều có đủ 3 định dạng `STL` / `3MF` / `STEP`, bản vẽ `PDF + PNG` và ảnh 3D `PNG`. Thời gian và khối lượng nhựa được đo trực tiếp từ đầu ra G-code của `PrusaSlicer 2.9.7` (PLA, lớp `0.20 mm`, đầu phun `0.4 mm`, `3` thành, infill `20% gyroid`, **0% support**):
-
-| Mã tệp | Tên tiếng Việt | SL | Kích thước bao L×W×T (mm) | Chữ khắc trên vật | Thời gian in | Nhựa (g) | Bản vẽ & Ảnh |
-| :--- | :--- | :---: | :---: | :--- | :---: | :---: | :--- |
-| `P01A_BASE_TECH_piece1of2` | Tam day truoc (Khoang ky thuat & Vuon) | `1` | `204.9 × 181.9 × 3.0` | `P01A p1/2 \| 205x182x3mm` | `8g 12p` | `74.8 g` | [PDF](drawings/P01A_BASE_TECH_piece1of2.pdf) · [PNG](previews/P01A_BASE_TECH_piece1of2.png) |
-| `P01A_BASE_TECH_piece2of2` | Tam day truoc (Khoang ky thuat & Vuon) | `1` | `207.0 × 181.9 × 3.0` | `P01A p2/2 \| 207x182x3mm` | `8g 11p` | `74.0 g` | [PDF](drawings/P01A_BASE_TECH_piece2of2.pdf) · [PNG](previews/P01A_BASE_TECH_piece2of2.png) |
-| `P01B_BASE_HOUSE_piece1of4` | Tam day sau (Phong khach & Phong ngu) | `1` | `209.4 × 90.5 × 3.0` | `P01B p1/4 \| 209x90x3mm` | `4g 11p` | `38.9 g` | [PDF](drawings/P01B_BASE_HOUSE_piece1of4.pdf) · [PNG](previews/P01B_BASE_HOUSE_piece1of4.png) |
-| `P01B_BASE_HOUSE_piece2of4` | Tam day sau (Phong khach & Phong ngu) | `1` | `202.5 × 90.5 × 3.0` | `P01B p2/4 \| 202x90x3mm` | `3g 59p` | `37.1 g` | [PDF](drawings/P01B_BASE_HOUSE_piece2of4.pdf) · [PNG](previews/P01B_BASE_HOUSE_piece2of4.png) |
-| `P01B_BASE_HOUSE_piece3of4` | Tam day sau (Phong khach & Phong ngu) | `1` | `209.4 × 131.4 × 3.0` | `P01B p3/4 \| 209x131x3mm` | `5g 55p` | `55.0 g` | [PDF](drawings/P01B_BASE_HOUSE_piece3of4.pdf) · [PNG](previews/P01B_BASE_HOUSE_piece3of4.png) |
-| `P01B_BASE_HOUSE_piece4of4` | Tam day sau (Phong khach & Phong ngu) | `1` | `202.5 × 131.4 × 3.0` | `P01B p4/4 \| 202x131x3mm` | `5g 38p` | `52.4 g` | [PDF](drawings/P01B_BASE_HOUSE_piece4of4.pdf) · [PNG](previews/P01B_BASE_HOUSE_piece4of4.png) |
-| `P02_WALL_BACK_piece1of2` | Tuong sau (Phong khach + Phong ngu) | `1` | `204.4 × 150.0 × 3.0` | `P02 p1/2 \| 204x150x3mm` | `6g 43p` | `62.0 g` | [PDF](drawings/P02_WALL_BACK_piece1of2.pdf) · [PNG](previews/P02_WALL_BACK_piece1of2.png) |
-| `P02_WALL_BACK_piece2of2` | Tuong sau (Phong khach + Phong ngu) | `1` | `187.5 × 150.0 × 3.0` | `P02 p2/2 \| 188x150x3mm` | `4g 21p` | `40.9 g` | [PDF](drawings/P02_WALL_BACK_piece2of2.pdf) · [PNG](previews/P02_WALL_BACK_piece2of2.png) |
-| `P03_WALL_LEFT` | Vach hong trai cat mo | `1` | `190.0 × 150.0 × 3.0` | `P03_WALL_LEFT \| 190x150x3mm` | `4g 39p` | `43.2 g` | [PDF](drawings/P03_WALL_LEFT.pdf) · [PNG](previews/P03_WALL_LEFT.png) |
-| `P04_WALL_RIGHT` | Vach hong phai cat mo | `1` | `190.0 × 150.0 × 3.0` | `P04_WALL_RIGHT \| 190x150x3mm` | `4g 28p` | `41.6 g` | [PDF](drawings/P04_WALL_RIGHT.pdf) · [PNG](previews/P04_WALL_RIGHT.png) |
-| `P05_WALL_FRONT_piece1of2` | Tuong mat tien & Khung cua chinh | `1` | `209.4 × 150.0 × 3.0` | `P05 p1/2 \| 209x150x3mm` | `3g 14p` | `30.7 g` | [PDF](drawings/P05_WALL_FRONT_piece1of2.pdf) · [PNG](previews/P05_WALL_FRONT_piece1of2.png) |
-| `P05_WALL_FRONT_piece2of2` | Tuong mat tien & Khung cua chinh | `1` | `180.5 × 37.0 × 3.0` | `P05 p2/2 \| 180x37x3mm` | `1g 26p` | `13.6 g` | [PDF](drawings/P05_WALL_FRONT_piece2of2.pdf) · [PNG](previews/P05_WALL_FRONT_piece2of2.png) |
-| `P06_WALL_MID` | Vach ngan giua (Phong khach / Phong ngu) | `1` | `190.0 × 150.0 × 3.0` | `P06_WALL_MID \| 190x150x3mm` | `4g 51p` | `45.4 g` | [PDF](drawings/P06_WALL_MID.pdf) · [PNG](previews/P06_WALL_MID.png) |
-| `P07_SERVO_SHELF` | Ke gan Servo SG90 cua chinh | `1` | `34.0 × 49.1 × 3.0` | `P07 \| 34x49x3mm` | `20p 56s` | `3.4 g` | [PDF](drawings/P07_SERVO_SHELF.pdf) · [PNG](previews/P07_SERVO_SHELF.png) |
-| `P08_DOOR_LEAF` | Canh cua chinh | `1` | `56.0 × 100.0 × 3.0` | `P08 \| 56x100x3mm` | `1g 11p` | `11.1 g` | [PDF](drawings/P08_DOOR_LEAF.pdf) · [PNG](previews/P08_DOOR_LEAF.png) |
-| `P09_GARDEN_LEFT` | Vach trai be nuoc | `1` | `126.0 × 57.0 × 3.0` | `P09 \| 126x57x3mm` | `1g 32p` | `14.4 g` | [PDF](drawings/P09_GARDEN_LEFT.pdf) · [PNG](previews/P09_GARDEN_LEFT.png) |
-| `P10_WATER_DIVIDER` | Vach ngan be nuoc & chau cay | `1` | `126.0 × 57.0 × 3.0` | `P10 \| 126x57x3mm` | `1g 33p` | `14.5 g` | [PDF](drawings/P10_WATER_DIVIDER.pdf) · [PNG](previews/P10_WATER_DIVIDER.png) |
-| `P11_GARDEN_RIGHT` | Vach phai chau cay | `1` | `126.0 × 51.0 × 3.0` | `P11 \| 126x51x3mm` | `1g 23p` | `13.0 g` | [PDF](drawings/P11_GARDEN_RIGHT.pdf) · [PNG](previews/P11_GARDEN_RIGHT.png) |
-| `P12_GARDEN_FRONT` | Vach truoc be nuoc & chau cay | `1` | `130.0 × 57.0 × 3.0` | `P12 \| 130x57x3mm` | `1g 34p` | `14.5 g` | [PDF](drawings/P12_GARDEN_FRONT.pdf) · [PNG](previews/P12_GARDEN_FRONT.png) |
-| `P13_GARDEN_BACK` | Vach sau be nuoc & chau cay | `1` | `130.0 × 57.0 × 3.0` | `P13 \| 130x57x3mm` | `1g 33p` | `14.4 g` | [PDF](drawings/P13_GARDEN_BACK.pdf) · [PNG](previews/P13_GARDEN_BACK.png) |
-| `P14_SOIL_BRIDGE` | Cau giu dau do am dat YL-69 | `1` | `32.0 × 126.0 × 3.0` | `P14 \| 32x126x3mm` | `56p 18s` | `8.9 g` | [PDF](drawings/P14_SOIL_BRIDGE.pdf) · [PNG](previews/P14_SOIL_BRIDGE.png) |
-| `P15_TECH_FASCIA_piece1of2` | Mat na ky thuat (Nguon DC & Loa) | `1` | `142.9 × 45.0 × 3.0` | `P15 p1/2 \| 143x45x3mm` | `56p 00s` | `8.7 g` | [PDF](drawings/P15_TECH_FASCIA_piece1of2.pdf) · [PNG](previews/P15_TECH_FASCIA_piece1of2.png) |
-| `P15_TECH_FASCIA_piece2of2` | Mat na ky thuat (Nguon DC & Loa) | `1` | `107.0 × 51.0 × 3.0` | `P15 p2/2 \| 107x51x3mm` | `1g 06p` | `8.9 g` | [PDF](drawings/P15_TECH_FASCIA_piece2of2.pdf) · [PNG](previews/P15_TECH_FASCIA_piece2of2.png) |
-| `P16_PCB_PLATE` | Tam ga bo mach Hub PCB 100x80 | `1` | `130.0 × 110.0 × 3.0` | `P16_PCB_PLATE \| 130x110x3mm` | `3g 22p` | `30.6 g` | [PDF](drawings/P16_PCB_PLATE.pdf) · [PNG](previews/P16_PCB_PLATE.png) |
-| `P17_BASE_JOINER` | Thanh noi day (mat duoi) | `2` | `64.0 × 28.0 × 3.0` | `P17 \| 64x28x3mm` | `29p 29s` | `4.3 g` | [PDF](drawings/P17_BASE_JOINER.pdf) · [PNG](previews/P17_BASE_JOINER.png) |
+![Kiểm chứng đường chạy G-code PrusaSlicer trên bàn 180x200 mm](previews/_slicer_plate_preview.png)
 
 ---
 
-## 5. Danh Mục 12 Phụ Kiện Gia Cố & Giá Đỡ In 3D (`SUP01` – `SUP12`)
+## 4. Bảng Dung Sai Khớp Mộng (Joint & Clearance Table — FDM PLA Đầu Phun 0.4 mm)
 
-Toàn bộ 12 phụ kiện supot đều được thiết kế khớp chính xác mẫu lỗ của [`hardware/mica/mica_design.py`](../mica/mica_design.py) (như chuẩn `90 × 70 mm` cho `P16_PCB_PLATE`, `44.5 × 20.5 mm` cho `Relay 1/2`, `26.0 mm` cho `PAM8403`, `36.0 mm` cho loa `Ø28 mm`), **định hướng nằm phẳng Z = 0, không cần support khi cắt lớp**, và khắc sẵn mã kích thước:
+Mọi liên kết kết cấu, liên kết mạch và gắn nội thất đều dùng đúng 7 chuẩn khe hở định nghĩa tập trung trong [`scripts/print_domain.py`](scripts/print_domain.py):
 
-![Bộ 12 phụ kiện supot in 3D SUP01 - SUP12](previews/_supports_showcase.png)
+| Loại khớp mộng | Khe hở thiết kế (mm) | Dải dung sai đạt | Ứng dụng trong mô hình |
+| :--- | :---: | :---: | :--- |
+| **Khop mong duoi en (tach manh tam lon)** (`dovetail_seam`) | **`0.20 mm`** | `0.18 - 0.22 mm` | Cac duong noi chia manh tren P01A, P01B, P02, P05, P15 |
+| **Khop mong rang luoc (tab-and-slot) giua cac tam** (`panel_tab_slot`) | **`0.25 mm`** | `0.20 - 0.30 mm` | Toan bo canh noi tuong/day/vuon (ranh 3.25 mm cho tam 3.0 mm) |
+| **Kep khoa goc 90 do & kep chu U khoa moi noi** (`corner_lock_clip`) | **`0.20 mm`** | `0.18 - 0.22 mm` | SUP01, SUP01B, SUP02, SUP03, SUP04 (ranh chu U 3.20 mm cho tam 3.0 mm) |
+| **Mong chot vuong ep khit (mortise-and-tenon)** (`mortise_tenon_press`) | **`0.15 mm`** | `0.12 - 0.18 mm / canh (+0.30 mm tong)` | P17 thanh noi day, chan gia do SUP05..SUP14 va chot noi that FUR01..FUR08 cam xuong san |
+| **Chot dan hoi tu khoa (split snap-fit peg)** (`snap_fit_peg`) | **`0.20 mm`** | `0.18 - 0.22 mm duong kinh + gai khoa 0.25 mm` | SUP06 (4 chot 3.0 mm vao lo 3.2 mm Hub PCB), SUP07 (4 chot 2.9 mm vao lo 3.1 mm Relay) |
+| **Ranh truot & ngoam kep mep bo mach** (`edge_rail`) | **`0.20 mm`** | `0.20 mm / canh (+0.40 mm tong khoang trong)` | SUP08 (PAM8403), SUP09 (Loa 28mm), SUP11 (SG90), SUP12 (DHT11), SUP13 (KY-037), SUP14 (LM393) |
+| **Truc xoay ban le mong cua chinh** (`hinge_pivot`) | **`0.30 mm`** | `0.25 - 0.35 mm duong kinh` | SUP10 ban le cua P08 <-> P05 (truc 2.7 mm trong ong 3.0 mm, xoay nhe theo Servo SG90) |
 
-| Mã phụ kiện | Tên tiếng Việt | SL | Kích thước X×Y×Z (mm) | Chữ khắc | Vị trí lắp ghép & Vai trò | Thời gian | Nhựa (g) | Bản vẽ |
-| :--- | :--- | :---: | :---: | :--- | :--- | :---: | :---: | :--- |
-| `SUP01_CORNER_L_BRACKET_WALL` | Ke goc vuong 90 do tuong cao | `8` | `24.0 × 24.0 × 16.0` | `SUP01 24x24x16` | Gia co goc vuong 90 do giua cac tuong dung cao 147mm, thay keo dan dung moi; in nam phang khong can support. | `18p 25s` | `3.0 g` | [PDF](drawings/SUP01_CORNER_L_BRACKET_WALL.pdf) · [PNG](previews/SUP01_CORNER_L_BRACKET_WALL.png) |
-| `SUP02_CORNER_L_BRACKET_LOW` | Ke goc vuong 90 do vach thap & vuon | `6` | `18.0 × 18.0 × 10.0` | `SUP02 18x18x10` | Ke goc nho gon cho vach cat mo mat truoc (34mm) va cum be nuoc - chau cay (48-54mm). | `8p 22s` | `1.2 g` | [PDF](drawings/SUP02_CORNER_L_BRACKET_LOW.pdf) · [PNG](previews/SUP02_CORNER_L_BRACKET_LOW.png) |
-| `SUP03_SEAM_JOIN_CLIP` | Kep chu U gia co moi noi tach manh | `10` | `34.0 × 9.2 × 9.0` | `SUP03 34x9x9` | Kep chu U ranh 3.2mm truot khoa tren mep moi noi duoi en cua cac tam chia manh, chong cong venh. | `14p 14s` | `2.4 g` | [PDF](drawings/SUP03_SEAM_JOIN_CLIP.pdf) · [PNG](previews/SUP03_SEAM_JOIN_CLIP.png) |
-| `SUP04_BASE_FOOT_STAND` | Chan de nang nha (chong cham oc day) | `6` | `30.0 × 30.0 × 14.0` | `SUP04 30x30x14` | Nang tam day nha cao 11mm khoi mat ban, chong cham thanh noi P17 va dau oc M3 duoi day. | `32p 53s` | `6.0 g` | [PDF](drawings/SUP04_BASE_FOOT_STAND.pdf) · [PNG](previews/SUP04_BASE_FOOT_STAND.png) |
-| `SUP05_HUB_PCB_STANDOFF_10MM` | Tru do Hub PCB M3x10 (in 3D) | `4` | `16.5 × 10.0 × 10.0` | `S05 10x10` | Tru do M3 cao 10mm thay the tru dong gan Hub PCB 100x80mm len tam P16_PCB_PLATE (mau lo 90x70mm). | `6p 10s` | `0.6 g` | [PDF](drawings/SUP05_HUB_PCB_STANDOFF_10MM.pdf) · [PNG](previews/SUP05_HUB_PCB_STANDOFF_10MM.png) |
-| `SUP06_PCB_PLATE_STANDOFF_6MM` | Tru do tam P16_PCB_PLATE M3x6 (in 3D) | `4` | `16.5 × 10.0 × 6.0` | `S06 10x6` | Tru do M3 cao 6mm nang tam P16_PCB_PLATE phia tren tam day P01A_BASE_TECH (mau lo 116x96mm). | `4p 09s` | `0.4 g` | [PDF](drawings/SUP06_PCB_PLATE_STANDOFF_6MM.pdf) · [PNG](previews/SUP06_PCB_PLATE_STANDOFF_6MM.png) |
-| `SUP07_PCB_CARRIER_FRAME_90X70` | Khung de lien khoi Hub PCB 90x70 | `1` | `100.0 × 80.0 × 10.0` | `SUP07 90x70 100x80x10mm` | Khung do lien khoi tich hop 4 tru 10mm dung chuan lo 90x70mm (thay the tuy chon cho 4 tru roi SUP05). | `1g 19p` | `11.2 g` | [PDF](drawings/SUP07_PCB_CARRIER_FRAME_90X70.pdf) · [PNG](previews/SUP07_PCB_CARRIER_FRAME_90X70.png) |
-| `SUP08_MODULE_STANDOFF_8MM` | Tru do module ngoai vi M3x8 (in 3D) | `11` | `15.5 × 9.0 × 8.0` | `S08 9x8` | Tru do M3 cao 8mm thay tru nhua cho 2 module Relay (44.5x20.5mm), DHT11, KY-037 va LM393. | `4p 49s` | `0.4 g` | [PDF](drawings/SUP08_MODULE_STANDOFF_8MM.pdf) · [PNG](previews/SUP08_MODULE_STANDOFF_8MM.png) |
-| `SUP09_RELAY_CADDY_44P5X20P5` | Khung de Relay 1 kenh 44.5x20.5 | `2` | `52.0 × 28.0 × 8.0` | `SUP09 52x28x8` | Khung de 4 tru lien khoi chuan 44.5x20.5mm cho Relay 1 va Relay 2 (thay the tuy chon cho 8 tru roi SUP08). | `28p 32s` | `3.4 g` | [PDF](drawings/SUP09_RELAY_CADDY_44P5X20P5.pdf) · [PNG](previews/SUP09_RELAY_CADDY_44P5X20P5.png) |
-| `SUP10_PAM8403_CLIP_STAND` | Gia kep mach khuếch dai PAM8403 | `1` | `32.0 × 22.0 × 6.0` | `SUP10 32x22x6` | Gia giu khay co dinh mach PAM8403 (21x18mm) khop dung 2 lo PAM_CLAMP cach nhau 26.0mm, khong can bang dinh xop. | `12p 21s` | `1.9 g` | [PDF](drawings/SUP10_PAM8403_CLIP_STAND.pdf) · [PNG](previews/SUP10_PAM8403_CLIP_STAND.png) |
-| `SUP11_SPEAKER_28MM_RETAINER` | Thanh ep giu loa tron 28mm | `1` | `44.0 × 14.0 × 9.0` | `SUP11 44x14x9` | Thanh ep lung giu loa mini tron duong kinh 28mm ap sat luoi loa 19 lo tren P15_TECH_FASCIA. | `26p 32s` | `3.1 g` | [PDF](drawings/SUP11_SPEAKER_28MM_RETAINER.pdf) · [PNG](previews/SUP11_SPEAKER_28MM_RETAINER.png) |
-| `SUP12_DOOR_HINGE_BRACKET` | Ban le cua chinh in 3D | `2` | `22.0 × 12.0 × 6.0` | `SUP12 22x12x6` | Cap ban le in 3D noi canh cua P08_DOOR_LEAF vao khung cua P05_WALL_FRONT, giu khe ho 2.0mm. | `7p 54s` | `0.9 g` | [PDF](drawings/SUP12_DOOR_HINGE_BRACKET.pdf) · [PNG](previews/SUP12_DOOR_HINGE_BRACKET.png) |
+### Tài liệu hóa 32 lỗ tròn chức năng giữ lại trên tấm vỏ (không dùng làm lỗ bắt chi tiết kim loại)
+Toàn bộ **44 lỗ tròn lắp ghép cũ** của bản mica đã bị loại bỏ hoàn toàn và thay bằng **51 rãnh mộng chữ nhật**. Chỉ giữ lại **32 lỗ tròn chức năng** phục vụ dây dẫn, quang học, âm thanh và ống nước:
+- **`led`:** Lo den LED bao hieu 5mm (5.5mm) va LED nguon 3mm (3.5mm) — lo chuc nang quang hoc, lo chuc nang.
+- **`buzzer`:** Lo coi bao dong chu dong TMB12A05 (12.5mm) — lo phat am thanh, lo chuc nang.
+- **`mic`:** Lo thu am micro electret 9.7mm cho cam bien KY-037 (10.5mm) — lo cam bien am thanh.
+- **`dcjack`:** Lo giac nguon DC-022 5.5x2.1mm (12.5mm) — lo cap nguon 5V 2A.
+- **`cable`:** Lo luon bo day tin hieu Dupont (14.0mm) — lo di day dien lien phong.
+- **`tube`:** Lo luon ong silicon bom tuoi cay OD 8mm (10.0mm) — lo ong nuoc.
+- **`grille`:** Cum 19 lo luoi thoat am thanh (3.0mm) cho loa mini 28mm — luoi loa, lo chuc nang.
 
-> **Lưu ý tùy chọn tiện lợi:** Bạn có thể in **`4× SUP05`** (trụ lẻ `10 mm`) **hoặc** in **`1× SUP07_PCB_CARRIER_FRAME_90X70`** (khung liền khối 4 trụ `90 × 70 mm`) để đỡ Hub PCB. Tương tự, có thể chọn **`8× SUP08`** (trụ lẻ `8 mm`) **hoặc** **`2× SUP09_RELAY_CADDY_44P5X20P5`** (khung liền khối `44.5 × 20.5 mm`) cho 2 module Relay.
-
----
-
-## 6. Thông Số In 3D Khuyến Nghị (FDM `220 × 220 × 250 mm`)
-
-| Hạng mục | Tấm vỏ nhà (`P01A`–`P17`) | Phụ kiện Supot (`SUP01`–`SUP12`) | Ghi chú kỹ thuật |
-| :--- | :--- | :--- | :--- |
-| **Vật liệu** | **PLA+** hoặc **PETG** *(khuyên dùng PETG cho cụm bể nước `P09`–`P13`)* | **PETG** hoặc **PLA+** | PETG dẻo và chịu ẩm tốt hơn cho kẹp nối & bể nước. |
-| **Đầu phun / Chiều cao lớp** | `0.4 mm` / **`0.20 mm`** (`15` lớp cho tấm `3.0 mm`) | `0.4 mm` / **`0.20 mm`** | Lớp `0.20 mm` đảm bảo chữ khắc sâu `0.60 mm` (3 lớp) đọc rõ nét. |
-| **Số thành (Perimeters)** | `3` thành (`~1.2 mm`) | `3–4` thành | Tăng độ bền kéo cho khớp đuôi én và lỗ bắt ốc M3. |
-| **Mật độ ruột (Infill)** | `20%` (`Gyroid` hoặc `Grid`) | `25–30%` (`Gyroid`) | Chống cong vênh (warping) cho các mảnh đáy lớn. |
-| **Hướng đặt vật thể** | **Mặt phẳng `Z = 0` úp bàn in**, mặt khắc chữ hướng **lên trên** | Giữ nguyên hướng mặc định trong tệp `STL`/`3MF` | Tất cả 37 tệp đã xoay sẵn print-ready. |
-| **Support Slicer** | **TẮT (`0%`, Không cần support)** | **TẮT (`0%`, Không cần support)** | `SUP03` và `SUP11` đã lật sẵn đáy phẳng xuống bàn in. |
-| **Bám bàn in (Adhesion)** | `Skirt` 1–2 vòng (bật `Brim 4 mm` nếu in PETG / mảnh dài > 180 mm) | `Skirt` (bật `Brim` nhỏ cho trụ lẻ `SUP05/06/08`) | Giúp các mảnh `P01A`/`P01B`/`P02` phẳng tuyệt đối không hở góc. |
-| **Dung sai hiệu chuẩn** | Khớp đuôi én `0.20 mm`, khe mộng `0.25 mm` | Rãnh kẹp `SUP03` `3.20 mm` | Nếu máy có elephant's foot, bật `Elephant foot compensation = 0.15 mm`. |
-
-![Kiểm chứng cắt lớp G-code thực tế trên PrusaSlicer CLI (bàn in 220x220 mm)](previews/_slicer_preview.png)
+![Bản vẽ cận cảnh 4 kiểu khớp mộng và dung sai mm](drawings/_joint_closeup_mong.png)
 
 ---
 
-## 7. Thứ Tự Lắp Ráp (Thu tu lap rap)
+## 5. Bảng Kiểm Tra Lắp Khít PCB & Module Điện Tử (Fit Table — `12/12 PASS`)
 
-Thực hiện theo đúng **9 bước** dưới đây để lắp ráp nhanh, chắc chắn và chống thấm an toàn trước khi đấu mạch điện:
+Mọi giá đỡ mạch đều được đối chiếu kích thước trực tiếp với tệp KiCad PCB thực (`smarthome_hub.kicad_pcb`: `100.0 × 80.0 × 1.6 mm`, 4 lỗ định vị `Ø3.2 mm` bước `90.0 × 70.0 mm`, kiểm tra khoảng hở tới toàn bộ `45` footprint linh kiện) và datasheet từng module:
 
-1. **Bước 1 — Kiểm tra phôi in & ướm khô khớp đuôi én:**
-   - Đọc mã khắc chìm trên mặt từng mảnh để phân loại đủ `25` mảnh vỏ và `12` nhóm phụ kiện `SUP01`–`SUP12`.
-   - Cạo nhẹ bavia mép đáy (nếu có), sau đó ướm trượt khô các mảnh chia đôi/chia tư: `P01A` (`2` mảnh), `P01B` (`4` mảnh), `P02` (`2` mảnh), `P05` (`2` mảnh), `P15` (`2` mảnh). Các khớp đuôi én có khe hở `0.20 mm` sẽ lồng phẳng khít thành đúng kích thước gốc.
-2. **Bước 2 — Ghép tấm đáy tổng (`406 × 390 mm`) & lắp chân đế `SUP04`:**
-   - Ghép `P01A_BASE_TECH_piece1of2 + piece2of2` và `4` mảnh `P01B_BASE_HOUSE_piece1of4..4of4`, sau đó lồng 4 mộng khóa `24 mm` giữa `P01A` và `P01B` trên mặt bàn phẳng.
-   - Bắt `2× P17_BASE_JOINER` ở mặt dưới đường nối giữa bằng `8×` ốc `M3×10` + đai ốc; cố định thêm `SUP03_SEAM_JOIN_CLIP` ở các đường ghép đáy nếu cần tăng cứng.
-   - Gắn `4–6× SUP04_BASE_FOOT_STAND` vào 4 góc và 2 cạnh giữa của đáy — nâng toàn bộ khung nhà cao `11 mm` khỏi mặt bàn để thanh nối `P17` và đầu ốc M3 không cọ xước bàn.
-3. **Bước 3 — Lắp Hub PCB (`100 × 80 mm`) trên `P16_PCB_PLATE` & khoang kỹ thuật:**
-   - Đặt `4× SUP06_PCB_PLATE_STANDOFF_6MM` (`6 mm`) tại 4 lỗ `116 × 96 mm` trên `P01A` rồi bắt tấm `P16_PCB_PLATE` lên trên.
-   - Đặt `4× SUP05_HUB_PCB_STANDOFF_10MM` (`10 mm`) **hoặc** `1× SUP07_PCB_CARRIER_FRAME_90X70` khớp chuẩn `90 × 70 mm` lên `P16_PCB_PLATE`, sau đó bắt Hub PCB (cắm sẵn NodeMCU hướng cổng Micro-USB ra mặt trước).
-   - Lắp `Relay 1` và `Relay 2` lên `P01A` bằng `8× SUP08_MODULE_STANDOFF_8MM` **hoặc** `2× SUP09_RELAY_CADDY_44P5X20P5` (chuẩn `44.5 × 20.5 mm`).
-   - Đặt mạch khuếch đại `PAM8403` vào khay `SUP10_PAM8403_CLIP_STAND` và cố định qua 2 lỗ `Ø3.0 mm` (`26.0 mm`).
-4. **Bước 4 — Ghép tường sau `P02_WALL_BACK` & kẹp khóa `SUP03`:**
-   - Lồng `P02_WALL_BACK_piece1of2` và `piece2of2` theo 2 khớp đuôi én, sau đó trượt `1× SUP03_SEAM_JOIN_CLIP` lên cạnh trên đường nối (`X = 203..237 mm`, nằm gọn bên phải vách giữa `P06`).
-   - Gắn 2 LED 5 mm (`D0`, `D4`) và cảm biến `DHT11` (`D2` dùng `1× SUP08_MODULE_STANDOFF_8MM`) trước khi cắm 6 mộng đáy vào `P01B`.
-5. **Bước 5 — Dựng vách ngăn `P06_WALL_MID`, vách hông `P03`, `P04` & khóa ke góc `SUP01`:**
-   - Lắp vách giữa `P06_WALL_MID`, vách trái `P03_WALL_LEFT`, vách phải `P04_WALL_RIGHT` vào các khe trên `P01B` và `P02`.
-   - Bắt `8× SUP01_CORNER_L_BRACKET_WALL` vào các góc đứng phía trong giữa `P02` với `P03`, `P04`, `P06` (tại 2 tầng cao `Z = 42 mm` và `Z = 89 mm`) để cố định vuông góc `90°` chắc chắn mà không cần keo dung môi.
-6. **Bước 6 — Ghép tường mặt tiền `P05_WALL_FRONT`, kệ Servo `P07` & cánh cửa `P08`:**
-   - Lồng `P05_WALL_FRONT_piece1of2` và `piece2of2`, trượt `1× SUP03_SEAM_JOIN_CLIP` lên cạnh trên đoạn vách thấp (`X = 214.5..248.5 mm`, tránh sát trụ giữa).
-   - Gắn cảm biến `KY-037` (`1× SUP08`), còi Buzzer `TMB12A05` (`Ø12.5 mm`), và gài kệ `P07_SERVO_SHELF` (đã lắp Servo SG90 bằng 2 ốc M2 + long-đen M2) vào khe khung cửa rồi dựng `P05` lên `P01B`. Gia cố 2 góc thấp trước bằng `2× SUP02_CORNER_L_BRACKET_LOW`.
-   - Treo cánh cửa `P08_DOOR_LEAF` bằng cặp bản lề in 3D `2× SUP12_DOOR_HINGE_BRACKET` (giữ khe hở đều `2.0 mm`) và nối thanh kéo sang tay đòn Servo SG90.
-7. **Bước 7 — Lắp cụm bể nước & chậu cây (`P09`–`P14`) + chống thấm:**
-   - Lắp 5 vách `P09`–`P13` vào `P01A`, gia cố 4 góc trong bằng `4× SUP02_CORNER_L_BRACKET_LOW`.
-   - **Bắt buộc chống thấm cho bể nước in 3D:** Quét 1 lớp mỏng keo epoxy/silicone trung tính mặt trong khoang bể nước (`P01A/P09/P10/P12/P13`) để bịt kín khe giữa các lớp in FDM, chờ khô và thử nước 15 phút trên giấy khô trước khi cấp điện.
-   - Đặt bơm chìm 5V, luồn ống silicon `Ø8 mm` qua lỗ `Ø10 mm` trên `P10`, gắn `LM393` (`1× SUP08`) mặt ngoài `P12`, gài cầu `P14_SOIL_BRIDGE` và cắm đầu dò `YL-69`.
-8. **Bước 8 — Ghép mặt nạ kỹ thuật `P15_TECH_FASCIA` & loa `Ø28 mm`:**
-   - Ghép `P15_TECH_FASCIA_piece1of2` + `piece2of2`, khóa cạnh trên rãnh USB bằng `1× SUP03_SEAM_JOIN_CLIP`.
-   - Lắp giắc nguồn `DC-022` (`Ø12.5 mm`), LED nguồn 3 mm (`Ø3.5 mm`), áp loa `Ø28 mm` sau lưới 19 lỗ và ép giữ bằng `1× SUP11_SPEAKER_28MM_RETAINER` + 2 ốc M3.
-9. **Bước 9 — Đi dây Dupont & kiểm tra an toàn điện:**
-   - Luồn đủ 40 dây theo [`docs/phan_cung/WIRING_TABLE.md`](../../docs/phan_cung/WIRING_TABLE.md) và chỉ mục [`docs/HARDWARE_BUILD_GUIDE.md`](../../docs/HARDWARE_BUILD_GUIDE.md) qua 6 lỗ `Ø14 mm`, kiểm tra lại nguồn `+3.3 V` cho `DHT11` / `KY-037` / `LM393` trước khi cắm nguồn 5V 2A.
+| Linh kiện / Bo mạch | Nguồn kích thước | Kích thước bo / linh kiện (mm) | Kích thước lòng giá đỡ (mm) | Khe hở (mm) | Cơ chế giữ (lắp mộng) | Kết quả |
+| :--- | :--- | :--- | :--- | :--- | :--- | :---: |
+| **Hub PCB (Type 1)** | hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb (Edge.Cuts + 4x lo dinh vi 3.2 mm) | `100.0 x 80.0 x 1.6 (holes 90.0x70.0, Dia 3.2)` | `Frame 104.0x84.0, 4x split pegs OD 3.00 @ 90.0x70.0` | `0.20 mm dia (nearest component 7.9 mm)` | 4x split snap-fit pegs (0.25mm barb) + 4x SUP05B floor mortise tenons into P16 | **`PASS`** |
+| **ESP8266 NodeMCU v2** | hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb (PinSocket_1x15 22.86mm) + Components101 datasheet | `48.3 x 25.4 x 7.1 (22.86 mm pin row spacing)` | `Center pin cutout 72.0 x 52.0 mm below PCB; open top above Z=20.6 mm` | `>= 10.0 mm underside pin clearance, full open USB access` | Plugged into Hub PCB U1/U2 female headers (cam truc tiep) | **`PASS`** |
+| **Relay 1 & Relay 2 (SRD-05VDC)** | mica_design.py + Reichelt/HandsOnTech 1-Ch Relay datasheet | `50.0 x 26.0 x 18.5 (holes 44.5x20.5, Dia 3.1)` | `Cavity 50.4x26.4, 4x split pegs OD 2.90 @ 44.5x20.5` | `0.20 mm/side edge, 0.20 mm peg dia` | 4x split snap-fit pegs + edge rim + 2x SUP05B mortise tenons into P01A | **`PASS`** |
+| **PAM8403 3W Audio Amp** | mica_design.py + Elecrow PAM8403 datasheet | `21.0 x 18.0 x 3.4 (bare stamp PCB)` | `Cavity 21.4 x 18.4 x 4.0 + 0.4 mm snap ribs` | `0.20 mm/side X, 0.20 mm/side Y` | Edge rails + 45-deg side snap ribs + 2x SUP05B mortise tenons into P01A | **`PASS`** |
+| **Mini Speaker 28mm (PUI AS02808MR-R)** | mica_design.py + PUI Audio AS02808MR-R datasheet | `Dia 28.0 x 5.2 mm` | `Bridge span 28.4 mm, depth 5.4 mm` | `0.20 mm radial, 0.20 mm axial` | Rear pressure bridge locked via 2x integral 4x6x3 tenons into P15 mortises | **`PASS`** |
+| **SG90 9g Micro Servo** | mica_design.py + HandsOnTech SG90 datasheet | `Body 22.8 x 12.2 x 22.5, ear span 32.2, ear t 2.5` | `Cutout 23.3x12.7, saddle ear span 32.5, ear gap 2.6` | `0.25 mm/side body cutout, 0.15 mm/side ear span, 0.10 mm ear Z` | Drop-in P07 cutout clamped by SUP11 saddle locking into 2x P07 mortises (0 chot kim loai) | **`PASS`** |
+| **DHT11 Temp/Humidity Breakout** | mica_design.py + Aosong/DFRobot DHT11 datasheet | `28.0 x 14.0 x 7.1 (sensor 15.5 x 12.0)` | `Cavity 14.4 x 28.4, vent window 12.5x16.0` | `0.20 mm/side X, 0.20 mm/side Z` | Edge-rail slide-in cradle locked via 2x integral 3x6x3 tenons into P02 mortises | **`PASS`** |
+| **KY-037 Sound Sensor** | mica_design.py + Joy-IT KY-038/KY-037 datasheet | `35.0 x 15.0 x 13.1 (mic Dia 9.7)` | `Cavity 35.4 x 15.4, P05 mic hole Dia 10.5` | `0.20 mm/side X, 0.20 mm/side Z, 0.40 mm mic radial` | Edge-rail slide-in cradle locked via 2x integral 3x6x3 tenons into P05 mortises | **`PASS`** |
+| **YL-69 Soil Moisture Probe** | mica_design.py + HandsOnTech Soil Sensor datasheet | `60.0 x 20.0 x 1.6 (2-prong PCB)` | `Slot 22.0 x 3.5 mm` | `1.00 mm/side width, 0.95 mm/side thickness` | Direct vertical drop-in bridge slot (khong dung chi tiet kim loai) | **`PASS`** |
+| **LM393 Soil Comparator (YL-38)** | mica_design.py + HandsOnTech Soil Sensor datasheet | `32.0 x 14.0 x 12.0` | `Cavity 32.4 x 14.4` | `0.20 mm/side X, 0.20 mm/side Z` | Exterior edge-rail cradle locked via 2x integral 3x6x3 tenons into P12 mortises | **`PASS`** |
+| **Door Leaf & Hinge / Linkage** | mica_design.py (P08 56x100 in 60x104 frame) | `Door 56.0 x 100.0 x 3.0; jamb gap 2.0 mm` | `Pin OD 2.7 in bore ID 3.0; 4x6x3 mortise tenons` | `0.30 mm pivot dia, 0.20 mm axial knuckle gap, 2.0 mm door perimeter` | 2-leaf lift-off mortise pin-and-knuckle hinge + mortise pushrod clip (lap mong) | **`PASS`** |
+| **5V Mini Submersible Pump** | mica_design.py + Soldered/Mouser 101844 datasheet | `45.0 x 24.0 x 33.0 (tube OD 8.0)` | `Liner inner 42.5x115.0x42.6, notch 11.0` | `9.25 mm/side X, 35.0 mm/side Y, 1.50 mm/side tube notch` | Free-standing inside 1-piece watertight drop-in liner (khep kin lien khoi) | **`PASS`** |
+
+![Cận cảnh 3D lắp ghép Hub PCB, Relay và PAM8403 bằng chốt đàn hồi](previews/_pcb_module_fit_3d.png)
+
+![Bản vẽ kỹ thuật đối chiếu lắp khít PCB và module](drawings/_pcb_module_fit.png)
 
 ---
 
-## 8. Lệnh Tái Tạo Toàn Bộ Bộ Tệp Từ Mã Nguồn (Reproducible Build)
+## 6. Bộ Nội Thất Tỷ Lệ Nhà Thông Minh (`FUR01` – `FUR09`)
 
-Chạy tuần tự 5 lệnh sau từ thư mục gốc dự án để tái tạo sạch 100% toàn bộ `STL`, `3MF`, `STEP`, bản vẽ, ảnh 3D, kiểm định va chạm, báo cáo cắt lớp và tệp `README.md` này:
+Tất cả nội thất được dựng đúng tỷ lệ phòng của `mica_design.py`, kiểm định **0 va chạm** với tường, mạch điện, đường dây và cánh cửa mở góc `95°`, gắn cố định vào sàn `P01A`/`P01B` bằng chốt mộng rời `FUR09` (`6.0 × 4.0 × 7.0 mm`, khe hở `0.15 mm/cạnh`):
+
+| Mã chi tiết | Tên tiếng Việt | Không gian | SL | Kích thước in (mm) | Cách gắn mộng | Bản vẽ |
+| :--- | :--- | :--- | :---: | :---: | :--- | :---: |
+| `FUR01_SOFA` | Ghe Sofa phong khach (mong chot san) | Living Room | `1` | `76.0×34.0×34.0` | 2x floor mortise pegs (8x4 mm) pressing into P01B_BASE_HOUSE at X=56, 100, Y=352 | [PNG](drawings/FUR01_SOFA.png) · [PDF](drawings/FUR01_SOFA.pdf) |
+| `FUR02_TV_STAND` | Ke tivi phong khach (mong chot san + ranh TV) | Living Room | `1` | `56.0×22.0×18.0` | 2x floor mortise pegs (4x8 mm) pressing into P01B_BASE_HOUSE at X=183, Y=288, 320 | [PNG](drawings/FUR02_TV_STAND.png) · [PDF](drawings/FUR02_TV_STAND.pdf) |
+| `FUR03_TV_SCREEN` | Man hinh Tivi phong khach (mong cam ke) | Living Room | `1` | `48.0×35.0×5.0` | Integral bottom tenon (24x4x5 mm) pressing into FUR02_TV_STAND top mortise slot | [PNG](drawings/FUR03_TV_SCREEN.png) · [PDF](drawings/FUR03_TV_SCREEN.pdf) |
+| `FUR04_BED` | Giuong ngu phong ngu (mong chot san) | Bedroom | `1` | `90.0×62.0×28.0` | 2x floor mortise pegs (8x4 mm) pressing into P01B_BASE_HOUSE at X=298, 354, Y=336 | [PNG](drawings/FUR04_BED.png) · [PDF](drawings/FUR04_BED.pdf) |
+| `FUR05_BEDSIDE_TABLE` | Tu dau giuong & den ngu (mong chot san) | Bedroom | `1` | `26.0×22.0×28.0` | 1x anti-rotation floor mortise peg (8x4 mm) pressing into P01B_BASE_HOUSE at X=256, Y=350 | [PNG](drawings/FUR05_BEDSIDE_TABLE.png) · [PDF](drawings/FUR05_BEDSIDE_TABLE.pdf) |
+| `FUR06_PLANT_POT_LARGE` | Chau cay ngoai troi co ranh cam cay | Outdoor / Garden | `2` | `20.0×20.0×18.0` | 1x floor mortise peg (6x4 mm) into P01A_BASE_TECH at (290, 13) and (376, 163) | [PNG](drawings/FUR06_PLANT_POT_LARGE.png) · [PDF](drawings/FUR06_PLANT_POT_LARGE.pdf) |
+| `FUR07_MINI_TREE` | Tan cay canh mini ghep mong chu thap (in 2 nua/cay) | Outdoor / Garden | `2` | `43.0×38.0×3.0` | 2x halves cross-halving mong joint plugged into FUR06_PLANT_POT_LARGE top socket | [PNG](drawings/FUR07_MINI_TREE.png) · [PDF](drawings/FUR07_MINI_TREE.pdf) |
+| `FUR08_PLANT_POT_SMALL` | Chau hoa nho ngoai troi (mong chot san) | Outdoor / Garden | `1` | `16.0×16.0×14.0` | 1x floor mortise peg (5x4 mm) pressing into P01A_BASE_TECH at (322, 13) | [PNG](drawings/FUR08_PLANT_POT_SMALL.png) · [PDF](drawings/FUR08_PLANT_POT_SMALL.pdf) |
+| `FUR09_FLOOR_TENON_PEG` | Chot mong san noi that 6x4x7mm (cam san P01A/P01B) | Living Room / Bedroom / Outdoor | `10` | `6.0×7.0×4.0` | Floating press-fit floor tenons locking FUR01/02/04/05/06/08 into P01A/P01B floor mortises (zero supports) | [PNG](drawings/FUR09_FLOOR_TENON_PEG.png) · [PDF](drawings/FUR09_FLOOR_TENON_PEG.pdf) |
+
+![Bộ 9 chi tiết nội thất in 3D tỷ lệ nhà](previews/_furniture_showcase.png)
+
+---
+
+## 7. Thứ Tự Lắp Ráp (Thu tu lap rap — 100% Lắp Mộng Tự Khóa)
+
+Thực hiện theo đúng **9 bước** dưới đây (chỉ cần tay ép nhẹ hoặc gõ nhẹ bằng đệm phẳng; cạo nhẹ bavia cạnh đáy nếu máy in có elephant's foot):
+
+1. **Bước 1 — Phân loại chi tiết từ 17 bàn in:** Đọc chữ khắc chìm trên mặt trên từng chi tiết để chia thành 3 nhóm: `30` mảnh vỏ (`P01A`–`P17`), `18` bộ kẹp & giá đỡ (`SUP01`–`SUP15`), và `9` nhóm nội thất (`FUR01`–`FUR09`).
+2. **Bước 2 — Ghép các tấm chia mảnh bằng khớp đuôi én & kẹp `SUP03`:** Trượt khớp đuôi én khe hở `0.20 mm` theo đúng số thứ tự mảnh: `P01A` (`3` mảnh), `P01B` (`6` mảnh), `P02` (`3` mảnh), `P05` (`3` mảnh), `P15` (`2` mảnh). Các mối nối ăn phẳng và khóa lực kéo ngang ngay khi lồng hết hành trình.
+3. **Bước 3 — Ghép sàn tổng `P01A` + `P01B`, khóa thanh `P17` và chân đế `SUP04`:** Lồng 4 mộng khóa giữa `P01A` và `P01B` trên mặt bàn phẳng. Ép `2× P17_BASE_JOINER` từ mặt dưới sao cho 4 chấu mộng `8×4 mm` xuyên khít vào 4 lỗ mộng sàn. Lồng `4× SUP04_BASE_FOOT_CLIP` vào 4 góc ngoài tấm sàn để nâng mô hình cao `11 mm` khỏi mặt bàn.
+4. **Bước 4 — Lắp khoang kỹ thuật (Hub PCB, Relay 1/2, PAM8403):**
+   - Cắm `4× SUP05_P16_TENON_RISER` vào 4 lỗ mộng trên `P01A`, sau đó ấn tấm `P16_PCB_PLATE` lên 4 chấu trên của `SUP05`.
+   - Đặt `4× SUP05B_CARRIER_TENON_PEG` vào 4 lỗ mộng `90×70 mm` trên `P16`, ép khung `SUP06_HUB_PCB_SNAP_CARRIER` xuống khít. Căn 4 lỗ định vị `Ø3.2 mm` của Hub PCB (đã cắm NodeMCU hướng cổng USB ra mặt trước) rồi ấn nhẹ để 4 chốt đàn hồi tách đôi tự bung khóa trên mặt mạch.
+   - Cắm `4× SUP05B` vào `P01A`, ép `2× SUP07_RELAY_SNAP_CADDY` xuống rồi ấn `Relay 1` và `Relay 2` vào 4 chốt đàn hồi `44.5×20.5 mm`.
+   - Cắm `2× SUP05B` vào `P01A`, ép khay `SUP08_PAM8403_SNAP_TRAY` xuống rồi bấm bo `PAM8403` qua 2 gờ khóa đàn hồi hai bên.
+5. **Bước 5 — Dựng khung tường nhà & khóa kẹp góc `SUP01` / `SUP01B` / `SUP02` / `SUP03`:**
+   - Cắm `P02_WALL_BACK`, `P06_WALL_MID`, `P03_WALL_LEFT`, `P04_WALL_RIGHT` và `P05_WALL_FRONT` vào đúng các khe mộng răng lược trên `P01B`.
+   - Trượt từ trên xuống: `2× SUP01_CORNER_CLIP_WALL` khóa 2 góc sau trên cùng (`P02+P03`, `P02+P04`), `1× SUP01B_T_CLIP_WALL` khóa đỉnh chữ T (`P02+P06`), `2× SUP02_CORNER_CLIP_LOW` khóa 2 góc mặt tiền thấp (`P03+P05`, `P04+P05`), và trượt `SUP03_SEAM_U_CLIP` lên cạnh trên các đường nối chia mảnh của `P02` và `P05`.
+6. **Bước 6 — Lắp cảm biến tường, Servo SG90 & cánh cửa chính `P08`:**
+   - Lùa `DHT11` vào giá `SUP12_DHT11_SNAP_CRADLE` rồi cắm 2 chấu vào `P02`; lùa `KY-037` vào `SUP13_KY037_SNAP_CRADLE` rồi cắm vào `P05`; lắp LED `5 mm` và còi `TMB12A05` vào đúng lỗ chức năng.
+   - Cài kệ `P07_SERVO_SHELF` vào khung cửa `P05`, đặt thân Servo `SG90` qua ô chữ nhật rồi ép ngàm `SUP11_SG90_SNAP_SADDLE` vào 2 rãnh mộng của `P07` để khóa chặt tai servo.
+   - Cắm 2 lá bản lề `A` của `SUP10_DOOR_MORTISE_HINGE` vào khung `P05`, cắm 2 lá `B` vào cánh cửa `P08_DOOR_LEAF`, gài tai kéo `SUP10B_SERVO_LINK_CLIP` vào `P08`, sau đó thả khớp ống lá `B` lên trục lá `A` và nối thanh đẩy thép mảnh sang tay đòn SG90.
+7. **Bước 7 — Lắp cụm bể nước liền khối & chậu cây (`P09`–`P14`, `SUP14`, `SUP15`):**
+   - Dựng 5 vách `P09`–`P13` vào khe sàn `P01A`, khóa 4 góc trên bằng `4× SUP02_CORNER_CLIP_LOW`.
+   - Thả lòng bể nước liền khối `SUP15_WATER_TANK_LINER` vào khoang bể nước (`P09/P10/P12/P13`), đặt bơm chìm 5V vào trong lòng bể và luồn ống dẫn `Ø8 mm` qua rãnh chữ U của `SUP15` và lỗ `Ø10 mm` trên `P10`.
+   - Lùa `LM393` vào `SUP14_LM393_SNAP_CRADLE` rồi cắm vào mặt ngoài khô ráo của `P12`, gài cầu `P14_SOIL_BRIDGE` và thả đầu dò `YL-69` qua khe `22 × 3.5 mm`.
+8. **Bước 8 — Lắp mặt nạ kỹ thuật `P15_TECH_FASCIA` & loa `Ø28 mm`:**
+   - Cắm `P15` (đã ghép 2 mảnh + kẹp `SUP03` phía trên rãnh USB) vào cạnh trước `P01A`. Lắp giắc nguồn `DC-022`, LED nguồn `3 mm`, áp loa `Ø28 mm` sau lưới 19 lỗ và ép thanh giữ `SUP09_SPEAKER_SNAP_RETAINER` vào 2 rãnh mộng trên `P15`.
+9. **Bước 9 — Lắp nội thất tỷ lệ nhà (`FUR01`–`FUR09`) & đi dây Dupont:**
+   - Cắm `10× FUR09_FLOOR_TENON_PEG` vào 10 lỗ mộng sàn trên `P01A`/`P01B`, sau đó ấn khít từng món nội thất vào đúng vị trí: **Phòng khách** (`FUR01_SOFA`, `FUR02_TV_STAND` + cắm `FUR03_TV_SCREEN` lên rãnh kệ), **Phòng ngủ** (`FUR04_BED`, `FUR05_BEDSIDE_TABLE`), và **Ngoài trời** (`2× FUR06_PLANT_POT_LARGE` + ghép 2 nửa chéo `FUR07_MINI_TREE` cắm vào chậu, `FUR08_PLANT_POT_SMALL`).
+   - Đi đủ 40 dây Dupont theo [`docs/phan_cung/WIRING_TABLE.md`](../../docs/phan_cung/WIRING_TABLE.md) qua các lỗ `Ø14 mm` và kiểm tra an toàn nguồn trước khi cấp điện `5 V 2 A`.
+
+---
+
+## 8. Lệnh Tái Tạo Toàn Bộ Bộ Tệp v2 Từ Mã Nguồn (Reproducible Build)
 
 ```powershell
-# Khai báo đường dẫn FreeCADCmd di động (hoặc dùng trực tiếp 'freecadcmd' nếu đã có trong PATH)
-$FREECAD = if (Get-Command freecadcmd -ErrorAction SilentlyContinue) { "freecadcmd" } else { "$env:LOCALAPPDATA\Programs\FreeCAD 1.1\bin\freecadcmd.exe" }
+# 1. Kiểm tra nguồn sự thật (KiCad PCB + mô hình miền không chốt kim loại 180x200x250)
+python "hardware/in 3 d/scripts/print_domain.py"
 
-# 1. Sinh 37 khối 3D (STEP + STL) kèm khớp đuôi én và khắc chữ kích thước bằng FreeCAD 1.1
-& $FREECAD "hardware/in 3 d/scripts/build_print_parts.py"
+# 2. Sinh toàn bộ 57 chi tiết (STEP + STL trong parts/) bằng FreeCAD 1.1
+python "hardware/in 3 d/scripts/build_all_v2.py"
 
-# 2. Chuyển đổi sang 3MF và xuất 37 bộ bản vẽ kỹ thuật PDF + PNG
-python "hardware/in 3 d/scripts/export_3mf_and_drawings.py"
+# 3. Kiểm định lắp ráp ảo 3D BRep (0 va chạm) & xuất bảng lắp khít PCB/module
+& "C:\Users\LENOVO\AppData\Local\Programs\FreeCAD 1.1\bin\freecadcmd.exe" "hardware/in 3 d/scripts/verify_assembly_fit.py"
 
-# 3. Kết xuất 37 ảnh 3D từng chi tiết + 4 ảnh tổng thể (lắp ráp, phân rã, chia mảnh, supot)
-& $FREECAD "hardware/in 3 d/scripts/render_previews.py"
-$env:PRINT3D_ASSEMBLY = "1"; & $FREECAD "hardware/in 3 d/scripts/render_previews.py"; Remove-Item Env:PRINT3D_ASSEMBLY
+# 4. Xếp bàn in 2D MaxRects -> 17 bàn plates/PLATEnn_*.stl & .3mf đa đối tượng
+python "hardware/in 3 d/scripts/nest_plates.py"
 
-# 4. Kiểm định 3D BRep (0 va chạm), cắt lớp PrusaSlicer CLI & xuất manifest.json + verification_report.json
-python "hardware/in 3 d/scripts/verify_and_slice.py"
-$env:PRINT3D_ASSEMBLY_CHECK = "1"; & $FREECAD "hardware/in 3 d/scripts/verify_and_slice.py"; Remove-Item Env:PRINT3D_ASSEMBLY_CHECK
-python "hardware/in 3 d/scripts/verify_and_slice.py" --merge
+# 5. Kiểm chứng PrusaSlicer CLI toàn bộ 57 chi tiết + 17 bàn in (R9)
+python "hardware/in 3 d/scripts/verify_plates_v2.py"
 
-# 5. Cập nhật README.md tiếng Việt từ manifest.json & verification_report.json
-python "hardware/in 3 d/scripts/generate_readme.py"
+# 6. Xuất 118 bản vẽ kỹ thuật (PNG + PDF) và 23 ảnh xem trước 3D / bàn in / G-code
+python "hardware/in 3 d/scripts/export_drawings_v2.py"
+& "C:\Users\LENOVO\AppData\Local\Programs\FreeCAD 1.1\bin\freecadcmd.exe" "hardware/in 3 d/scripts/render_previews_v2.py" -- --clean --mode freecad
+python "hardware/in 3 d/scripts/render_previews_v2.py" --mode python
+
+# 7. Xuất manifest.json (SHA-256), verification_report.json, README.md & kiểm toán Gate G5
+python "hardware/in 3 d/scripts/generate_manifest_and_readme_v2.py"
 ```
 
 ---
@@ -204,6 +216,7 @@ python "hardware/in 3 d/scripts/generate_readme.py"
 ## 9. Tài Liệu Liên Kết
 
 - [Chỉ mục chế tạo & đấu nối phần cứng (`docs/HARDWARE_BUILD_GUIDE.md`)](../../docs/HARDWARE_BUILD_GUIDE.md)
-- [Hướng dẫn cắt & lắp ghép phiên bản Mica 3mm (`docs/phan_cung/mica/ASSEMBLY_GUIDE.md`)](../../docs/phan_cung/mica/ASSEMBLY_GUIDE.md)
-- [Bảng tọa độ 76 lỗ khoan chuẩn (`docs/phan_cung/mica/holes_table.csv`)](../../docs/phan_cung/mica/holes_table.csv)
 - [Bảng đấu nối 40 dây & 10 chân ESP8266 (`docs/phan_cung/WIRING_TABLE.md`)](../../docs/phan_cung/WIRING_TABLE.md)
+- [Tệp mạch in Hub PCB gốc KiCad (`hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb`)](../kicad/smarthome_hub/smarthome_hub.kicad_pcb)
+- [Bản vẽ cận cảnh khớp mộng (`drawings/_joint_closeup_mong.pdf`)](drawings/_joint_closeup_mong.pdf)
+- [Bản vẽ đối chiếu lắp khít PCB & module (`drawings/_pcb_module_fit.pdf`)](drawings/_pcb_module_fit.pdf)

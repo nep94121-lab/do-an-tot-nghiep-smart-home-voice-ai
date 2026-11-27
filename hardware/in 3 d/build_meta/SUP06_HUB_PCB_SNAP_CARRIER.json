@@ -1,0 +1,53 @@
+{
+  "part_id": "SUP06_HUB_PCB_SNAP_CARRIER",
+  "kind": "support",
+  "category": "pcb_carrier",
+  "qty": 1,
+  "vi_name": "Khung mong chot dan hoi giu Hub PCB 100x80",
+  "mating_source": "hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb (100.0x80.0, 4x 3.2mm @ 90.0x70.0)",
+  "params": {
+    "pcb_x": 100.0,
+    "pcb_y": 80.0,
+    "pcb_t": 1.6,
+    "pitch_x": 90.0,
+    "pitch_y": 70.0,
+    "pcb_hole_d": 3.2,
+    "peg_od": 3.0,
+    "standoff_h": 10.0,
+    "base_h": 3.0,
+    "tenon_x": 6.0,
+    "tenon_y": 3.0,
+    "tenon_h": 3.0
+  },
+  "assembly_placements": [
+    {
+      "x": 82.0,
+      "y": 99.0,
+      "z": 9.0,
+      "rot_z": 0.0
+    }
+  ],
+  "print_bbox_mm": [
+    104.0,
+    84.0,
+    13.6
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 16656.185,
+  "solids": 1,
+  "expected_solids": 1,
+  "valid": true,
+  "bed_fit": true,
+  "color_rgb": [
+    0.2,
+    0.64,
+    0.42
+  ],
+  "notes": "Khung lien khoi gam 4 chot vuong xuong P16 va giu chat Hub PCB bang 4 chot dan hoi split snap-fit, khong vit.",
+  "engraved_ok": true,
+  "engrave_text": "SUP06 PCB 100x80",
+  "print_rotation_for_world": "identity",
+  "step_file": "parts/SUP06_HUB_PCB_SNAP_CARRIER.step",
+  "stl_file": "parts/SUP06_HUB_PCB_SNAP_CARRIER.stl",
+  "stl_facets": 10840
+}

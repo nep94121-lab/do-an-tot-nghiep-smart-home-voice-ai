@@ -1,0 +1,51 @@
+{
+  "part_id": "SUP08_PAM8403_SNAP_TRAY",
+  "kind": "support",
+  "category": "pam_tray",
+  "qty": 1,
+  "vi_name": "Khay mong ranh kep mach am thanh PAM8403",
+  "mating_source": "PAM8403 21.0x18.0x3.4 mm + P01A mortise slots (26.0 mm span)",
+  "params": {
+    "outer_x": 34.0,
+    "outer_y": 23.0,
+    "base_h": 2.0,
+    "wall_h": 6.0,
+    "cavity_x": 21.4,
+    "cavity_y": 18.4,
+    "tenon_span": 26.0,
+    "tenon_x": 6.0,
+    "tenon_y": 3.0,
+    "tenon_h": 3.0
+  },
+  "assembly_placements": [
+    {
+      "x": 182.0,
+      "y": 52.0,
+      "z": 0.0,
+      "rot_z": 0.0
+    }
+  ],
+  "print_bbox_mm": [
+    36.0,
+    23.0,
+    8.8
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 4404.385,
+  "solids": 1,
+  "expected_solids": 1,
+  "valid": true,
+  "bed_fit": true,
+  "color_rgb": [
+    0.2,
+    0.72,
+    0.36
+  ],
+  "notes": "Khay co ngoam giu mep bo PAM8403 va 2 chot mong gam xuong P01A, khong dung bang dinh hay vit.",
+  "engraved_ok": true,
+  "engrave_text": "SUP08 PAM8403",
+  "print_rotation_for_world": "identity",
+  "step_file": "parts/SUP08_PAM8403_SNAP_TRAY.step",
+  "stl_file": "parts/SUP08_PAM8403_SNAP_TRAY.stl",
+  "stl_facets": 5936
+}
