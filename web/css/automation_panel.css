@@ -911,6 +911,25 @@
 
 /* ================= DARK MODE ================= */
 @media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0f171a;
+    --card: #162226;
+    --surface-elevated: #1d2d32;
+    --ink: #ecf3f5;
+    --muted: #98aeb5;
+    --line: #27393f;
+    --accent: #22b8c3;
+    --accent-soft: rgba(34, 184, 195, 0.16);
+    --btn-primary-bg: #0b737b;
+    --btn-primary-border: #179ba5;
+    --btn-primary-ink: #ffffff;
+    --green: #4ade80;
+    --greensoft: rgba(74, 222, 128, 0.14);
+    --amber: #fbbf24;
+    --amber-soft: rgba(251, 191, 36, 0.16);
+    --red: #fca5a5;
+    --red-soft: rgba(248, 113, 113, 0.16);
+  }
   .auto-item,
   .auto-empty-state,
   .auto-ai-input,
@@ -950,6 +969,26 @@
   .auto-tab-count {
     background: rgba(255, 255, 255, 0.1);
   }
+}
+
+[data-theme="dark"] {
+  --page: #0f171a;
+  --card: #162226;
+  --surface-elevated: #1d2d32;
+  --ink: #ecf3f5;
+  --muted: #98aeb5;
+  --line: #27393f;
+  --accent: #22b8c3;
+  --accent-soft: rgba(34, 184, 195, 0.16);
+  --btn-primary-bg: #0b737b;
+  --btn-primary-border: #179ba5;
+  --btn-primary-ink: #ffffff;
+  --green: #4ade80;
+  --greensoft: rgba(74, 222, 128, 0.14);
+  --amber: #fbbf24;
+  --amber-soft: rgba(251, 191, 36, 0.16);
+  --red: #fca5a5;
+  --red-soft: rgba(248, 113, 113, 0.16);
 }
 
 [data-theme="dark"] .auto-item,

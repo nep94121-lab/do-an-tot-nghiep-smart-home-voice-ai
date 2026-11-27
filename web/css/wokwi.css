@@ -1,12 +1,17 @@
     :root {
       --bg: #f5f7f7;
       --card: #ffffff;
+      --surface-elevated: #ffffff;
       --text: #172b31;
       --muted: #55676d;
       --line: #e5ebec;
-      --accent: #087d85;
-      --accent-hover: #06666d;
+      --accent: #066f77;
+      --accent-hover: #055a60;
       --accent-soft: #e6f3f2;
+      --btn-primary-bg: #066f77;
+      --btn-primary-border: #066f77;
+      --btn-primary-hover: #055a60;
+      --btn-primary-ink: #ffffff;
       --warn: #b45309;
       --warn-soft: #fef3c7;
       --danger: #b42318;
@@ -18,8 +23,8 @@
       --panel: #ffffff;
       --panel-2: #f5f7f7;
       --border: #e5ebec;
-      --green: #087d85;
-      --cyan: #087d85;
+      --green: #066f77;
+      --cyan: #066f77;
       --amber: #b45309;
       --amber-soft: #fef3c7;
       --amber-border: #fde68a;
@@ -27,6 +32,10 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     [hidden] { display: none !important; }
+    html, body {
+      max-width: 100%;
+      overflow-x: hidden;
+    }
     body {
       font-family: "Be Vietnam Pro", system-ui, -apple-system, sans-serif;
       font-weight: 400;
@@ -186,7 +195,7 @@
       gap: 8px;
     }
     .btn:hover { border-color: #cbd6d8; }
-    .btn.primary { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+    .btn.primary { background: var(--btn-primary-bg); border-color: var(--btn-primary-border); color: var(--btn-primary-ink); }
     .btn.secondary { background: var(--bg); }
     .btn.tertiary { border-color: transparent; background: transparent; color: var(--muted); padding: 6px 8px; }
     .btn.tertiary:hover { color: var(--text); }
@@ -256,6 +265,25 @@
       color: #92400e;
       font-weight: 600;
     }
+    .pcb-wiring-note-links {
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .pcb-note-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-weight: 600;
+      color: #065f66;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .pcb-note-link:hover {
+      color: #04474d;
+    }
 
     .wokwi-stage-layout {
       display: grid;
@@ -278,16 +306,29 @@
       display: block;
     }
     .pcb2d-scroll {
+      position: relative;
       width: 100%;
-      overflow: auto;
+      height: clamp(410px, 66vh, 660px);
+      overflow: hidden;
+      touch-action: none;
       background: #ffffff;
       border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 8px;
+      padding: 0;
+    }
+    .pcb2d-svg-host {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1200px;
+      height: 825px;
+      transform-origin: 0 0;
+      background: #ffffff;
     }
     .pcb2d-svg-host svg {
-      width: 100%;
-      height: auto;
+      width: 1200px;
+      height: 825px;
+      max-width: none;
       display: block;
     }
     .pcb2d-loading {
@@ -303,6 +344,7 @@
       border: 1px solid var(--line);
       border-radius: 9px;
       padding: 2px;
+      max-width: 100%;
     }
     .wg-mode-btn {
       border: 0;
@@ -311,6 +353,7 @@
       font: inherit;
       font-size: 12px;
       font-weight: 500;
+      min-height: 32px;
       padding: 5px 10px;
       border-radius: 7px;
       cursor: pointer;
@@ -321,48 +364,72 @@
       color: var(--accent);
       font-weight: 600;
     }
+    .workbench-scroll.wg-can-pan,
+    .pcb2d-scroll.wg-can-pan {
+      cursor: grab;
+    }
+    .workbench-scroll.wg-is-panning,
+    .pcb2d-scroll.wg-is-panning {
+      cursor: grabbing;
+      user-select: none;
+    }
     @media (max-width: 1180px) {
       .wokwi-stage-layout.has-guide-open {
         grid-template-columns: 1fr;
       }
     }
     @media (max-width: 768px) {
-      .wokwi-stage-layout.has-guide-open .workbench-scroll {
-        max-height: 230px;
-        overflow: auto;
+      .wg-mode-switch {
+        width: 100%;
       }
+      .wg-mode-btn {
+        min-height: 44px;
+        min-width: 44px;
+        flex: 1 1 50%;
+        padding: 8px 10px;
+        font-size: 12.5px;
+      }
+      .workbench-scroll,
+      .pcb2d-scroll {
+        height: 300px;
+      }
+      .wokwi-stage-layout.has-guide-open .workbench-scroll,
       .wokwi-stage-layout.has-guide-open .pcb2d-scroll {
-        max-height: 230px;
-        overflow: auto;
+        height: 240px;
+        max-height: 240px;
       }
     }
 
     .workbench-scroll {
+      position: relative;
       width: 100%;
-      overflow-x: auto;
-      overflow-y: hidden;
+      height: clamp(390px, 66vh, 640px);
+      overflow: hidden;
+      touch-action: none;
       background: #1e242b;
       background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.08) 1px, transparent 0);
       background-size: 18px 18px;
-      padding: 8px;
+      padding: 0;
       border-radius: 12px;
     }
 
     .circuit-stage-wrap {
       position: relative;
-      width: 1220px;
-      height: 710px;
-      margin: 0 auto;
+      width: 100%;
+      height: 100%;
+      margin: 0;
       overflow: hidden;
     }
 
     /* KHUNG BÀN MẠCH CỐ ĐỊNH TỌA ĐỘ 1220 x 710 ĐỂ CẮM CHÍNH XÁC TỪNG LỖ */
     .circuit-stage {
-      position: relative;
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 1220px;
       height: 710px;
       margin: 0;
-      transform-origin: top left;
+      transform-origin: 0 0;
       user-select: none;
     }
 
@@ -486,7 +553,7 @@
     }
     .dev-btn:hover {
       border-color: #b8dedc;
-      background: #ffffff;
+      background: var(--surface-elevated);
     }
     .dev-btn.on {
       background: var(--accent-soft);
@@ -540,9 +607,20 @@
       white-space: nowrap;
     }
     .step-btn.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #ffffff;
+      background: var(--btn-primary-bg);
+      border-color: var(--btn-primary-border);
+      color: var(--btn-primary-ink);
+    }
+    .tech-grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .tech-pinout-grid {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+      gap: 14px;
     }
     .guide-footer {
       background: var(--bg);
@@ -616,7 +694,11 @@
       .nav-sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
       .nav { flex-direction: row; flex-wrap: wrap; }
       .sidebar-foot { display: none; }
-      .content { padding: 16px 16px 88px; max-width: 100%; overflow-x: hidden; }
+      .content { padding: 16px 12px 88px; max-width: 100%; overflow-x: hidden; }
+      .tech-grid-2col,
+      .tech-pinout-grid {
+        grid-template-columns: 1fr;
+      }
     }
     @media (max-width: 700px) {
       .nav-sidebar { display: none; }
@@ -629,7 +711,7 @@
         display: grid;
         grid-auto-flow: column;
         grid-auto-columns: minmax(0, 1fr);
-        background: #ffffff;
+        background: var(--card);
         border-top: 1px solid var(--line);
         padding: 6px 4px max(8px, env(safe-area-inset-bottom));
         box-shadow: 0 -3px 16px rgba(31, 58, 62, 0.04);
@@ -662,5 +744,117 @@
         stroke-linecap: round;
         stroke-linejoin: round;
       }
+    }
+
+    /* Dark Mode Support (prefers-color-scheme & explicit [data-theme="dark"], WCAG AA >= 4.5:1) */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f171a;
+        --page: #0f171a;
+        --card: #162226;
+        --panel: #162226;
+        --panel-2: #1d2d32;
+        --surface-elevated: #1d2d32;
+        --text: #ecf3f5;
+        --ink: #ecf3f5;
+        --muted: #9eb3ba;
+        --line: #27393f;
+        --border: #27393f;
+        --accent: #22b8c3;
+        --accent-hover: #38cfd9;
+        --accent-soft: rgba(34, 184, 195, 0.16);
+        --btn-primary-bg: #0b737b;
+        --btn-primary-border: #179ba5;
+        --btn-primary-hover: #0e8a94;
+        --btn-primary-ink: #ffffff;
+        --warn: #fbbf24;
+        --warn-soft: rgba(251, 191, 36, 0.16);
+        --amber: #fbbf24;
+        --amber-soft: rgba(251, 191, 36, 0.16);
+        --amber-border: rgba(251, 191, 36, 0.42);
+      }
+      .pcb-wiring-note {
+        background: rgba(251, 191, 36, 0.14);
+        border-color: rgba(251, 191, 36, 0.42);
+        color: #fde68a;
+      }
+      .pcb-wiring-note strong {
+        color: #fef08a;
+      }
+      .pcb-note-link {
+        color: #7dd3fc;
+      }
+      .pcb-note-link:hover {
+        color: #bae6fd;
+      }
+      .btn.green {
+        border-color: rgba(34, 184, 195, 0.4);
+      }
+      .hole-badge {
+        border-color: rgba(34, 184, 195, 0.4);
+      }
+      .dev-btn.on {
+        border-color: rgba(34, 184, 195, 0.48);
+      }
+      .serial-line.ir {
+        color: #7dd3fc;
+      }
+    }
+
+    [data-theme="dark"] {
+      --bg: #0f171a;
+      --page: #0f171a;
+      --card: #162226;
+      --panel: #162226;
+      --panel-2: #1d2d32;
+      --surface-elevated: #1d2d32;
+      --text: #ecf3f5;
+      --ink: #ecf3f5;
+      --muted: #9eb3ba;
+      --line: #27393f;
+      --border: #27393f;
+      --accent: #22b8c3;
+      --accent-hover: #38cfd9;
+      --accent-soft: rgba(34, 184, 195, 0.16);
+      --btn-primary-bg: #0b737b;
+      --btn-primary-border: #179ba5;
+      --btn-primary-hover: #0e8a94;
+      --btn-primary-ink: #ffffff;
+      --warn: #fbbf24;
+      --warn-soft: rgba(251, 191, 36, 0.16);
+      --amber: #fbbf24;
+      --amber-soft: rgba(251, 191, 36, 0.16);
+      --amber-border: rgba(251, 191, 36, 0.42);
+    }
+
+    [data-theme="dark"] .pcb-wiring-note {
+      background: rgba(251, 191, 36, 0.14);
+      border-color: rgba(251, 191, 36, 0.42);
+      color: #fde68a;
+    }
+
+    [data-theme="dark"] .pcb-wiring-note strong {
+      color: #fef08a;
+    }
+
+    [data-theme="dark"] .pcb-note-link {
+      color: #7dd3fc;
+    }
+
+    [data-theme="dark"] .pcb-note-link:hover {
+      color: #bae6fd;
+    }
+
+    [data-theme="dark"] .btn.green,
+    [data-theme="dark"] .hole-badge {
+      border-color: rgba(34, 184, 195, 0.4);
+    }
+
+    [data-theme="dark"] .dev-btn.on {
+      border-color: rgba(34, 184, 195, 0.48);
+    }
+
+    [data-theme="dark"] .serial-line.ir {
+      color: #7dd3fc;
     }
   

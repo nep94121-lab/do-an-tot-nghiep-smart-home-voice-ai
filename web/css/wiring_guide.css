@@ -49,16 +49,16 @@
 }
 
 .wg-btn-guide {
-  background: var(--accent, #087d85);
-  border-color: var(--accent, #087d85);
-  color: #ffffff;
+  background: var(--btn-primary-bg, #066f77);
+  border-color: var(--btn-primary-border, var(--btn-primary-bg, #066f77));
+  color: var(--btn-primary-ink, #ffffff);
 }
 
 .wg-btn-guide:hover:not(:disabled),
 .wg-btn-guide.is-active {
-  background: var(--accent-hover, #06666d);
-  border-color: var(--accent-hover, #06666d);
-  color: #ffffff;
+  background: var(--btn-primary-hover, #055a60);
+  border-color: var(--btn-primary-hover, #055a60);
+  color: var(--btn-primary-ink, #ffffff);
 }
 
 .wg-btn-wires.is-hidden-state {
@@ -68,15 +68,81 @@
 }
 
 .wg-btn-primary {
-  background: var(--accent, #087d85);
-  border-color: var(--accent, #087d85);
-  color: #ffffff;
+  background: var(--btn-primary-bg, #066f77);
+  border-color: var(--btn-primary-border, var(--btn-primary-bg, #066f77));
+  color: var(--btn-primary-ink, #ffffff);
 }
 
 .wg-btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover, #06666d);
-  border-color: var(--accent-hover, #06666d);
-  color: #ffffff;
+  background: var(--btn-primary-hover, #055a60);
+  border-color: var(--btn-primary-hover, #055a60);
+  color: var(--btn-primary-ink, #ffffff);
+}
+
+/* Diagram Zoom / Pan / Fit / 100% Toolbar */
+.wg-zoom-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 9px;
+  border: 1px solid var(--line, #e5ebec);
+  background: var(--card, #ffffff);
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.wg-zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 32px;
+  padding: 4px 9px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text, var(--ink, #172b31));
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.wg-zoom-btn-text {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+}
+
+.wg-zoom-btn:hover:not(:disabled) {
+  background: var(--accent-soft, #e6f3f2);
+  color: var(--accent, #066f77);
+  border-color: var(--line, #cce5e3);
+}
+
+.wg-zoom-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.wg-zoom-readout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 46px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--bg, var(--page, #f5f7f7));
+  border: 1px solid var(--line, #e5ebec);
+  color: var(--text, var(--ink, #172b31));
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .wg-filter-wrap {
@@ -149,8 +215,8 @@
   align-items: center;
   padding: 2px 9px;
   border-radius: 999px;
-  background: var(--accent, #087d85);
-  color: #ffffff;
+  background: var(--btn-primary-bg, #066f77);
+  color: var(--btn-primary-ink, #ffffff);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
@@ -492,7 +558,184 @@
   pointer-events: none;
 }
 
-/* Responsive Mobile (390x844) & Narrow Laptop */
+/* Inline Protection Chips & Reference Table (C1..C9 & D1..D2) */
+.wg-prot-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: var(--bg, var(--page, #f5f7f7));
+  border: 1px solid var(--line, #e5ebec);
+  color: var(--text, var(--ink, #172b31));
+  font-size: 11.5px;
+}
+
+.wg-prot-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft, #e6f3f2);
+  border: 1px solid var(--line, #cce5e3);
+  color: var(--accent, #066f77);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.wg-protection-card {
+  margin-top: 4px;
+  border: 1px solid var(--line, #e5ebec);
+  border-radius: 12px;
+  background: var(--bg, var(--page, #f5f7f7));
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.wg-protection-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text, var(--ink, #172b31));
+  background: var(--card, #ffffff);
+}
+
+.wg-protection-summary::-webkit-details-marker {
+  display: none;
+}
+
+.wg-protection-card[open] .wg-protection-summary {
+  border-bottom: 1px solid var(--line, #e5ebec);
+}
+
+.wg-protection-count {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent, #066f77);
+  background: var(--accent-soft, #e6f3f2);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.wg-protection-body {
+  padding: 8px 10px 10px;
+}
+
+.wg-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.wg-protection-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text, var(--ink, #172b31));
+  background: var(--card, #ffffff);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.wg-protection-table th,
+.wg-protection-table td {
+  padding: 7px 9px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line, #e5ebec);
+}
+
+.wg-protection-table thead th {
+  background: var(--bg, var(--page, #f5f7f7));
+  color: var(--muted, #55676d);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wg-prot-ref {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.wg-prot-kind-cap {
+  background: #e0f2fe;
+  color: #075985;
+  border: 1px solid #bae6fd;
+}
+
+.wg-prot-kind-diode {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.wg-prot-sub {
+  font-size: 11px;
+  color: var(--muted, #55676d);
+}
+
+.wg-prot-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+}
+
+.wg-prot-meta-line code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg, var(--page, #f5f7f7));
+  border: 1px solid var(--line, #e5ebec);
+  color: var(--text, var(--ink, #172b31));
+}
+
+.wg-prot-loc {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.wg-prot-loc-pcb {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.wg-prot-loc-off {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.wg-prot-ds {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted, #55676d);
+}
+
+/* Responsive Mobile (390x844, 412x915) & Narrow Laptop */
 @media (max-width: 768px) {
   .wg-toolbar {
     padding: 8px;
@@ -501,12 +744,49 @@
   .wg-toolbar-group,
   .wg-toolbar-extra {
     width: 100%;
+    min-width: 0;
   }
   .wg-btn {
-    min-height: 40px;
-    font-size: 12.5px;
-    padding: 7px 10px;
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 13px;
+    padding: 8px 12px;
     flex: 1 1 auto;
+  }
+  .wg-zoom-toolbar {
+    width: 100%;
+    justify-content: space-between;
+    padding: 4px;
+    gap: 4px;
+  }
+  .wg-zoom-btn {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 10px;
+    font-size: 14px;
+    flex: 0 0 auto;
+  }
+  .wg-zoom-btn-text {
+    font-size: 12.5px;
+    flex: 1 1 auto;
+  }
+  .wg-zoom-readout {
+    min-height: 44px;
+    min-width: 52px;
+    font-size: 12.5px;
+  }
+  .wg-close-btn {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 12px;
+  }
+  .wg-close-mini,
+  .wg-mini-link {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
   .wg-filter-wrap {
     width: 100%;
@@ -517,7 +797,7 @@
     min-width: 0;
     width: 100%;
     max-width: 100%;
-    min-height: 40px;
+    min-height: 44px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
@@ -529,12 +809,12 @@
     gap: 7px;
   }
   .wg-instruction {
-    font-size: 12px;
-    line-height: 1.4;
+    font-size: 12.5px;
+    line-height: 1.45;
   }
   .wg-note-box {
-    padding: 6px 8px;
-    font-size: 11.5px;
+    padding: 7px 9px;
+    font-size: 12px;
   }
   .wg-endpoint-flow {
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -563,15 +843,23 @@
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    min-height: 36px;
+    min-height: 44px;
   }
   .wg-btn-nav {
-    min-height: 38px;
+    min-height: 44px;
+    min-width: 44px;
     flex: 1 1 44%;
+  }
+  .wg-protection-summary {
+    min-height: 44px;
+    padding: 10px 12px;
+  }
+  .wg-protection-table {
+    font-size: 11.5px;
   }
 }
 
-/* Dark-mode contrast overrides for dashboard (prefers-color-scheme & explicit [data-theme="dark"]) */
+/* Dark-mode contrast overrides (prefers-color-scheme & explicit [data-theme="dark"], WCAG AA >= 4.5:1) */
 @media (prefers-color-scheme: dark) {
   .wg-note-box {
     background: rgba(56, 189, 248, 0.14);
@@ -583,7 +871,25 @@
   .wg-btn-wires.is-hidden-state {
     background: var(--amber-soft, rgba(251, 191, 36, 0.16));
     border-color: rgba(251, 191, 36, 0.45);
-    color: var(--amber, #fbbf24);
+    color: #fde68a;
+  }
+  .wg-prot-kind-cap {
+    background: rgba(56, 189, 248, 0.18);
+    color: #bae6fd;
+    border-color: rgba(56, 189, 248, 0.4);
+  }
+  .wg-prot-kind-diode {
+    background: rgba(248, 113, 113, 0.18);
+    color: #fecaca;
+    border-color: rgba(248, 113, 113, 0.4);
+  }
+  .wg-prot-loc-pcb {
+    background: rgba(74, 222, 128, 0.16);
+    color: #bbf7d0;
+  }
+  .wg-prot-loc-off {
+    background: rgba(251, 191, 36, 0.18);
+    color: #fde68a;
   }
 }
 
@@ -598,5 +904,27 @@
 [data-theme="dark"] .wg-btn-wires.is-hidden-state {
   background: var(--amber-soft, rgba(251, 191, 36, 0.16));
   border-color: rgba(251, 191, 36, 0.45);
-  color: var(--amber, #fbbf24);
+  color: #fde68a;
+}
+
+[data-theme="dark"] .wg-prot-kind-cap {
+  background: rgba(56, 189, 248, 0.18);
+  color: #bae6fd;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+[data-theme="dark"] .wg-prot-kind-diode {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+[data-theme="dark"] .wg-prot-loc-pcb {
+  background: rgba(74, 222, 128, 0.16);
+  color: #bbf7d0;
+}
+
+[data-theme="dark"] .wg-prot-loc-off {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fde68a;
 }

@@ -262,6 +262,8 @@
     let wokwiActiveDiagramMode = 'breadboard';
     let pcb2dSvgLoaded = false;
     let pcb2dSvgLoadingPromise = null;
+    let breadboardViewport = null;
+    let pcb2dViewport = null;
 
     function drawWires() {
       const svg = document.getElementById('wireLayer');
@@ -474,6 +476,11 @@
           const svgEl = host.querySelector('svg');
           if (svgEl) {
             svgEl.setAttribute('id', 'pcb2dInteractiveSvg');
+            svgEl.setAttribute('width', '1200');
+            svgEl.setAttribute('height', '825');
+            svgEl.style.width = '1200px';
+            svgEl.style.height = '825px';
+            svgEl.style.maxWidth = 'none';
             const ns = 'http://www.w3.org/2000/svg';
             const ov = document.createElementNS(ns, 'g');
             ov.setAttribute('id', 'pcb2dEndpointOverlay');
@@ -487,6 +494,13 @@
             });
           }
           pcb2dSvgLoaded = true;
+          ensureDiagramViewports();
+          if (pcb2dViewport) {
+            requestAnimationFrame(() => {
+              pcb2dViewport.fit();
+              syncZoomToolbarReadout();
+            });
+          }
           if (wokwiWiringController) wokwiWiringController.refresh();
         })
         .catch(() => {
@@ -494,6 +508,84 @@
           host.innerHTML = '<p class="pcb2d-loading">Không thể tải sơ đồ PCB 2D lúc này.</p>';
         });
       return pcb2dSvgLoadingPromise;
+    }
+
+    function getActiveDiagramViewport() {
+      ensureDiagramViewports();
+      return wokwiActiveDiagramMode === 'pcb2d' ? pcb2dViewport : breadboardViewport;
+    }
+
+    function syncZoomToolbarReadout(stateOverride) {
+      const activeVp = getActiveDiagramViewport();
+      const st = stateOverride || (activeVp ? activeVp.getState() : { scale: 1, minZoom: 0.4, maxZoom: 3.5 });
+      const pct = Math.round((Number(st.scale) || 1) * 100);
+      document.querySelectorAll('[data-wg-zoom-readout]').forEach((el) => {
+        el.textContent = `${pct}%`;
+      });
+      const outBtn = document.querySelector('[data-wg-zoom="out"]');
+      const inBtn = document.querySelector('[data-wg-zoom="in"]');
+      if (outBtn) outBtn.disabled = st.scale <= (st.minZoom || 0.4) + 0.005;
+      if (inBtn) inBtn.disabled = st.scale >= (st.maxZoom || 3.5) - 0.005;
+    }
+
+    function ensureDiagramViewports() {
+      if (!window.SmartHomeWiringGuide || typeof window.SmartHomeWiringGuide.createDiagramViewport !== 'function') {
+        return;
+      }
+      if (!breadboardViewport) {
+        const bbScroll = document.getElementById('workbenchScroll');
+        const bbStage = document.getElementById('circuitStage');
+        if (bbScroll && bbStage) {
+          breadboardViewport = window.SmartHomeWiringGuide.createDiagramViewport({
+            viewportEl: bbScroll,
+            contentEl: bbStage,
+            baseWidth: CIRCUIT_STAGE_BASE_W,
+            baseHeight: CIRCUIT_STAGE_BASE_H,
+            minZoom: 0.4,
+            maxZoom: 3.5,
+            zoomStep: 0.2,
+            onChange: (st) => {
+              if (wokwiActiveDiagramMode === 'breadboard') syncZoomToolbarReadout(st);
+            },
+          });
+        }
+      }
+      if (!pcb2dViewport) {
+        const pcbScroll = document.getElementById('pcb2dScroll');
+        const pcbHost = document.getElementById('pcb2dSvgHost');
+        if (pcbScroll && pcbHost) {
+          pcb2dViewport = window.SmartHomeWiringGuide.createDiagramViewport({
+            viewportEl: pcbScroll,
+            contentEl: pcbHost,
+            baseWidth: 1200,
+            baseHeight: 825,
+            minZoom: 0.4,
+            maxZoom: 3.5,
+            zoomStep: 0.2,
+            onChange: (st) => {
+              if (wokwiActiveDiagramMode === 'pcb2d') syncZoomToolbarReadout(st);
+            },
+          });
+        }
+      }
+    }
+
+    function bindZoomToolbarControls() {
+      document.querySelectorAll('[data-wg-zoom]').forEach((btn) => {
+        if (btn.dataset.wgZoomBound) return;
+        btn.dataset.wgZoomBound = '1';
+        btn.addEventListener('click', () => {
+          const action = btn.getAttribute('data-wg-zoom');
+          const vp = getActiveDiagramViewport();
+          if (!vp) return;
+          if (action === 'in') vp.zoomIn();
+          else if (action === 'out') vp.zoomOut();
+          else if (action === 'fit') vp.fit();
+          else if (action === 'reset') vp.reset();
+          syncZoomToolbarReadout();
+        });
+      });
+      syncZoomToolbarReadout();
     }
 
     function setWokwiDiagramMode(mode) {
@@ -508,9 +600,20 @@
         btn.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
       if (wokwiActiveDiagramMode === 'pcb2d') {
-        loadPcb2dSvgOnce();
+        loadPcb2dSvgOnce().then(() => {
+          ensureDiagramViewports();
+          if (pcb2dViewport) {
+            requestAnimationFrame(() => {
+              pcb2dViewport.handleResize();
+              syncZoomToolbarReadout();
+            });
+          }
+        });
       } else {
-        requestAnimationFrame(fitCircuitStageToWorkbench);
+        requestAnimationFrame(() => {
+          fitCircuitStageToWorkbench();
+          syncZoomToolbarReadout();
+        });
       }
       if (wokwiWiringController) wokwiWiringController.refresh();
     }
@@ -540,6 +643,13 @@
     function initWokwiWiringGuide() {
       if (!window.SmartHomeWiringGuide || wokwiWiringController) return;
       const modeSwitchHtml = `
+        <div class="wg-zoom-toolbar" role="group" aria-label="Điều khiển thu phóng sơ đồ">
+          <button type="button" class="wg-zoom-btn" data-wg-zoom="out" aria-label="Thu nhỏ sơ đồ">−</button>
+          <span class="wg-zoom-readout" data-wg-zoom-readout aria-live="polite">100%</span>
+          <button type="button" class="wg-zoom-btn" data-wg-zoom="in" aria-label="Phóng to sơ đồ">+</button>
+          <button type="button" class="wg-zoom-btn wg-zoom-btn-text" data-wg-zoom="fit">Vừa màn hình</button>
+          <button type="button" class="wg-zoom-btn wg-zoom-btn-text" data-wg-zoom="reset">100%</button>
+        </div>
         <div class="wg-mode-switch" role="group" aria-label="Chế độ xem sơ đồ">
           <button type="button" class="wg-mode-btn is-active" data-wokwi-mode="breadboard" aria-pressed="true">Mạch Breadboard</button>
           <button type="button" class="wg-mode-btn" data-wokwi-mode="pcb2d" aria-pressed="false">Sơ đồ PCB 2D</button>
@@ -556,8 +666,20 @@
           onContractReady(contract) {
             renderSsotPinoutTable(contract);
             renderSsotTechGuides('all', contract);
+            if (typeof window.SmartHomeWiringGuide.renderProtectionTable === 'function') {
+              window.SmartHomeWiringGuide.renderProtectionTable(
+                document.getElementById('wokwiProtectionTableMount'),
+                contract
+              );
+            }
             document.querySelectorAll('[data-wokwi-mode]').forEach((btn) => {
               btn.addEventListener('click', () => setWokwiDiagramMode(btn.getAttribute('data-wokwi-mode')));
+            });
+            ensureDiagramViewports();
+            bindZoomToolbarControls();
+            requestAnimationFrame(() => {
+              fitCircuitStageToWorkbench();
+              syncZoomToolbarReadout();
             });
           },
           bindInteractions(onSelectWire) {
@@ -1486,29 +1608,24 @@
     let _workbenchResizeObserver = null;
 
     function fitCircuitStageToWorkbench() {
-      const scrollEl = document.getElementById('workbenchScroll') || document.querySelector('.workbench-scroll');
-      const wrapEl = document.getElementById('circuitStageWrap');
-      const stageEl = document.getElementById('circuitStage');
-      if (!scrollEl || !wrapEl || !stageEl) return 1;
-
-      const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
-      if (isMobile) {
-        stageEl.style.transform = '';
-        wrapEl.style.width = `${CIRCUIT_STAGE_BASE_W}px`;
-        wrapEl.style.height = `${CIRCUIT_STAGE_BASE_H}px`;
-        return 1;
+      ensureDiagramViewports();
+      if (wokwiActiveDiagramMode === 'pcb2d' && pcb2dViewport) {
+        const s = pcb2dViewport.handleResize();
+        syncZoomToolbarReadout();
+        return s;
       }
-
-      const cs = typeof window !== 'undefined' && window.getComputedStyle ? window.getComputedStyle(scrollEl) : null;
-      const padL = cs ? parseFloat(cs.paddingLeft) || 0 : 8;
-      const padR = cs ? parseFloat(cs.paddingRight) || 0 : 8;
-      const availW = Math.max(320, scrollEl.clientWidth - padL - padR);
+      if (breadboardViewport) {
+        const s = breadboardViewport.handleResize();
+        syncZoomToolbarReadout();
+        return s;
+      }
+      const scrollEl = document.getElementById('workbenchScroll') || document.querySelector('.workbench-scroll');
+      const stageEl = document.getElementById('circuitStage');
+      if (!scrollEl || !stageEl) return 1;
+      const availW = Math.max(240, scrollEl.clientWidth);
       const scale = Math.min(1, availW / CIRCUIT_STAGE_BASE_W);
-
-      stageEl.style.transformOrigin = 'top left';
-      stageEl.style.transform = scale < 0.999 ? `scale(${scale.toFixed(4)})` : '';
-      wrapEl.style.width = `${Math.floor(CIRCUIT_STAGE_BASE_W * scale)}px`;
-      wrapEl.style.height = `${Math.ceil(CIRCUIT_STAGE_BASE_H * scale)}px`;
+      stageEl.style.transformOrigin = '0 0';
+      stageEl.style.transform = `scale(${scale.toFixed(4)})`;
       return scale;
     }
 
@@ -1688,3 +1805,25 @@ window.copyWokwiFile = copyWokwiFile;
 window.setWokwiDiagramMode = setWokwiDiagramMode;
 window.onNodeMcuPinClick = onNodeMcuPinClick;
 window.initWokwiWiringGuide = initWokwiWiringGuide;
+window.wokwiDiagramZoom = {
+  zoomIn: () => {
+    const vp = getActiveDiagramViewport();
+    return vp ? vp.zoomIn() : 1;
+  },
+  zoomOut: () => {
+    const vp = getActiveDiagramViewport();
+    return vp ? vp.zoomOut() : 1;
+  },
+  fit: () => {
+    const vp = getActiveDiagramViewport();
+    return vp ? vp.fit() : 1;
+  },
+  reset: () => {
+    const vp = getActiveDiagramViewport();
+    return vp ? vp.reset() : 1;
+  },
+  getState: () => {
+    const vp = getActiveDiagramViewport();
+    return vp ? vp.getState() : { scale: 1, tx: 0, ty: 0, fitScale: 1, mode: 'fit' };
+  },
+};

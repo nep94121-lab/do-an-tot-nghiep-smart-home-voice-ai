@@ -75,7 +75,10 @@
           </div>
 
           <div class="pcb-wiring-note" id="pcbWiringNote" role="note">
-            <strong>Lưu ý đấu nối thực tế theo PCB Hub (100×80 mm):</strong> Cắm dây trên breadboard phải tuân thủ đúng sơ đồ mạch PCB thực tế (đèn ngủ <strong>D4</strong> đấu Active-LOW từ 3.3V qua R2 220Ω + R7 10kΩ; đường âm thanh <strong>D3</strong> dùng R4 10kΩ kéo lên 3.3V, tụ <strong>C4 10µF 16V</strong>, cầu R5/R6 2.2kΩ và C5 10nF). Riêng chân <strong>D8 (GPIO15)</strong> bắt buộc có điện trở kéo xuống <strong>R9 (10kΩ → GND)</strong> để an toàn khi khởi động, và lái còi 5V qua <strong>R10 (1kΩ) → Q1 (S8050 NPN)</strong> kèm diode dập xung <strong>D2 (1N4007)</strong> (không nối trực tiếp còi vào D8).
+            <strong>Lưu ý đấu nối thực tế theo PCB Hub (100×80 mm):</strong> Cắm dây trên breadboard phải tuân thủ đúng sơ đồ mạch PCB thực tế (đèn ngủ <strong>D4</strong> đấu Active-LOW từ 3.3V qua R2 220Ω + R7 10kΩ; đường âm thanh <strong>D3</strong> dùng R4 10kΩ kéo lên 3.3V, tụ <strong>C4 10µF 16V</strong>, cầu R5/R6 2.2kΩ và C5 10nF; bổ sung tụ lọc <strong>C8 100nF</strong> trên +3.3V và <strong>C9 100µF 16V</strong> tại J11/PAM8403). Riêng chân <strong>D8 (GPIO15)</strong> bắt buộc có điện trở kéo xuống <strong>R9 (10kΩ → GND)</strong> để an toàn khi khởi động, và lái còi 5V qua <strong>R10 (1kΩ) → Q1 (S8050 NPN)</strong> kèm diode dập xung <strong>D2 (1N4007)</strong> (không nối trực tiếp còi vào D8).
+            <div class="pcb-wiring-note-links">
+              <a class="pcb-note-link" href="/docs/phan_cung/HUONG_DAN_NAP_FIRMWARE_USB.md" target="_blank" rel="noopener noreferrer">Hướng dẫn nạp firmware &amp; cài Wi-Fi qua USB</a>
+            </div>
           </div>
 
           <div id="wokwiWiringToolbar" class="wokwi-wiring-toolbar-slot"></div>
@@ -344,22 +347,22 @@
               <circle cx="23" cy="62" r="3" fill="#94a3b8"/><text x="35" y="65" font-size="7.5" fill="#cbd5e1" font-weight="bold">GND</text>
               <circle cx="23" cy="74" r="3" fill="#ef4444"/><text x="35" y="77" font-size="7.5" fill="#fca5a5" font-weight="bold">VCC</text>
 
-              <!-- Con Diode đen D1 1N4007 chống dòng ngược mắc song song 2 dây Máy bơm -->
+              <!-- Con Diode đen D1 1N4007 chống dòng ngược mắc song song 2 dây Máy bơm (Cathode vạch bạc -> PUMP_5V) -->
               <g transform="translate(172, 16)">
                 <line x1="0" y1="14" x2="78" y2="14" stroke="#94a3b8" stroke-width="2.5"/>
                 <rect x="16" y="6" width="44" height="16" rx="3" fill="#0f172a" stroke="#64748b" stroke-width="1.5"/>
                 <rect x="50" y="6" width="6" height="16" fill="#e2e8f0"/>
-                <text x="38" y="17" font-size="7.5" text-anchor="middle" fill="#f8fafc" font-weight="bold">D1 1N4007</text>
-                <text x="38" y="34" font-size="7.5" text-anchor="middle" fill="#fde047" font-weight="bold">Diode dập xung</text>
+                <text x="36" y="17" font-size="7.2" text-anchor="middle" fill="#f8fafc" font-weight="bold">D1 1N4007</text>
+                <text x="38" y="33" font-size="6.8" text-anchor="middle" fill="#fde047" font-weight="bold">K→PUMP_5V · A→GND</text>
               </g>
 
               <!-- Tụ hóa lọc nguồn C2 470µF 16V cạnh Máy bơm -->
               <g transform="translate(274, 10)">
-                <rect x="4" y="2" width="38" height="28" rx="4" fill="#166534" stroke="#eab308" stroke-width="1.5"/>
-                <rect x="34" y="2" width="8" height="28" rx="2" fill="#e2e8f0"/>
-                <text x="19" y="14" font-size="7.2" text-anchor="middle" fill="#fef08a" font-weight="bold">C2 470µF</text>
-                <text x="19" y="24" font-size="7" text-anchor="middle" fill="#dcfce7">16V</text>
-                <text x="23" y="42" font-size="7.5" text-anchor="middle" fill="#86efac" font-weight="bold">Lọc 5V</text>
+                <rect x="4" y="2" width="44" height="28" rx="4" fill="#166534" stroke="#eab308" stroke-width="1.5"/>
+                <rect x="40" y="2" width="8" height="28" rx="2" fill="#e2e8f0"/>
+                <text x="22" y="14" font-size="7" text-anchor="middle" fill="#fef08a" font-weight="bold">C2 470µF</text>
+                <text x="22" y="24" font-size="6.6" text-anchor="middle" fill="#dcfce7">16V (+)</text>
+                <text x="26" y="41" font-size="7" text-anchor="middle" fill="#86efac" font-weight="bold">Lọc +5V</text>
               </g>
 
               <!-- Máy bơm nước mini màu trắng nằm ngang đúng như trên bàn bạn -->
@@ -408,6 +411,14 @@
                 <path d="M52,32 L68,32 L68,135 L60,152 L52,135 Z" fill="#ca8a04" stroke="#fde047" stroke-width="1.5"/>
                 <text x="40" y="20" font-size="9.5" text-anchor="middle" fill="#fde047" font-weight="bold">Đầu dò đất</text>
               </g>
+              <!-- Tụ gốm lọc nhiễu C7 100nF 50V trên đường A0_SOIL ↔ GND -->
+              <g transform="translate(18, 108)">
+                <rect x="0" y="0" width="152" height="26" rx="5" fill="rgba(15,23,42,0.92)" stroke="#38bdf8" stroke-width="1.2"/>
+                <circle cx="16" cy="13" r="8.5" fill="#d97706" stroke="#fde047" stroke-width="1.2"/>
+                <text x="16" y="15.5" font-size="6.2" text-anchor="middle" fill="#ffffff" font-weight="bold">C7</text>
+                <text x="86" y="11" font-size="7.2" text-anchor="middle" fill="#bae6fd" font-weight="bold">C7 100nF 50V (Gốm)</text>
+                <text x="86" y="21" font-size="6.4" text-anchor="middle" fill="#cbd5e1">Lọc nhiễu A0_SOIL ↔ GND</text>
+              </g>
               <text id="soil_svg_label" x="105" y="155" font-size="11.5" text-anchor="middle" fill="#6ee7b7" font-weight="bold">Độ ẩm đất: 55%</text>
             </svg>
           </div>
@@ -441,6 +452,44 @@
           </div>
           <div class="hw-comp" style="left: 575px; top: 482px;">
             <wokwi-potentiometer id="w_soil_pot" value="550"></wokwi-potentiometer>
+          </div>
+
+          <!-- 4.5b. Khối tụ lọc nguồn trên Breadboard / PCB: C1 470µF 16V, C3 100nF (+5V) & C8 100nF (+3V3) -->
+          <div class="hw-comp" id="box_rail_decoupling" style="left: 562px; top: 584px; cursor:pointer;" onclick="filterStep('power')" title="Tụ lọc nguồn hệ thống: C1 470µF 16V + C3 100nF 50V (+5V ↔ GND) và C8 100nF 50V (+3.3V ↔ GND, kết hợp tụ 10µF AMS1117 trên NodeMCU)">
+            <svg width="258" height="106" viewBox="0 0 258 106">
+              <rect x="1" y="1" width="256" height="104" rx="7" fill="rgba(15,23,42,0.94)" stroke="#38bdf8" stroke-width="1.4"/>
+              <text x="129" y="15" font-size="8.2" text-anchor="middle" fill="#bae6fd" font-weight="bold">Tụ lọc nguồn Rail +5V &amp; +3.3V (C1 · C3 · C8)</text>
+
+              <!-- C1 470µF 16V (+5V) -->
+              <g transform="translate(10, 24)">
+                <rect x="0" y="0" width="76" height="50" rx="5" fill="#14532d" stroke="#facc15" stroke-width="1.2"/>
+                <rect x="66" y="0" width="10" height="50" rx="2" fill="#e2e8f0"/>
+                <text x="33" y="15" font-size="7.4" text-anchor="middle" fill="#fef08a" font-weight="bold">C1 470µF</text>
+                <text x="33" y="27" font-size="6.8" text-anchor="middle" fill="#dcfce7" font-weight="bold">16V (+ / −)</text>
+                <text x="33" y="39" font-size="6.2" text-anchor="middle" fill="#86efac">+5V ↔ GND</text>
+                <text x="33" y="47" font-size="5.6" text-anchor="middle" fill="#cbd5e1">Servo/Main</text>
+              </g>
+
+              <!-- C3 100nF 50V (+5V) -->
+              <g transform="translate(94, 24)">
+                <rect x="0" y="0" width="72" height="50" rx="5" fill="#1e293b" stroke="#fb923c" stroke-width="1.2"/>
+                <circle cx="36" cy="14" r="9" fill="#d97706" stroke="#fde047" stroke-width="1.1"/>
+                <text x="36" y="16.5" font-size="6.2" text-anchor="middle" fill="#ffffff" font-weight="bold">C3</text>
+                <text x="36" y="33" font-size="6.8" text-anchor="middle" fill="#fed7aa" font-weight="bold">100nF 50V</text>
+                <text x="36" y="44" font-size="6" text-anchor="middle" fill="#cbd5e1">+5V ↔ GND</text>
+              </g>
+
+              <!-- C8 100nF 50V (+3.3V) -->
+              <g transform="translate(174, 24)">
+                <rect x="0" y="0" width="74" height="50" rx="5" fill="#172554" stroke="#60a5fa" stroke-width="1.2" stroke-dasharray="4 2"/>
+                <circle cx="37" cy="14" r="9" fill="#d97706" stroke="#fde047" stroke-width="1.1"/>
+                <text x="37" y="16.5" font-size="6.2" text-anchor="middle" fill="#ffffff" font-weight="bold">C8</text>
+                <text x="37" y="33" font-size="6.8" text-anchor="middle" fill="#bfdbfe" font-weight="bold">100nF 50V</text>
+                <text x="37" y="44" font-size="6" text-anchor="middle" fill="#93c5fd">+3V3 ↔ GND</text>
+              </g>
+
+              <text x="129" y="92" font-size="6.6" text-anchor="middle" fill="#cbd5e1">C8 gắn ngoài (Header/BB) + tụ 10µF AMS1117 trên NodeMCU</text>
+            </svg>
           </div>
 
           <!-- 4.6. RELAY 2 ĐỎ OPTO (D7) + MẠCH XANH PAM8403 + LOA TRÒN BẠC (D3 PWM) -->
@@ -479,9 +528,20 @@
 
               <line x1="110" y1="64" x2="120" y2="64" stroke="#ef4444" stroke-width="2.5"/>
               <line x1="204" y1="60" x2="224" y2="60" stroke="#a855f7" stroke-width="2.5"/>
-              <text id="pam8403_pwr_txt" x="157" y="128" font-size="8.5" text-anchor="middle" fill="#94a3b8" font-weight="bold">NGUỒN PAM8403: ĐANG TẮT (Tự bật khi phát chuông)</text>
+
+              <!-- Tụ lọc nguồn AMP_5V cho PAM8403: C6 100nF 50V (PCB) + C9 100µF 16V (+) (gắn tại J11/PAM8403) -->
+              <g transform="translate(14, 114)">
+                <rect x="0" y="0" width="286" height="17" rx="3.5" fill="#1e293b" stroke="#4ade80" stroke-width="1"/>
+                <circle cx="12" cy="8.5" r="5" fill="#d97706" stroke="#fde047" stroke-width="0.9"/>
+                <text x="12" y="10.6" font-size="4.8" text-anchor="middle" fill="#fff" font-weight="bold">C6</text>
+                <text x="72" y="11" font-size="6.4" text-anchor="middle" fill="#bbf7d0" font-weight="bold">C6 100nF 50V (PCB)</text>
+                <rect x="132" y="3" width="12" height="11" rx="2" fill="#14532d" stroke="#facc15" stroke-width="0.9"/>
+                <rect x="141" y="3" width="3" height="11" fill="#e2e8f0"/>
+                <text x="215" y="11" font-size="6.4" text-anchor="middle" fill="#fef08a" font-weight="bold">C9 100µF 16V (+) tại J11/5V+</text>
+              </g>
+              <text id="pam8403_pwr_txt" x="157" y="143" font-size="8" text-anchor="middle" fill="#94a3b8" font-weight="bold">NGUỒN PAM8403: ĐANG TẮT (Tự bật khi phát chuông)</text>
             </svg>
-            <div style="display:flex; gap:6px; margin-top:-32px; padding:0 10px; position:relative; z-index:40;">
+            <div style="display:flex; gap:6px; margin-top:-20px; padding:0 10px; position:relative; z-index:40;">
               <button class="btn green" type="button" style="font-size:10.5px; padding:4px 6px; flex:1; justify-content:center;" onclick="toggleDevice('speaker_amp')">Bật/Tắt Nguồn Loa (D7)</button>
               <button class="btn primary" type="button" style="font-size:10.5px; padding:4px 6px; flex:1; justify-content:center;" onclick="testSpeakerChimeDemo()">Phát chuông thử (D3)</button>
             </div>
@@ -504,6 +564,16 @@
             </div>
             <div id="wokwiWiringPanelMount" class="wokwi-guide-mount"></div>
           </div>
+
+          <details class="wg-protection-card" id="wokwiProtectionCard" open>
+            <summary class="wg-protection-summary">
+              <span>Tụ điện &amp; Diode bảo vệ (Datasheet)</span>
+              <span class="wg-protection-count">C1–C9 · D1–D2 (1N4007)</span>
+            </summary>
+            <div id="wokwiProtectionTableMount" class="wg-protection-body">
+              <p class="wg-empty">Đang tải bảng tụ điện và diode bảo vệ…</p>
+            </div>
+          </details>
         </div>
 
         <!-- CỘT PHẢI: THIẾT BỊ -->
@@ -569,7 +639,7 @@
           </ol>
         </div>
 
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:14px;">
+        <div class="tech-grid-2col">
           <div class="card">
             <h3>Giả lập cảm biến và âm thanh</h3>
             <div class="ctrl-item">
@@ -616,7 +686,7 @@
           </div>
         </div>
 
-        <section id="pinoutAndCodeSection" style="display: grid; grid-template-columns: 1.05fr 1fr; gap: 14px;">
+        <section id="pinoutAndCodeSection" class="tech-pinout-grid">
           <div class="card" style="overflow-x:auto;">
             <h3>Bảng nối dây đồng bộ từ hợp đồng phần cứng</h3>
             <table style="width:100%; border-collapse:collapse; font-size:12.5px; line-height:1.45;">
