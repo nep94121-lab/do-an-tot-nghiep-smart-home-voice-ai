@@ -30,6 +30,7 @@
     37.0,
     3.0
   ],
+  "print_flipped_x180": false,
   "print_bbox_mm": [
     117.0,
     37.0,
@@ -50,6 +51,7 @@
     "Buzzer_12mm",
     "KY037_Mic_Aperture",
     "Cable_Front_LR",
+    "Cable_Servo_D1",
     "Cable_Front_BR"
   ],
   "bed_fit": true,

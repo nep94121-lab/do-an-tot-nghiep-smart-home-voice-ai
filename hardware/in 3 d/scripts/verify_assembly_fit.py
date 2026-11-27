@@ -19,15 +19,17 @@ from typing import Any
 
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 PRINT3D_ROOT = SCRIPT_DIR.parent
-MICA_DIR = PRINT3D_ROOT.parent / "mica"
+HARDWARE_ROOT = PRINT3D_ROOT.parent
+MICA_DIR = HARDWARE_ROOT / "mica"
 
-for _p in (str(SCRIPT_DIR), str(MICA_DIR)):
+for _p in (str(SCRIPT_DIR), str(MICA_DIR), str(HARDWARE_ROOT)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
 import FreeCAD
 import Part
 
+import component_dimensions_ssot as dim_ssot
 import kicad_pcb_ssot as pcb_ssot
 import mica_design as md
 import print_domain as pd_mod
@@ -61,17 +63,21 @@ def _brep_intersect_vol(s1: Any, s2: Any, n1: str = "", n2: str = "") -> float:
 
 
 def build_fit_table(pcb: pcb_ssot.PcbSpec, metas: dict[str, dict[str, Any]], cfg: pd_mod.PrintConfig) -> list[dict[str, Any]]:
-    """Compute exact PCB & module fit table directly from KiCad PCB, mica_design.py, and generated mounts."""
+    """Compute exact 16-row PCB & 14-module fit table from SSOT, KiCad PCB, and generated mounts."""
     sup06 = metas["SUP06_HUB_PCB_SNAP_CARRIER"]["params"]
     sup07 = metas["SUP07_RELAY_SNAP_CADDY"]["params"]
     sup08 = metas["SUP08_PAM8403_SNAP_TRAY"]["params"]
     sup09 = metas["SUP09_SPEAKER_SNAP_RETAINER"]["params"]
     sup10 = metas["SUP10_DOOR_MORTISE_HINGE"]["params"]
+    sup10b = metas["SUP10B_DOOR_HORN_COUPLER"]["params"]
     sup11 = metas["SUP11_SG90_SNAP_SADDLE"]["params"]
     sup12 = metas["SUP12_DHT11_SNAP_CRADLE"]["params"]
     sup13 = metas["SUP13_KY037_SNAP_CRADLE"]["params"]
     sup14 = metas["SUP14_LM393_SNAP_CRADLE"]["params"]
     sup15 = metas["SUP15_WATER_TANK_LINER"]["params"]
+    sup16 = metas["SUP16_DC022_STRAIN_RELIEF"]["params"]
+    sup17 = metas["SUP17_LED5MM_RETAINING_COLLAR"]["params"]
+    sup18 = metas["SUP18_BUZZER_SNAP_COLLAR"]["params"]
 
     # Verify real KiCad footprint clearance (all 51 footprints incl. on-board C8/C9) against SUP06 carrier bosses (R=3.7 mm @ 90x70)
     min_kp_dist = float("inf")
@@ -90,80 +96,106 @@ def build_fit_table(pcb: pcb_ssot.PcbSpec, metas: dict[str, dict[str, Any]], cfg
     c8_c9_present = ("C8" in kp_refs and "C9" in kp_refs)
     pcb_keepout_ok = c8_c9_present and (min_kp_dist >= 4.0) and (c8_min_dist >= 4.0) and (c9_min_dist >= 4.0)
 
+    sg90_ok = (
+        0.05 <= sup11["ear_t"] - 2.5 <= 0.30
+        and 0.20 <= sup10["bore_d"] - sup10["pin_d"] <= 0.40
+        and 0.20 <= sup10b["slot_w"] - sup10b["horn_w"] <= 0.60
+    )
+    dc022_ok = 0.20 <= sup16["barrel_id"] - 12.0 <= 0.60
+    led_ok = (0.05 <= sup17["dome_id"] - 5.0 <= 0.30) and (0.10 <= sup17["flange_id"] - 5.8 <= 0.40)
+    buzz_ok = 0.20 <= sup18["cup_id"] - 12.0 <= 0.60
+    relay_ok = abs(sup07["cavity_x"] - 50.4) < 0.05 and abs(sup07["peg_od"] - 2.90) < 0.05
+
     rows = [
         {
-            "part": "Hub PCB (Type 1)",
-            "source_of_dimension": f"{pcb.source_file} (Edge.Cuts + 4x MountingHole_3.2mm, {len(pcb.mounting_holes) + len(pcb.keepouts)} footprints incl. C8/C9)",
+            "module_id": "hub_pcb",
+            "hw_part_id": "HW_PCB",
+            "part": "Hub PCB DIY v3 (100x80)",
+            "source_of_dimension": f"{pcb.source_file} (Edge.Cuts + 4x 3.2mm holes, {len(pcb.mounting_holes) + len(pcb.keepouts)} footprints incl. C8/C9)",
             "board_size_mm": f"{pcb.width_mm:.1f} x {pcb.height_mm:.1f} x {pcb.thickness_mm:.1f} (holes {pcb.hole_pitch_x_mm:.1f}x{pcb.hole_pitch_y_mm:.1f}, Dia {pcb.hole_dia_mm:.1f})",
-            "mount_part": "SUP06_HUB_PCB_SNAP_CARRIER",
+            "mount_part": "SUP06_HUB_PCB_SNAP_CARRIER + P16_PCB_PLATE + SUP05",
             "mount_inner_size_mm": f"Frame 104.0x84.0, 4x split pegs OD {sup06['peg_od']:.2f} @ {sup06['pitch_x']:.1f}x{sup06['pitch_y']:.1f}",
             "clearance_mm": f"{pcb.hole_dia_mm - sup06['peg_od']:.2f} mm dia (nearest {min_kp_dist:.1f} mm; C8 {c8_min_dist:.1f} mm, C9 {c9_min_dist:.1f} mm)",
             "holding_method": "4x split snap-fit pegs (0.25mm barb) + 4x SUP05B floor mortise tenons into P16",
             "status": "PASS" if (0.15 <= pcb.hole_dia_mm - sup06["peg_od"] <= 0.30 and pcb_keepout_ok) else "FAIL",
         },
         {
-            "part": "ESP8266 NodeMCU v2",
+            "module_id": "nodemcu",
+            "hw_part_id": "HW_NODEMCU",
+            "part": "ESP8266 NodeMCU v2 Amica",
             "source_of_dimension": f"{pcb.source_file} (PinSocket_1x15 22.86mm) + Components101 datasheet",
             "board_size_mm": "48.3 x 25.4 x 7.1 (22.86 mm pin row spacing)",
-            "mount_part": "SUP06_HUB_PCB_SNAP_CARRIER + P15 USB cutaway",
+            "mount_part": "SUP06_HUB_PCB_SNAP_CARRIER + P15_TECH_FASCIA USB cutaway",
             "mount_inner_size_mm": "Center pin cutout 72.0 x 52.0 mm below PCB; open top above Z=20.6 mm",
             "clearance_mm": ">= 10.0 mm underside pin clearance, full open USB access",
-            "holding_method": "Plugged into Hub PCB U1/U2 female headers (zero extra fasteners)",
+            "holding_method": "Plugged into Hub PCB U1/U2 female headers (direct socket retention)",
             "status": "PASS",
         },
         {
-            "part": "Relay 1 & Relay 2 (SRD-05VDC)",
-            "source_of_dimension": "mica_design.py + Reichelt/HandsOnTech 1-Ch Relay datasheet",
-            "board_size_mm": "50.0 x 26.0 x 18.5 (holes 44.5x20.5, Dia 3.1)",
-            "mount_part": "SUP07_RELAY_SNAP_CADDY (2x)",
-            "mount_inner_size_mm": f"Cavity {sup07['cavity_x']:.1f}x{sup07['cavity_y']:.1f}, 4x split pegs OD {sup07['peg_od']:.2f} @ 44.5x20.5",
-            "clearance_mm": f"{(sup07['cavity_x']-50.0)/2:.2f} mm/side edge, {3.1 - sup07['peg_od']:.2f} mm peg dia",
-            "holding_method": "4x split snap-fit pegs + edge rim + 2x SUP05B mortise tenons into P01A",
-            "status": "PASS" if (abs(sup07["cavity_x"] - 50.4) < 0.05 and abs(sup07["peg_od"] - 2.90) < 0.05) else "FAIL",
+            "module_id": "sg90_servo",
+            "hw_part_id": "HW_SG90",
+            "part": "SG90 9g Micro Servo (Main Door D1)",
+            "source_of_dimension": "component_dimensions_ssot.py + HandsOnTech SG90 datasheet",
+            "board_size_mm": "Body 22.8x12.2x22.5, ears 32.2x2.5; horn 4.5x1.6; door 56x100",
+            "mount_part": "P07_SERVO_SHELF + SUP11 + SUP10 (2x) + SUP10B_DOOR_HORN_COUPLER",
+            "mount_inner_size_mm": f"P07 cutout 23.3x12.7, SUP11 ear gap {sup11['ear_t']:.1f}, SUP10B fork {sup10b['slot_w']:.1f} mm, SUP10 bore {sup10['bore_d']:.1f}/pin {sup10['pin_d']:.1f}",
+            "clearance_mm": f"0.25/side cutout, {sup11['ear_t']-2.5:.2f} ear Z, {(sup10b['slot_w']-sup10b['horn_w'])/2:.2f}/side horn fork, {sup10['bore_d']-sup10['pin_d']:.2f} hinge dia",
+            "holding_method": "Inverted coaxial top-jamb direct-drive on P07 clamped by SUP11 + SUP10B fork + SUP10 hinges",
+            "status": "PASS" if sg90_ok else "FAIL",
         },
         {
-            "part": "PAM8403 3W Audio Amp",
-            "source_of_dimension": "mica_design.py + Elecrow PAM8403 datasheet",
-            "board_size_mm": "21.0 x 18.0 x 3.4 (bare stamp PCB)",
-            "mount_part": "SUP08_PAM8403_SNAP_TRAY",
-            "mount_inner_size_mm": f"Cavity {sup08['cavity_x']:.1f} x {sup08['cavity_y']:.1f} x 4.0 + 0.4 mm snap ribs",
-            "clearance_mm": f"{(sup08['cavity_x']-21.0)/2:.2f} mm/side X, {(sup08['cavity_y']-18.0)/2:.2f} mm/side Y",
-            "holding_method": "Edge rails + 45-deg side snap ribs + 2x SUP05B mortise tenons into P01A",
-            "status": "PASS" if (0.15 <= (sup08["cavity_x"] - 21.0) / 2.0 <= 0.30) else "FAIL",
+            "module_id": "psu_5v",
+            "hw_part_id": "HW_DC_JACK",
+            "part": "5V 2A Power Supply + DC-022 Barrel Jack",
+            "source_of_dimension": "component_dimensions_ssot.py + Adafruit 610 DC-022 spec",
+            "board_size_mm": "Dia 12.0 x 21.0 mm barrel (flange Dia 14.0 mm)",
+            "mount_part": "P15_TECH_FASCIA + SUP16_DC022_STRAIN_RELIEF",
+            "mount_inner_size_mm": f"P15 hole Dia 12.5, SUP16 rear collar ID {sup16['barrel_id']:.1f} + {sup16['wire_slot_w']:.1f} mm wire guide",
+            "clearance_mm": f"0.25 mm/side panel bore, {(sup16['barrel_id']-12.0)/2:.2f} mm/side collar radial",
+            "holding_method": "M12 barrel panel seat + SUP16 rear mortise snap-collar & wire strain-relief (2x 4x6x3 tenons into P15)",
+            "status": "PASS" if dc022_ok else "FAIL",
         },
         {
-            "part": "Mini Speaker 28mm (PUI AS02808MR-R)",
-            "source_of_dimension": "mica_design.py + PUI Audio AS02808MR-R datasheet",
-            "board_size_mm": "Dia 28.0 x 5.2 mm",
-            "mount_part": "SUP09_SPEAKER_SNAP_RETAINER + P15_TECH_FASCIA",
-            "mount_inner_size_mm": f"Bridge span {sup09['spk_od']:.1f} mm, depth {sup09['spk_depth']:.1f} mm",
-            "clearance_mm": f"{(sup09['spk_od']-28.0)/2:.2f} mm radial, {sup09['spk_depth']-5.2:.2f} mm axial",
-            "holding_method": "Rear pressure bridge locked via 2x integral 4x6x3 tenons into P15 mortises",
-            "status": "PASS" if (0.15 <= sup09["spk_depth"] - 5.2 <= 0.40) else "FAIL",
+            "module_id": "led_living",
+            "hw_part_id": "HW_LED_LR",
+            "part": "5mm LED Living Room (D0)",
+            "source_of_dimension": "component_dimensions_ssot.py + Kingbright WP7113 datasheet",
+            "board_size_mm": "Dia 5.0 dome, Dia 5.8 flange, H 8.6 mm",
+            "mount_part": "P06_WALL_MID + SUP17_LED5MM_RETAINING_COLLAR",
+            "mount_inner_size_mm": f"Dome bezel ID {sup17['dome_id']:.1f} mm + flange seat ID {sup17['flange_id']:.1f} mm",
+            "clearance_mm": f"{(sup17['dome_id']-5.0)/2:.2f} mm/side dome, {(sup17['flange_id']-5.8)/2:.2f} mm/side flange",
+            "holding_method": "Press-fit retaining bezel locked via 2x integral 3x6x3 tenons into P06 mortises",
+            "status": "PASS" if led_ok else "FAIL",
         },
         {
-            "part": "SG90 9g Micro Servo",
-            "source_of_dimension": "mica_design.py + HandsOnTech SG90 datasheet",
-            "board_size_mm": "Body 22.8 x 12.2 x 22.5, ear span 32.2, ear t 2.5",
-            "mount_part": "P07_SERVO_SHELF + SUP11_SG90_SNAP_SADDLE",
-            "mount_inner_size_mm": f"Cutout 23.3x12.7, saddle ear span 32.5, ear gap {sup11['ear_t']:.1f}",
-            "clearance_mm": "0.25 mm/side body cutout, 0.15 mm/side ear span, 0.10 mm ear Z",
-            "holding_method": "Drop-in P07 cutout clamped by SUP11 saddle locking into 2x P07 mortises (0 M2 screws)",
-            "status": "PASS" if (0.05 <= sup11["ear_t"] - 2.5 <= 0.30) else "FAIL",
+            "module_id": "led_bedroom",
+            "hw_part_id": "HW_LED_BR",
+            "part": "5mm LED Bedroom (D4 Active-LOW)",
+            "source_of_dimension": "component_dimensions_ssot.py + Kingbright WP7113 datasheet",
+            "board_size_mm": "Dia 5.0 dome, Dia 5.8 flange, H 8.6 mm",
+            "mount_part": "P06_WALL_MID + SUP17_LED5MM_RETAINING_COLLAR",
+            "mount_inner_size_mm": f"Dome bezel ID {sup17['dome_id']:.1f} mm + flange seat ID {sup17['flange_id']:.1f} mm",
+            "clearance_mm": f"{(sup17['dome_id']-5.0)/2:.2f} mm/side dome, {(sup17['flange_id']-5.8)/2:.2f} mm/side flange",
+            "holding_method": "Press-fit retaining bezel locked via 2x integral 3x6x3 tenons into P06 mortises",
+            "status": "PASS" if led_ok else "FAIL",
         },
         {
-            "part": "DHT11 Temp/Humidity Breakout",
-            "source_of_dimension": "mica_design.py + Aosong/DFRobot DHT11 datasheet",
-            "board_size_mm": "28.0 x 14.0 x 7.1 (sensor 15.5 x 12.0)",
-            "mount_part": "SUP12_DHT11_SNAP_CRADLE + P06_WALL_MID",
-            "mount_inner_size_mm": f"Cavity {sup12['cavity_x']:.1f} x {sup12['cavity_y']:.1f}, vent window 12.5x16.0",
-            "clearance_mm": f"{(sup12['cavity_x']-14.0)/2:.2f} mm/side Y, {(sup12['cavity_y']-28.0)/2:.2f} mm/side Z",
-            "holding_method": "Edge-rail slide-in cradle locked via 2x integral 3x6x3 tenons into P06_WALL_MID mortises",
-            "status": "PASS",
+            "module_id": "buzzer_alarm",
+            "hw_part_id": "HW_BUZZER",
+            "part": "Active 5V Buzzer TMB12A05 (D8)",
+            "source_of_dimension": "component_dimensions_ssot.py + TMB12A05 spec",
+            "board_size_mm": "Dia 12.0 x 9.5 mm (7.6 mm pin pitch)",
+            "mount_part": "P05_WALL_FRONT + SUP18_BUZZER_SNAP_COLLAR",
+            "mount_inner_size_mm": f"P05 aperture Dia 12.5, SUP18 cup ID {sup18['cup_id']:.1f}, rear pin bore Dia {sup18['pin_hole_d']:.1f}",
+            "clearance_mm": f"{(sup18['cup_id']-12.0)/2:.2f} mm/side radial, 0.45 mm axial (inside P06 relief Z>112)",
+            "holding_method": "Rear mortise snap cup locked via 2x integral 6x3x3 tenons into P05 CenterPillar mortises",
+            "status": "PASS" if buzz_ok else "FAIL",
         },
         {
-            "part": "KY-037 Sound Sensor",
-            "source_of_dimension": "mica_design.py + Joy-IT KY-038/KY-037 datasheet",
+            "module_id": "ky037_sound",
+            "hw_part_id": "HW_KY037",
+            "part": "KY-037 Sound Sensor (D5)",
+            "source_of_dimension": "component_dimensions_ssot.py + Joy-IT KY-038/KY-037 datasheet",
             "board_size_mm": "35.0 x 15.0 x 13.1 (mic Dia 9.7)",
             "mount_part": "SUP13_KY037_SNAP_CRADLE + P05_WALL_FRONT",
             "mount_inner_size_mm": f"Cavity {sup13['cavity_x']:.1f} x {sup13['cavity_y']:.1f}, P05 mic hole Dia 10.5",
@@ -172,19 +204,23 @@ def build_fit_table(pcb: pcb_ssot.PcbSpec, metas: dict[str, dict[str, Any]], cfg
             "status": "PASS",
         },
         {
-            "part": "YL-69 Soil Moisture Probe",
-            "source_of_dimension": "mica_design.py + HandsOnTech Soil Sensor datasheet",
-            "board_size_mm": "60.0 x 20.0 x 1.6 (2-prong PCB)",
-            "mount_part": "P14_SOIL_BRIDGE",
-            "mount_inner_size_mm": "Slot 22.0 x 3.5 mm",
-            "clearance_mm": "1.00 mm/side width, 0.95 mm/side thickness",
-            "holding_method": "Direct vertical drop-in bridge slot (zero fasteners)",
+            "module_id": "dht11_sensor",
+            "hw_part_id": "HW_DHT11",
+            "part": "DHT11 Temp/Humidity Breakout (D2)",
+            "source_of_dimension": "component_dimensions_ssot.py + Aosong/DFRobot DHT11 datasheet",
+            "board_size_mm": "28.0 x 14.0 x 7.1 (sensor 15.5 x 12.0)",
+            "mount_part": "SUP12_DHT11_SNAP_CRADLE + P06_WALL_MID",
+            "mount_inner_size_mm": f"Cavity {sup12['cavity_x']:.1f} x {sup12['cavity_y']:.1f}, vent window 12.5x16.0",
+            "clearance_mm": f"{(sup12['cavity_x']-14.0)/2:.2f} mm/side Y, {(sup12['cavity_y']-28.0)/2:.2f} mm/side Z",
+            "holding_method": "Edge-rail slide-in cradle locked via 2x integral 3x6x3 tenons into P06_WALL_MID mortises",
             "status": "PASS",
         },
         {
-            "part": "LM393 Soil Comparator (YL-38)",
-            "source_of_dimension": "mica_design.py + HandsOnTech Soil Sensor datasheet",
-            "board_size_mm": "32.0 x 14.0 x 12.0",
+            "module_id": "soil_lm393",
+            "hw_part_id": "HW_LM393",
+            "part": "LM393 Soil Comparator (YL-38, A0)",
+            "source_of_dimension": "component_dimensions_ssot.py + HandsOnTech Soil Sensor datasheet",
+            "board_size_mm": "32.0 x 14.0 x 12.1",
             "mount_part": "SUP14_LM393_SNAP_CRADLE + P13_GARDEN_BACK",
             "mount_inner_size_mm": f"Cavity {sup14['cavity_x']:.1f} x {sup14['cavity_y']:.1f}",
             "clearance_mm": f"{(sup14['cavity_x']-32.0)/2:.2f} mm/side X, {(sup14['cavity_y']-14.0)/2:.2f} mm/side Z",
@@ -192,26 +228,86 @@ def build_fit_table(pcb: pcb_ssot.PcbSpec, metas: dict[str, dict[str, Any]], cfg
             "status": "PASS",
         },
         {
-            "part": "Door Leaf & Hinge / Linkage",
-            "source_of_dimension": "mica_design.py (P08 56x100 in 60x104 frame)",
-            "board_size_mm": "Door 56.0 x 100.0 x 3.0; jamb gap 2.0 mm",
-            "mount_part": "SUP10_DOOR_MORTISE_HINGE (2x) + SUP10B_SERVO_LINK_CLIP",
-            "mount_inner_size_mm": f"Pin OD {sup10['pin_d']:.1f} in bore ID {sup10['bore_d']:.1f}; 4x6x3 mortise tenons",
-            "clearance_mm": f"{sup10['bore_d']-sup10['pin_d']:.2f} mm pivot dia, 0.20 mm axial knuckle gap, 2.0 mm door perimeter",
-            "holding_method": "2-leaf lift-off mortise pin-and-knuckle hinge + mortise pushrod clip (0 screws)",
-            "status": "PASS" if (0.20 <= sup10["bore_d"] - sup10["pin_d"] <= 0.40) else "FAIL",
+            "module_id": "soil_probe",
+            "hw_part_id": "HW_SOIL_PROBE",
+            "part": "YL-69 Soil Moisture Probe",
+            "source_of_dimension": "component_dimensions_ssot.py + HandsOnTech Soil Sensor datasheet",
+            "board_size_mm": "60.0 x 20.0 x 1.6 (2-prong PCB)",
+            "mount_part": "P14_SOIL_BRIDGE",
+            "mount_inner_size_mm": "Slot 22.0 x 3.5 mm",
+            "clearance_mm": "1.00 mm/side width, 0.95 mm/side thickness",
+            "holding_method": "Direct vertical drop-in bridge slot (mortise bridge)",
+            "status": "PASS",
         },
         {
-            "part": "5V Mini Submersible Pump",
-            "source_of_dimension": "mica_design.py + Soldered/Mouser 101844 datasheet",
+            "module_id": "pump_unit",
+            "hw_part_id": "HW_PUMP",
+            "part": "5V Mini Submersible Pump (J2)",
+            "source_of_dimension": "component_dimensions_ssot.py + Soldered/Mouser 101844 datasheet",
             "board_size_mm": "45.0 x 24.0 x 33.0 (tube OD 8.0)",
             "mount_part": "SUP15_WATER_TANK_LINER + P10_WATER_DIVIDER",
             "mount_inner_size_mm": f"Liner inner {sup15['outer_x']-2*sup15['wall_t']:.1f}x{sup15['outer_y']-2*sup15['wall_t']:.1f}x{sup15['outer_z']-sup15['floor_t']:.1f}, notch 11.0",
             "clearance_mm": "9.25 mm/side X, 35.0 mm/side Y, 1.50 mm/side tube notch",
-            "holding_method": "Free-standing inside 1-piece watertight drop-in liner (zero glue/silicone)",
+            "holding_method": "Free-standing inside 1-piece watertight drop-in liner",
             "status": "PASS",
         },
+        {
+            "module_id": "speaker_mini",
+            "hw_part_id": "HW_SPEAKER",
+            "part": "Mini Speaker 28mm (PUI AS02808MR-R)",
+            "source_of_dimension": "component_dimensions_ssot.py + PUI Audio AS02808MR-R datasheet",
+            "board_size_mm": "Dia 28.0 x 5.2 mm",
+            "mount_part": "SUP09_SPEAKER_SNAP_RETAINER + P15_TECH_FASCIA",
+            "mount_inner_size_mm": f"Bridge span {sup09['spk_od']:.1f} mm, depth {sup09['spk_depth']:.1f} mm",
+            "clearance_mm": f"{(sup09['spk_od']-28.0)/2:.2f} mm radial, {sup09['spk_depth']-5.2:.2f} mm axial",
+            "holding_method": "Rear pressure bridge locked via 2x integral 4x6x3 tenons into P15 mortises",
+            "status": "PASS" if (0.15 <= sup09["spk_depth"] - 5.2 <= 0.40) else "FAIL",
+        },
+        {
+            "module_id": "pam8403_amp",
+            "hw_part_id": "HW_PAM8403",
+            "part": "PAM8403 3W Audio Amp (J11/J12)",
+            "source_of_dimension": "component_dimensions_ssot.py + Elecrow PAM8403 datasheet",
+            "board_size_mm": "21.0 x 18.0 x 3.4 (bare stamp PCB)",
+            "mount_part": "SUP08_PAM8403_SNAP_TRAY + P01A_BASE_TECH",
+            "mount_inner_size_mm": f"Cavity {sup08['cavity_x']:.1f} x {sup08['cavity_y']:.1f} x 4.0 + 0.4 mm snap ribs",
+            "clearance_mm": f"{(sup08['cavity_x']-21.0)/2:.2f} mm/side X, {(sup08['cavity_y']-18.0)/2:.2f} mm/side Y",
+            "holding_method": "Edge rails + 45-deg side snap ribs + 2x SUP05B mortise tenons into P01A",
+            "status": "PASS" if (0.15 <= (sup08["cavity_x"] - 21.0) / 2.0 <= 0.30) else "FAIL",
+        },
+        {
+            "module_id": "relay1_pump",
+            "hw_part_id": "HW_RELAY1",
+            "part": "Relay 1 Blue 5V (Pump D6)",
+            "source_of_dimension": "component_dimensions_ssot.py + Reichelt SRD-05VDC datasheet",
+            "board_size_mm": "50.0 x 26.0 x 18.5 (holes 44.5x20.5, Dia 3.1)",
+            "mount_part": "SUP07_RELAY_SNAP_CADDY #1 + P01A_BASE_TECH",
+            "mount_inner_size_mm": f"Cavity {sup07['cavity_x']:.1f}x{sup07['cavity_y']:.1f}, 4x split pegs OD {sup07['peg_od']:.2f} @ 44.5x20.5",
+            "clearance_mm": f"{(sup07['cavity_x']-50.0)/2:.2f} mm/side edge, {3.1 - sup07['peg_od']:.2f} mm peg dia",
+            "holding_method": "4x split snap-fit pegs + edge rim + 2x SUP05B mortise tenons into P01A",
+            "status": "PASS" if relay_ok else "FAIL",
+        },
+        {
+            "module_id": "relay2_speaker",
+            "hw_part_id": "HW_RELAY2",
+            "part": "Relay 2 Red Opto 5V (Speaker D7)",
+            "source_of_dimension": "component_dimensions_ssot.py + Electrokit SRD-05VDC Opto datasheet",
+            "board_size_mm": "50.0 x 26.0 x 18.5 (holes 44.5x20.5, Dia 3.1)",
+            "mount_part": "SUP07_RELAY_SNAP_CADDY #2 + P01A_BASE_TECH",
+            "mount_inner_size_mm": f"Cavity {sup07['cavity_x']:.1f}x{sup07['cavity_y']:.1f}, 4x split pegs OD {sup07['peg_od']:.2f} @ 44.5x20.5",
+            "clearance_mm": f"{(sup07['cavity_x']-50.0)/2:.2f} mm/side edge, {3.1 - sup07['peg_od']:.2f} mm peg dia",
+            "holding_method": "4x split snap-fit pegs + edge rim + 2x SUP05B mortise tenons into P01A",
+            "status": "PASS" if relay_ok else "FAIL",
+        },
     ]
+
+    # Assert 1:1 coverage with authoritative SSOT registry (14 modules + 2 core boards = 16)
+    expected_ids = {m["module_id"] for m in dim_ssot.AUTHORITATIVE_CORE_BOARDS} | {
+        m["module_id"] for m in dim_ssot.AUTHORITATIVE_14_MODULES
+    }
+    actual_ids = {r["module_id"] for r in rows}
+    if actual_ids != expected_ids:
+        raise RuntimeError(f"fit_table module_id mismatch: missing={expected_ids - actual_ids}, extra={actual_ids - expected_ids}")
     return rows
 
 
@@ -358,26 +454,32 @@ def build_r3_clearance_checks(
     }
 
     # 3. Wire passages: Cable_Front_LR (P05 u=16, X=26, Z=17, Dia 14), Cable_Front_BR (P05 u=214, X=224, Z=17, Dia 14),
+    #    Cable_Servo_D1 (P05 u=38, X=48, Z=110, Dia 10 + exit channel above P07),
     #    Pump_Wire_Notch (P09 u=68..78 -> Y=94..104, Z=46..54), and P05 Bedroom cutaway (X=214..390, Y=192..195, Z=36..140)
     z_cable_lr = Part.makeCylinder(6.5, 18.0, FreeCAD.Vector(26.0, 184.5, 17.0), FreeCAD.Vector(0, 1, 0))
     z_cable_br = Part.makeCylinder(6.5, 18.0, FreeCAD.Vector(224.0, 184.5, 17.0), FreeCAD.Vector(0, 1, 0))
+    z_cable_servo_hole = Part.makeCylinder(4.6, 11.0, FreeCAD.Vector(48.0, 184.0, 110.0), FreeCAD.Vector(0, 1, 0))
+    z_cable_servo_exit = Part.makeBox(4.0, 10.0, 3.0, FreeCAD.Vector(43.6, 195.0, 111.7))
     z_pump_notch = Part.makeBox(16.0, 9.6, 7.6, FreeCAD.Vector(259.5, 94.2, 46.2))
     z_p05_cutaway = Part.makeBox(160.0, 10.0, 80.0, FreeCAD.Vector(224.0, 188.5, 42.0))
 
     wp_obstacles = all_sups_flat + all_furs_flat + all_hws_flat
     hits_lr = _zone_hits(z_cable_lr, all_panels_flat + wp_obstacles)
     hits_br = _zone_hits(z_cable_br, all_panels_flat + wp_obstacles)
+    hits_servo = _zone_hits(z_cable_servo_hole, all_panels_flat + wp_obstacles) + _zone_hits(z_cable_servo_exit, all_panels_flat + wp_obstacles)
     hits_pump = _zone_hits(z_pump_notch, all_panels_flat + wp_obstacles)
     hits_cut = _zone_hits(z_p05_cutaway, all_panels_flat + wp_obstacles)
     checks["wire_passages"] = {
-        "passed": (len(hits_lr) == 0 and len(hits_br) == 0 and len(hits_pump) == 0 and len(hits_cut) == 0),
+        "passed": (len(hits_lr) == 0 and len(hits_br) == 0 and len(hits_servo) == 0 and len(hits_pump) == 0 and len(hits_cut) == 0),
         "cable_front_lr_clear": len(hits_lr) == 0,
         "cable_front_br_clear": len(hits_br) == 0,
+        "cable_servo_d1_clear": len(hits_servo) == 0,
         "pump_wire_notch_clear": len(hits_pump) == 0,
         "p05_cutaway_clear": len(hits_cut) == 0,
         "obstructions": {
             "Cable_Front_LR": hits_lr,
             "Cable_Front_BR": hits_br,
+            "Cable_Servo_D1": hits_servo,
             "Pump_Wire_Notch": hits_pump,
             "P05_Cutaway": hits_cut,
         },
@@ -496,9 +598,12 @@ def main() -> int:
         if ref:
             rmin = list(ref["bbox_min"])
             rmax = list(ref["bbox_max"])
-            # P17_BASE_JOINER now has +3.0 mm upward integral tenons (Z=-6..0 instead of -6..-3)
+            # P17_BASE_JOINER has +3.0 mm upward integral tenons (Z=-6..0 instead of -6..-3)
             if spid == "P17_BASE_JOINER":
                 rmax[2] = 0.0
+            # P07_SERVO_SHELF has integral underside end-stop lugs extending down to Z=98.5
+            elif spid == "P07_SERVO_SHELF":
+                rmin[2] = 98.5
             err = max(max(abs(actual_min[k] - rmin[k]) for k in range(3)), max(abs(actual_max[k] - rmax[k]) for k in range(3)))
             ok = err <= 0.15
         else:
@@ -636,13 +741,11 @@ def main() -> int:
             if v > COLL_THRESH:
                 furniture_colls.append({"a": fn1, "b": "DOOR_SWING_ARC_95DEG", "vol_mm3": v})
 
-    print(f"[stage 4/4] Checking {len(hw_world)} hardware bodies & {len(pcb_keepouts)} PCB keepouts vs mounts...", flush=True)
+    print(f"[stage 4/5] Checking {len(hw_world)} hardware bodies & {len(pcb_keepouts)} PCB keepouts vs mounts...", flush=True)
     hw_colls: list[dict[str, Any]] = []
     max_hw_v = 0.0
     for hn, hs, _col in hw_world:
         for sn, spid, ss in support_world:
-            if (hn == "HW_SG90" and spid == "SUP11_SG90_SNAP_SADDLE"):
-                continue
             if (hn == "HW_DHT11" and spid == "SUP12_DHT11_SNAP_CRADLE"):
                 continue
             if (hn == "HW_KY037" and spid == "SUP13_KY037_SNAP_CRADLE"):
@@ -664,6 +767,68 @@ def main() -> int:
             if v > COLL_THRESH:
                 hw_colls.append({"a": kname, "b": sn, "vol_mm3": v})
 
+    # 6b. Stage 5/5: Programmatic 0..90 deg (every 5 deg) BRep swept-volume check of coaxial door assembly
+    print("[stage 5/5] Programmatic 0..90 deg (5-deg step) BRep swept-volume check of coaxial door + SG90 horn...", flush=True)
+    sg90_horn = wa.build_sg90_white_horn_solid(angle_deg=0.0)
+    moving_names = {"P08_DOOR_LEAF", "SUP10_DOOR_MORTISE_HINGE_LeafB#1", "SUP10_DOOR_MORTISE_HINGE_LeafB#2", "SUP10B_DOOR_HORN_COUPLER"}
+    moving_parts: list[tuple[str, Any]] = [("SG90_WhiteHorn", sg90_horn)]
+    for pn, spid, ps in panel_world:
+        if spid == "P08_DOOR_LEAF":
+            moving_parts.append((pn, ps))
+    for sn, spid, ss in support_world:
+        if sn in moving_names or spid == "SUP10B_DOOR_HORN_COUPLER":
+            moving_parts.append((sn, ss))
+
+    static_obstacles: list[tuple[str, Any]] = []
+    for pn, spid, ps in panel_world:
+        if spid != "P08_DOOR_LEAF":
+            static_obstacles.append((pn, ps))
+    for sn, spid, ss in support_world:
+        if sn not in moving_names and spid != "SUP10B_DOOR_HORN_COUPLER":
+            static_obstacles.append((sn, ss))
+    for fn, _fpid, fs in furniture_world:
+        static_obstacles.append((fn, fs))
+    for hn, hs, _col in hw_world:
+        static_obstacles.append((hn, hs))
+
+    swept_angles = tuple(range(0, 91, 5))
+    swept_poses = wa.build_door_swept_poses(moving_parts, pivot_xy=(77.0, 201.5), angles_deg=swept_angles)
+    swept_colls: list[dict[str, Any]] = []
+    max_swept_v = 0.0
+    for deg, rot_parts in swept_poses:
+        for mname, msh in rot_parts:
+            for oname, osh in static_obstacles:
+                v = _brep_intersect_vol(msh, osh, f"{mname}@{deg}deg", oname)
+                if v > max_swept_v:
+                    max_swept_v = v
+                if v > COLL_THRESH:
+                    swept_colls.append({"angle_deg": deg, "moving_part": mname, "obstacle": oname, "vol_mm3": v})
+
+    # Also verify SG90_WhiteHorn clears SUP10B_DOOR_HORN_COUPLER at 0 deg (coaxial engagement gap)
+    sup10b_sh = next(sh for nm, sh in moving_parts if nm == "SUP10B_DOOR_HORN_COUPLER")
+    horn_coupler_v = _brep_intersect_vol(sg90_horn, sup10b_sh, "SG90_WhiteHorn", "SUP10B_DOOR_HORN_COUPLER")
+    if horn_coupler_v > max_swept_v:
+        max_swept_v = horn_coupler_v
+    if horn_coupler_v > COLL_THRESH:
+        swept_colls.append({"angle_deg": 0, "moving_part": "SG90_WhiteHorn", "obstacle": "SUP10B_DOOR_HORN_COUPLER", "vol_mm3": horn_coupler_v})
+
+    p08_vol_mm3 = float(metas["P08_DOOR_LEAF"]["volume_mm3"])
+    p08_mass_g = round((p08_vol_mm3 / 1000.0) * 1.24, 2)
+    torque_margin = dim_ssot.compute_door_torque_margin(door_mass_g=p08_mass_g)
+    door_swept_volume_check = {
+        "passed": (len(swept_colls) == 0 and bool(torque_margin["passes_min_5x_margin"])),
+        "pivot_xy_mm": [77.0, 201.5],
+        "angle_range_deg": [0, 90],
+        "step_deg": 5,
+        "angles_checked": len(swept_angles),
+        "moving_parts": [nm for nm, _ in moving_parts],
+        "static_obstacles_checked": len(static_obstacles),
+        "max_intersection_mm3": round(max_swept_v, 4),
+        "horn_coupler_intersection_mm3": round(horn_coupler_v, 4),
+        "collisions": swept_colls,
+        "torque_margin": torque_margin,
+    }
+
     # 7. Explicit R3 physical clearance checks & Fit Table
     r3_clearances = build_r3_clearance_checks(pcb, panel_world, support_world, furniture_world, hw_world, pcb_keepouts)
     fit_rows = build_fit_table(pcb, metas, cfg)
@@ -677,6 +842,7 @@ def main() -> int:
         and len(hw_colls) == 0
         and len(fit_failed) == 0
         and bool(r3_clearances["all_passed"])
+        and bool(door_swept_volume_check["passed"])
     )
 
     fit_out = {
@@ -685,6 +851,7 @@ def main() -> int:
         "pcb_hole_pitch_mm": [pcb.hole_pitch_x_mm, pcb.hole_pitch_y_mm],
         "pcb_hole_dia_mm": pcb.hole_dia_mm,
         "pcb_total_footprints": len(pcb.mounting_holes) + len(pcb.keepouts),
+        "authoritative_row_count": len(fit_rows),
         "all_fit_passed": len(fit_failed) == 0,
         "rows": fit_rows,
     }
@@ -706,6 +873,8 @@ def main() -> int:
         "max_furniture_intersection_mm3": round(max_fur_v, 4),
         "hardware_collisions": hw_colls,
         "max_hardware_intersection_mm3": round(max_hw_v, 4),
+        "door_swept_volume_check": door_swept_volume_check,
+        "torque_margin": torque_margin,
         "r3_clearances": r3_clearances,
     }
 
@@ -729,6 +898,9 @@ def main() -> int:
     print(f"Hardware collisions:  {len(hw_colls)} (max={max_hw_v:.4f} mm3)")
     for c in hw_colls[:10]:
         print("  [HW COLL]", c)
+    print(f"Door swept 0..90 deg: {len(swept_colls)} collisions (max={max_swept_v:.4f} mm3 across {len(swept_angles)} poses) | Torque margin={torque_margin['worst_case_safety_margin_x']}x (nominal {torque_margin['nominal_safety_margin_x']}x)")
+    for c in swept_colls[:10]:
+        print("  [SWEEP COLL]", c)
     print(f"R3 Clearances:        {r3_clearances['passed_count']}/{r3_clearances['total_count']} PASS")
     for cname, cdata in r3_clearances["checks"].items():
         print(f"  [{'PASS' if cdata['passed'] else 'FAIL'}] R3 {cname}")

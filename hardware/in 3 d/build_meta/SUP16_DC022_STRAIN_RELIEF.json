@@ -1,0 +1,52 @@
+{
+  "part_id": "SUP16_DC022_STRAIN_RELIEF",
+  "kind": "support",
+  "category": "dc022_strain_relief",
+  "qty": 1,
+  "vi_name": "Vong mong giu & giam cang day giac nguon DC-022 sau P15",
+  "mating_source": "DC-022 M12 barrel jack (Dia 12.0x21 mm) + P15_TECH_FASCIA mortises (24.0 mm span)",
+  "params": {
+    "length": 32.0,
+    "width": 16.4,
+    "depth_h": 13.5,
+    "flange_t": 3.0,
+    "barrel_id": 12.4,
+    "collar_od": 16.4,
+    "wire_slot_w": 4.2,
+    "tenon_span": 24.0,
+    "tenon_x": 4.0,
+    "tenon_y": 6.0,
+    "tenon_h": 3.0
+  },
+  "assembly_placements": [
+    {
+      "x": 30.0,
+      "y": 13.0,
+      "z": 22.0,
+      "rot_z": 0.0
+    }
+  ],
+  "print_bbox_mm": [
+    32.0,
+    16.4,
+    16.5
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 4821.387,
+  "solids": 1,
+  "expected_solids": 1,
+  "valid": true,
+  "bed_fit": true,
+  "color_rgb": [
+    0.26,
+    0.44,
+    0.68
+  ],
+  "notes": "Vong mong sau mat na P15 om than giac DC-022 va dan huong giam cang cap nguon 5V 2A toi cau dau J1.",
+  "engraved_ok": true,
+  "engrave_text": "S16",
+  "print_rotation_for_world": "rot_x_90_center_xz",
+  "step_file": "parts/SUP16_DC022_STRAIN_RELIEF.step",
+  "stl_file": "parts/SUP16_DC022_STRAIN_RELIEF.stl",
+  "stl_facets": 1872
+}

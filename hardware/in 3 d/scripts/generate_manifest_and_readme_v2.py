@@ -97,6 +97,11 @@ def build_readme_vi(
     panels = [m for m in part_metas if m["kind"] == "panel"]
     supports = [m for m in part_metas if m["kind"] == "support"]
     furnitures = [m for m in part_metas if m["kind"] == "furniture"]
+    n_plates = int(plates_man["achieved_plate_count"])
+    n_parts = len(part_metas)
+    n_fit = len(fit_rep["rows"])
+    sweep = asm_rep.get("door_swept_volume_check", {})
+    tm = asm_rep.get("torque_margin", {})
 
     lines: list[str] = [
         "# Bộ Tệp In 3D Vỏ Nhà Thông Minh v2 — 100% Lắp Mộng, Bàn In 180×200×250 mm (`hardware/in 3 d/`)",
@@ -109,18 +114,18 @@ def build_readme_vi(
         "## 1. Tổng Quan & Kết Quả Kiểm Định Tự Động",
         "",
         f"- **Khổ máy in 3D mục tiêu:** **`180 × 200 × 250 mm`** (chừa lề an toàn `5 mm` mỗi cạnh → vùng in khả dụng **`170 × 190 × 245 mm`**).",
-        f"- **Quy mô bộ chi tiết:** **`{len(part_metas)}` chi tiết duy nhất / `{plates_man['total_part_instances']}` bản thể vật lý**, gồm:",
-        f"  - **`{len(panels)}` mảnh vỏ nhà** (`P01A`–`P17`, đã tự động chia mảnh cho 5 tấm vượt khổ `170 × 190 mm` với khớp đuôi én và khắc chìm mã + kích thước trên mặt trên).",
-        f"  - **`{len(supports)}` phụ kiện kẹp góc, ngàm giữ mạch, bản lề & lòng bể nước liền khối** (`SUP01`–`SUP15`).",
+        f"- **Quy mô bộ chi tiết:** **`{n_parts}` chi tiết duy nhất / `{plates_man['total_part_instances']}` bản thể vật lý**, gồm:",
+        f"  - **`{len(panels)}` mảnh vỏ nhà** (`P01A`–`P17`, đã tự động chia mảnh cho 5 tấm vượt khổ `170 × 190 mm` với khớp đuôi én và khắc chìm mã + kích thước trên mặt trên; `P07_SERVO_SHELF` tích hợp 2 vấu chặn góc `-2°/+92°` in úp phẳng không support).",
+        f"  - **`{len(supports)}` phụ kiện kẹp góc, ngàm giữ mạch, bản lề đồng trục, ngàm chữ U tay đòn SG90 & lòng bể nước liền khối** (`SUP01`–`SUP18`).",
         f"  - **`{len(furnitures)}` món nội thất tỷ lệ nhà** (`FUR01`–`FUR09`: sofa, kệ + tivi phòng khách, giường + tủ đèn ngủ phòng ngủ, chậu cây + cây mini ngoài trời, chốt mộng sàn).",
-        f"- **Xếp bàn in tối ưu (`plates/`):** Toàn bộ `{plates_man['total_part_instances']}` bản thể được đóng gói tự động bằng thuật toán 2D MaxRects (cho phép xoay `0°/90°`, khe hở `>= 3.0 mm`) vào đúng **`{plates_man['achieved_plate_count']}` bàn in** (`PLATE01`–`PLATE17`, mỗi bàn có đủ tệp `STL` ghép sẵn và `3MF` đa đối tượng đặt đúng tọa độ bàn `180 × 200 mm`).",
-        f"  - **Cận dưới lý thuyết vs thực đạt:** Tổng diện tích hình chiếu đặc = `{plates_man['total_solid_area_mm2']:.0f} mm²` → cận dưới diện tích đặc **`{plates_man['theoretical_lower_bound_solid_ceil']}` bàn** (`{plates_man['theoretical_lower_bound_solid_exact']:.2f}`); tổng diện tích khung bao = `{plates_man['total_bbox_area_mm2']:.0f} mm²` → cận dưới khung bao **`{plates_man['theoretical_lower_bound_bbox_ceil']}` bàn** (`{plates_man['theoretical_lower_bound_bbox_exact']:.2f}`); **đạt `{plates_man['achieved_plate_count']}` bàn** (mật độ bàn in `76.6%` – `96.4%`, không có bàn nào chỉ chứa 1 chi tiết nhỏ lẻ).",
+        f"- **Xếp bàn in tối ưu (`plates/`):** Toàn bộ `{plates_man['total_part_instances']}` bản thể được đóng gói tự động bằng thuật toán 2D MaxRects (cho phép xoay `0°/90°`, khe hở `>= 3.0 mm`) vào đúng **`{n_plates}` bàn in** (`PLATE01`–`PLATE{n_plates:02d}`, mỗi bàn có đủ tệp `STL` ghép sẵn và `3MF` đa đối tượng đặt đúng tọa độ bàn `180 × 200 mm`).",
+        f"  - **Cận dưới lý thuyết vs thực đạt:** Tổng diện tích hình chiếu đặc = `{plates_man['total_solid_area_mm2']:.0f} mm²` → cận dưới diện tích đặc **`{plates_man['theoretical_lower_bound_solid_ceil']}` bàn** (`{plates_man['theoretical_lower_bound_solid_exact']:.2f}`); tổng diện tích khung bao = `{plates_man['total_bbox_area_mm2']:.0f} mm²` → cận dưới khung bao **`{plates_man['theoretical_lower_bound_bbox_ceil']}` bàn** (`{plates_man['theoretical_lower_bound_bbox_exact']:.2f}`); **đạt `{n_plates}` bàn** (không có bàn nào chỉ chứa 1 chi tiết nhỏ lẻ).",
         f"- **Kiểm chứng cắt lớp thực tế (`PrusaSlicer 2.9.7 CLI`, PLA `0.20 mm`, `3` thành, `20% gyroid`, `0% support`, `--dont-arrange`):**",
-        f"  - Toàn bộ **`57/57` chi tiết lẻ** và **`17/17` bàn in (`STL` + `3MF`)** đạt **`manifold = yes`** (`100%`).",
-        f"  - Toàn bộ **`17/17` bàn in** cắt lớp thành công không lỗi, đường chạy G-code nằm trọn trong bàn `180 × 200 × 250 mm`.",
+        f"  - Toàn bộ **`{n_parts}/{n_parts}` chi tiết lẻ** và **`{n_plates}/{n_plates}` bàn in (`STL` + `3MF`)** đạt **`manifold = yes`** (`100%`).",
+        f"  - Toàn bộ **`{n_plates}/{n_plates}` bàn in** cắt lớp thành công không lỗi, đường chạy G-code nằm trọn trong bàn `180 × 200 × 250 mm`.",
         f"  - **Tổng thời gian in ước tính:** **`{total_time_vi}`** (`{total_hours:.2f} giờ`).",
-        f"  - **Tổng nhựa PLA tiêu thụ:** **`{total_g:.2f} g`** (**`{total_m:.2f} m`** sợi `1.75 mm`, ~`1.04` cuộn PLA `1 kg`).",
-        f"- **Kiểm định lắp ráp ảo 3D BRep (FreeCAD 1.1):** Sai số tái ghép mảnh chia **`0.0000 mm`**, **`0` va chạm** trên toàn bộ `{asm_rep['panel_instances_checked']}` mảnh vỏ + `{asm_rep['support_instances_checked']}` kẹp/giá đỡ + `{asm_rep['furniture_instances_checked']}` nội thất + `{asm_rep['hardware_bodies_checked']}` mạch/linh kiện + góc mở cửa `95°`; bảng lắp khít linh kiện đạt **`{len(fit_rep['rows'])}/{len(fit_rep['rows'])}` PASS**.",
+        f"  - **Tổng nhựa PLA tiêu thụ:** **`{total_g:.2f} g`** (**`{total_m:.2f} m`** sợi `1.75 mm`).",
+        f"- **Kiểm định lắp ráp ảo 3D BRep (FreeCAD 1.1):** Sai số tái ghép mảnh chia **`0.0000 mm`**, **`0` va chạm** trên toàn bộ `{asm_rep['panel_instances_checked']}` mảnh vỏ + `{asm_rep['support_instances_checked']}` kẹp/giá đỡ + `{asm_rep['furniture_instances_checked']}` nội thất + `{asm_rep['hardware_bodies_checked']}` mạch/linh kiện; quét thể tích cánh cửa dẫn động trực tiếp đồng trục **`0°–90°`** (bước `5°`, `{sweep.get('angles_checked', 19)}` góc quanh trục `(77.0, 201.5)`) đạt **`{sweep.get('max_intersection_mm3', 0.0):.4f} mm³`** va chạm, hệ số dự trữ mô-men SG90 **`{tm.get('worst_case_safety_margin_x', 0)}×`**; bảng lắp khít linh kiện đạt **`{n_fit}/{n_fit}` PASS** (đủ 14 module + NodeMCU + Hub PCB).",
         "",
         "![Mô hình lắp ráp hoàn chỉnh v2 kèm nội thất và mạch Hub PCB thực](previews/_assembled_house_furniture.png)",
         "",
@@ -175,7 +180,7 @@ def build_readme_vi(
         )
 
     lines.extend([
-        f"| **TỔNG CỘNG (17 bàn)** | **`{plates_man['total_part_instances']}`** | **Đủ 57 chi tiết duy nhất (99 bản thể)** | **`<= 170×190×45`** | **TB `88.0%`** | **`{total_time_vi}`** | **`{total_g:.2f} g` / `{total_m:.2f} m`** | **`17/17` ĐẠT** | [Tổng quan](previews/_plates_overview.png) |",
+        f"| **TỔNG CỘNG ({n_plates} bàn)** | **`{plates_man['total_part_instances']}`** | **Đủ {n_parts} chi tiết duy nhất ({plates_man['total_part_instances']} bản thể)** | **`<= 170×190×45`** | **Tối ưu** | **`{total_time_vi}`** | **`{total_g:.2f} g` / `{total_m:.2f} m`** | **`{n_plates}/{n_plates}` ĐẠT** | [Tổng quan](previews/_plates_overview.png) |",
         "",
         "### Ghi chú Support Slicer & Thông số in khuyến nghị",
         "- **Đánh giá Support Slicer:** **`0/17` bàn in cần support** (`--support-material=0`). Mọi chi tiết đều đặt mặt phẳng lớn nhất xuống bàn in (`Z = 0`), góc vươn ngoài `<= 45°`, các hốc mộng ngầm trên `SUP06`/`SUP07`/`SUP08` có mái vòm `45°` tự đỡ, và hốc chốt sàn đáy nội thất chỉ có nhịp cầu ngắn `4.3 mm` tự bắt cầu sạch.",
@@ -212,7 +217,7 @@ def build_readme_vi(
         "",
         "---",
         "",
-        "## 5. Bảng Kiểm Tra Lắp Khít PCB & Module Điện Tử (Fit Table — `12/12 PASS`)",
+        f"## 5. Bảng Kiểm Tra Lắp Khít PCB & 14 Module Điện Tử (Fit Table — `{n_fit}/{n_fit} PASS`)",
         "",
         "Mọi giá đỡ mạch đều được đối chiếu kích thước trực tiếp với tệp KiCad PCB thực (`smarthome_hub.kicad_pcb`: `100.0 × 80.0 × 1.6 mm`, 4 lỗ định vị `Ø3.2 mm` bước `90.0 × 70.0 mm`, kiểm tra khoảng hở tới toàn bộ `47` footprint linh kiện bao gồm `C8`/`C9` trên tổng `51` footprint) và datasheet từng module:",
         "",
@@ -268,16 +273,16 @@ def build_readme_vi(
         "5. **Bước 5 — Dựng khung tường nhà & khóa kẹp góc `SUP01` / `SUP01B` / `SUP02` / `SUP03`:**",
         "   - Cắm `P02_WALL_BACK`, `P06_WALL_MID`, `P03_WALL_LEFT`, `P04_WALL_RIGHT` và `P05_WALL_FRONT` vào đúng các khe mộng răng lược trên `P01B`.",
         "   - Trượt từ trên xuống: `2× SUP01_CORNER_CLIP_WALL` khóa 2 góc sau trên cùng (`P02+P03`, `P02+P04`), `1× SUP01B_T_CLIP_WALL` khóa đỉnh chữ T (`P02+P06`), `2× SUP02_CORNER_CLIP_LOW` khóa 2 góc mặt tiền thấp (`P03+P05`, `P04+P05`), và trượt `SUP03_SEAM_U_CLIP` lên cạnh trên các đường nối chia mảnh của `P02` và `P05`.",
-        "6. **Bước 6 — Lắp cảm biến tường, Servo SG90 & cánh cửa chính `P08`:**",
-        "   - Lùa `DHT11` vào giá `SUP12_DHT11_SNAP_CRADLE` rồi cắm 2 chấu vào vách giữa `P06`; lùa `KY-037` vào `SUP13_KY037_SNAP_CRADLE` rồi cắm vào `P05`; lắp LED `5 mm` lên `P06` và còi `TMB12A05` vào đúng lỗ chức năng trên `P05`.",
-        "   - Cài kệ `P07_SERVO_SHELF` vào khung cửa `P05`, đặt thân Servo `SG90` qua ô chữ nhật rồi ép ngàm `SUP11_SG90_SNAP_SADDLE` vào 2 rãnh mộng của `P07` để khóa chặt tai servo.",
-        "   - Cắm 2 lá bản lề `A` của `SUP10_DOOR_MORTISE_HINGE` vào khung `P05`, cắm 2 lá `B` vào cánh cửa `P08_DOOR_LEAF`, gài tai kéo `SUP10B_SERVO_LINK_CLIP` vào `P08`, sau đó thả khớp ống lá `B` lên trục lá `A` và nối thanh đẩy thép mảnh sang tay đòn SG90.",
+        "6. **Bước 6 — Lắp cảm biến tường, Servo SG90 đồng trục trên khung cửa & cánh cửa chính `P08`:**",
+        "   - Lùa `DHT11` vào giá `SUP12_DHT11_SNAP_CRADLE` rồi cắm 2 chấu vào vách giữa `P06`; lùa `KY-037` vào `SUP13_KY037_SNAP_CRADLE` rồi cắm vào `P05`; ép `2× SUP17_LED5MM_RETAINING_COLLAR` giữ LED `5 mm` phòng khách/phòng ngủ trên `P06` và ép cốc `SUP18_BUZZER_SNAP_COLLAR` giữ còi `TMB12A05` sau trụ giữa `P05`.",
+        "   - Cài kệ `P07_SERVO_SHELF` vào rãnh đỉnh khung cửa `P05` (`Z = 110 mm`), đặt ngược Servo `SG90` sao cho trục ra hướng xuống dưới đồng trục với tâm bản lề `(77.0, 201.5)`, rồi ép ngàm `SUP11_SG90_SNAP_SADDLE` vào 2 rãnh mộng của `P07` để khóa chặt tai servo.",
+        "   - Cắm 2 lá bản lề `A` của `SUP10_DOOR_MORTISE_HINGE` vào khung `P05` (`Z = 18` & `78 mm`), cắm 2 lá `B` vào cánh cửa `P08_DOOR_LEAF`, gài ngàm chữ U `SUP10B_DOOR_HORN_COUPLER` vào đỉnh cánh cửa `P08`, sau đó thả khớp ống lá `B` lên trục lá `A` đồng thời lồng tay đòn trắng SG90 thẳng vào rãnh chữ U `4.9 mm` của `SUP10B` (dẫn động trực tiếp đồng trục, luồn cáp SG90 qua lỗ `Cable_Servo_D1`).",
         "7. **Bước 7 — Lắp cụm bể nước liền khối & chậu cây (`P09`–`P14`, `SUP14`, `SUP15`):**",
         "   - Dựng 5 vách `P09`–`P13` vào khe sàn `P01A`, khóa 4 góc trên bằng `4× SUP02_CORNER_CLIP_LOW`.",
         "   - Thả lòng bể nước liền khối `SUP15_WATER_TANK_LINER` vào khoang bể nước (`P09/P10/P12/P13`), đặt bơm chìm 5V vào trong lòng bể và luồn ống dẫn `Ø8 mm` qua rãnh chữ U của `SUP15` và lỗ `Ø10 mm` trên `P10`.",
         "   - Lùa `LM393` vào `SUP14_LM393_SNAP_CRADLE` rồi cắm vào mặt sau khô ráo của `P13`, gài cầu `P14_SOIL_BRIDGE` và thả đầu dò `YL-69` qua khe `22 × 3.5 mm`.",
-        "8. **Bước 8 — Lắp mặt nạ kỹ thuật `P15_TECH_FASCIA` & loa `Ø28 mm`:**",
-        "   - Cắm `P15` (đã ghép 2 mảnh + kẹp `SUP03` phía trên rãnh USB) vào cạnh trước `P01A`. Lắp giắc nguồn `DC-022`, LED nguồn `3 mm`, áp loa `Ø28 mm` sau lưới 19 lỗ và ép thanh giữ `SUP09_SPEAKER_SNAP_RETAINER` vào 2 rãnh mộng trên `P15`.",
+        "8. **Bước 8 — Lắp mặt nạ kỹ thuật `P15_TECH_FASCIA`, giắc `DC-022` & loa `Ø28 mm`:**",
+        "   - Cắm `P15` (đã ghép 2 mảnh + kẹp `SUP03` phía trên rãnh USB) vào cạnh trước `P01A`. Lắp giắc nguồn `DC-022` kèm vòng giảm căng dây `SUP16_DC022_STRAIN_RELIEF` ở mặt sau, LED nguồn `3 mm`, áp loa `Ø28 mm` sau lưới 19 lỗ và ép thanh giữ `SUP09_SPEAKER_SNAP_RETAINER` vào 2 rãnh mộng trên `P15`.",
         "9. **Bước 9 — Lắp nội thất tỷ lệ nhà (`FUR01`–`FUR09`) & đi dây Dupont:**",
         "   - Cắm `10× FUR09_FLOOR_TENON_PEG` vào 10 lỗ mộng sàn trên `P01A`/`P01B`, sau đó ấn khít từng món nội thất vào đúng vị trí: **Phòng khách** (`FUR01_SOFA`, `FUR02_TV_STAND` + cắm `FUR03_TV_SCREEN` lên rãnh kệ), **Phòng ngủ** (`FUR04_BED`, `FUR05_BEDSIDE_TABLE`), và **Ngoài trời** (`2× FUR06_PLANT_POT_LARGE` + ghép 2 nửa chéo `FUR07_MINI_TREE` cắm vào chậu, `FUR08_PLANT_POT_SMALL`).",
         "   - Đi đủ 40 dây Dupont theo [`docs/phan_cung/WIRING_TABLE.md`](../../docs/phan_cung/WIRING_TABLE.md) qua các lỗ `Ø14 mm` và kiểm tra an toàn nguồn trước khi cấp điện `5 V 2 A`.",
@@ -401,6 +406,8 @@ def main() -> int:
         "totals": slice_rep["totals"],
         "needs_slicer_supports": False,
         "screw_glue_audit": audit,
+        "door_swept_volume_check": asm_rep.get("door_swept_volume_check", {}),
+        "torque_margin": asm_rep.get("torque_margin", {}),
         "assembly": asm_rep,
         "r3_clearances": asm_rep.get("r3_clearances", {}),
         "pcb_module_fit": fit_rep,

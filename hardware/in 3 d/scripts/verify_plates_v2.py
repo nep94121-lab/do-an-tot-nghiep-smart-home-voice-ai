@@ -631,6 +631,9 @@ def build_r9_user_like_report(
     fit_table: dict[str, Any],
     screwless_audit: dict[str, Any],
     totals: dict[str, Any],
+    expected_parts: int,
+    expected_plates: int,
+    expected_instances: int,
 ) -> dict[str, Any]:
     """Build R9 user-like test report (`Buoc | Thao tac | Ket qua | DUNG/SAI | Le ra`)."""
     rows: list[dict[str, Any]] = []
@@ -647,7 +650,7 @@ def build_r9_user_like_report(
             "Le ra": le_ra,
         })
 
-    # Step 1: All 57 individual STL parts --info check
+    # Step 1: All individual STL parts --info check
     n_parts = len(part_results)
     n_parts_ok = sum(1 for r in part_results if r["passed"])
     n_manifold = sum(1 for r in part_results if r["manifold"])
@@ -659,47 +662,52 @@ def build_r9_user_like_report(
     add_row(
         f"Kiem tra PrusaSlicer --info cho toan bo {n_parts} file chi tiet rieng le (parts/*.stl)",
         f"{n_parts_ok}/{n_parts} dat: manifold={n_manifold}/{n_parts}, min_z==0.0={n_z0}/{n_parts}, lot ban 170x190x245 (co xoay 90)={n_fit}/{n_parts}; max bbox={max_x:.1f}x{max_y:.1f}x{max_z:.1f} mm",
-        n_parts == 57 and n_parts_ok == 57,
-        "57/57 STL manifold=yes, min_z==0.0 mm, lot vung an toan 170x190x245 mm (cho phep xoay 90 deg)",
+        n_parts == expected_parts and n_parts_ok == expected_parts,
+        f"{expected_parts}/{expected_parts} STL manifold=yes, min_z==0.0 mm, lot vung an toan 170x190x245 mm (cho phep xoay 90 deg)",
     )
 
-    # Step 2: 3D BRep assembly & reconstruction check
+    # Step 2: 3D BRep assembly, reconstruction & 0..90 deg swept-volume door check
     asm_ok = bool(assembly_report.get("assembly_passed", False))
     n_recon = len(assembly_report.get("reconstruction_checks", []))
     n_recon_fail = len(assembly_report.get("reconstruction_failures", []))
+    sweep = assembly_report.get("door_swept_volume_check", {})
+    sweep_ok = bool(sweep.get("passed", False))
+    sweep_max = float(sweep.get("max_intersection_mm3", 0.0))
+    tm = assembly_report.get("torque_margin", {})
     max_coll = max(
         float(assembly_report.get("max_panel_intersection_mm3", 0.0)),
         float(assembly_report.get("max_support_intersection_mm3", 0.0)),
         float(assembly_report.get("max_furniture_intersection_mm3", 0.0)),
         float(assembly_report.get("max_hardware_intersection_mm3", 0.0)),
+        sweep_max,
     )
     add_row(
-        "Kiem tra lap rap 3D BRep (assembly_report.json): ghep manh duoi en + va cham toan nha + noi that + phan cung",
-        f"assembly_passed={asm_ok}, tai tao {n_recon - n_recon_fail}/{n_recon} tam (sai so 0.0 mm), va cham=0 (max giao={max_coll:.4f} mm3) tren {assembly_report.get('panel_instances_checked')} tam, {assembly_report.get('support_instances_checked')} gia do, {assembly_report.get('furniture_instances_checked')} noi that, {assembly_report.get('hardware_bodies_checked')} bo phan cung",
-        asm_ok and n_recon_fail == 0 and max_coll <= 0.05,
-        "100% tam ghep khop bbox goc (sai so <= 0.05 mm) va 0 va cham giua tam/gia do/noi that/phan cung",
+        "Kiem tra lap rap 3D BRep (assembly_report.json): ghep manh duoi en + va cham toan nha + quet canh cua dong truc 0..90 deg",
+        f"assembly_passed={asm_ok}, tai tao {n_recon - n_recon_fail}/{n_recon} tam (sai so 0.0 mm), va cham=0 (max giao={max_coll:.4f} mm3), quet cua 0..90 deg ({sweep.get('angles_checked', 0)} goc)={sweep_ok} (he so momen SG90={tm.get('worst_case_safety_margin_x', 0)}x)",
+        asm_ok and sweep_ok and n_recon_fail == 0 and max_coll <= 0.05,
+        "100% tam ghep khop bbox goc (sai so <= 0.05 mm), 0 va cham toan nha va 0 va cham khi cua quay 0..90 deg quanh truc (77.0, 201.5)",
     )
 
-    # Step 3: KiCad Hub PCB & electronic modules fit table check
+    # Step 3: KiCad Hub PCB & all 14 authoritative electronic modules fit table check (16 rows)
     fit_rows = fit_table.get("rows", [])
     fit_pass_cnt = sum(1 for r in fit_rows if r.get("status") == "PASS")
-    fit_ok = bool(fit_table.get("all_fit_passed", False)) and fit_pass_cnt == len(fit_rows) and len(fit_rows) >= 12
+    fit_ok = bool(fit_table.get("all_fit_passed", False)) and fit_pass_cnt == len(fit_rows) and len(fit_rows) >= 16
     add_row(
-        "Kiem tra do khop phan cung thuc te (fit_table.json): Hub PCB KiCad 100x80 + NodeMCU + Relay + PAM8403 + Loa + SG90 + cam bien + bom",
-        f"{fit_pass_cnt}/{len(fit_rows)} cum phan cung PASS (Hub PCB {fit_table.get('pcb_size_mm')} lo {fit_table.get('pcb_hole_pitch_mm')} D={fit_table.get('pcb_hole_dia_mm')}mm khop SUP06 chot dan hoi)",
+        "Kiem tra do khop phan cung thuc te (fit_table.json): Hub PCB KiCad 100x80 + NodeMCU + du 14 module dien tu (16 dong)",
+        f"{fit_pass_cnt}/{len(fit_rows)} cum phan cung PASS (Hub PCB {fit_table.get('pcb_size_mm')} lo {fit_table.get('pcb_hole_pitch_mm')} D={fit_table.get('pcb_hole_dia_mm')}mm khop SUP06 + du SUP07..SUP18)",
         fit_ok,
-        "Tat ca 12/12 cum bo mach/cam bien/dong co co khe ho lap rap chuan va PASS",
+        "Tat ca 16/16 cum bo mach/cam bien/dong co (Hub PCB + NodeMCU + 14 module) co khe ho lap rap chuan va PASS",
     )
 
     # Step 4: Zero-screws & zero-glue geometry audit
     add_row(
-        "Kiem toan hinh hoc khong oc vit & khong keo dan (57 chi tiet: panel + mount + furniture)",
+        f"Kiem toan hinh hoc khong oc vit & khong keo dan ({expected_parts} chi tiet: panel + mount + furniture)",
         f"Da loai bo {screwless_audit['stripped_fastener_holes_count']} lo oc vit/clamp goc, giu {screwless_audit['kept_functional_holes_count']} lo chuc nang (LED/loa/mic/day/ong), bo sung {screwless_audit['mortise_slots_injected_count']} lo mong chu nhat; ro ri vit={len(screwless_audit['fastener_leaks'])}, keo={len(screwless_audit['glue_mentions'])}",
         bool(screwless_audit["passed"]),
         "0 lo oc vit M2/M2.5/M3/clamp sot lai, 0 chi tiet yeu cau keo dan, toan bo lien ket bang mong/chot/kep dan hoi",
     )
 
-    # Steps 5..21: Every single one of the 17 plates (load, --info manifold/count, slice --dont-arrange, G-code XY/Z bounds, zero warnings)
+    # Steps 5..: Every single plate (load, --info manifold/count, slice --dont-arrange, G-code XY/Z bounds, zero warnings)
     for pr in plate_results:
         eb = pr.get("gcode_extrusion_bounds_mm") or {}
         xy_str = (
@@ -717,14 +725,14 @@ def build_r9_user_like_report(
             f"Du {pr['expected_part_count']} obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang",
         )
 
-    # Final step: Aggregate 17-plate totals & full-set completeness
+    # Final step: Aggregate plate totals & full-set completeness
     total_instances = sum(int(p["expected_part_count"]) for p in plate_results)
-    all_17_ok = len(plate_results) == 17 and all(p["plate_passed"] for p in plate_results)
+    all_plates_ok = len(plate_results) == expected_plates and all(p["plate_passed"] for p in plate_results)
     add_row(
-        "Tong hop toan bo 17 ban in (plates/PLATE01..PLATE17) san sang giao ban in 180x200x250 mm",
-        f"17/17 ban in DAT ({total_instances} ban the chi tiet), tong thoi gian in={totals['total_print_time_str']} ({totals['total_print_time_hours']:.2f} gio), tong nhua PLA={totals['total_filament_g']:.2f} g ({totals['total_filament_m']:.2f} m), 0 ban can support",
-        all_17_ok and total_instances == 99,
-        "17/17 ban in dat 100%, phu du 99 ban the tu 57 chi tiet rieng le, co thong so thoi gian & nhua chinh xac tu G-code that",
+        f"Tong hop toan bo {expected_plates} ban in (plates/PLATE01..PLATE{expected_plates:02d}) san sang giao ban in 180x200x250 mm",
+        f"{len(plate_results)}/{expected_plates} ban in DAT ({total_instances} ban the chi tiet), tong thoi gian in={totals['total_print_time_str']} ({totals['total_print_time_hours']:.2f} gio), tong nhua PLA={totals['total_filament_g']:.2f} g ({totals['total_filament_m']:.2f} m), 0 ban can support",
+        all_plates_ok and total_instances == expected_instances,
+        f"{expected_plates}/{expected_plates} ban in dat 100%, phu du {expected_instances} ban the tu {expected_parts} chi tiet rieng le, co thong so thoi gian & nhua chinh xac tu G-code that",
     )
 
     dung_count = sum(1 for r in rows if r["DUNG/SAI"] == "DUNG")
@@ -812,10 +820,14 @@ def main() -> int:
     print("[3/3] Auditing zero-screws/zero-glue geometry & writing reports...", flush=True)
     screwless_audit = audit_zero_screws_zero_glue()
 
+    expected_parts = int(plates_manifest["total_unique_parts"])
+    expected_plates = int(plates_manifest["achieved_plate_count"])
+    expected_instances = int(plates_manifest["total_part_instances"])
+
     all_passed = (
-        len(part_results) == 57
+        len(part_results) == expected_parts
         and len(part_failures) == 0
-        and len(plate_results) == 17
+        and len(plate_results) == expected_plates
         and len(plate_failures) == 0
         and bool(assembly_report.get("assembly_passed", False))
         and bool(fit_table.get("all_fit_passed", False))
@@ -865,6 +877,9 @@ def main() -> int:
         fit_table=fit_table,
         screwless_audit=screwless_audit,
         totals=totals,
+        expected_parts=expected_parts,
+        expected_plates=expected_plates,
+        expected_instances=expected_instances,
     )
 
     slice_report_path = META_DIR / "slice_report.json"

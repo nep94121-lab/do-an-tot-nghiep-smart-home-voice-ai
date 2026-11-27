@@ -47,9 +47,17 @@ def place_panel_in_world(shape: Any, meta: dict[str, Any], origin_override: list
     """Transform a print-ready panel STEP shape back into exact 3D assembled house world coordinates."""
     s = shape.copy()
     lmin = meta["local_bbox_min"]
+    lmax = meta["local_bbox_max"]
     su = float(meta["shift_u"])
     sv = float(meta["shift_v"])
-    s.translate(FreeCAD.Vector(lmin[0] - su, lmin[1] - sv, lmin[2]))
+
+    if meta.get("print_flipped_x180", False):
+        # Undo normalize-to-zero and 180-deg X print flip (used by P07_SERVO_SHELF with underside lugs)
+        s.translate(FreeCAD.Vector(float(lmin[0]), -float(lmax[1]), -float(lmax[2])))
+        s.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1, 0, 0), 180.0)
+        s.translate(FreeCAD.Vector(-su, -sv, 0.0))
+    else:
+        s.translate(FreeCAD.Vector(lmin[0] - su, lmin[1] - sv, lmin[2]))
 
     plane = meta["plane"]
     ox, oy, oz = origin_override if origin_override is not None else meta["origin_xyz"]
@@ -158,29 +166,26 @@ def place_support_in_world(shape: Any, meta: dict[str, Any], pl: dict[str, Any])
             raise ValueError(f"Expected 2 solids in SUP10 door hinge, got {len(solids)}")
         la = solids[0].copy()
         lb = solids[1].copy()
-        # Leaf A: pivot=(7.5, 6.5), tenon Y=0..3, Z=0..6 -> pivot at world (77.0, 198.5, z)
+        # Leaf A: pivot=(7.5, 9.5), tenon Y=0..3, Z=0..6 -> exact coaxial pivot at world (77.0, 201.5, z)
         la.translate(FreeCAD.Vector(-7.5, -3.0, -3.0))
         la.translate(FreeCAD.Vector(77.0, y, z))
-        # Leaf B: pivot=(24.0, 6.5), flip 180 deg around Y -> aligns bore over Leaf A pin & tenon into P08 at X=83.5
+        # Leaf B: pivot=(24.0, 9.5), flip 180 deg around Y -> aligns bore over Leaf A pin & tenon into P08 at X=83.5
         lb.translate(FreeCAD.Vector(-24.0, -3.0, -3.0))
         lb.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(0, 1, 0), 180.0)
         lb.translate(FreeCAD.Vector(77.0, y, z))
         return [(f"{pid}_LeafA", la), (f"{pid}_LeafB", lb)]
 
-    if cat == "servo_link_clip":
+    if cat == "door_horn_coupler":
         s = shape.copy()
-        th = float(pr["tenon_h"])  # 3.0
-        ty = float(pr["tenon_y"])  # 6.0
-        s.translate(FreeCAD.Vector(-bx / 2.0, -th, -ty / 2.0))
-        s.translate(FreeCAD.Vector(x, y, z))
+        off = meta.get("world_origin_offset", [82.5, 192.0, 94.0])
+        s.translate(FreeCAD.Vector(float(off[0]), float(off[1]), float(off[2])))
         return [(pid, s)]
 
     if cat == "sg90_saddle":
         s = shape.copy()
-        leg_top_z = 3.0 + float(pr["ear_t"])  # 5.6
-        s.translate(FreeCAD.Vector(-bx / 2.0, -by / 2.0, -leg_top_z))
+        anc = meta.get("world_origin_anchor", [48.5, 211.8, 117.1])
         s.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1, 0, 0), 180.0)
-        s.translate(FreeCAD.Vector(x, y, z))
+        s.translate(FreeCAD.Vector(float(anc[0]), float(anc[1]), float(anc[2])))
         return [(pid, s)]
 
     if cat == "wall_cradle":
@@ -192,6 +197,32 @@ def place_support_in_world(shape: Any, meta: dict[str, Any], pl: dict[str, Any])
         s.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1, 0, 0), angle)
         if abs(rot_z) > 1e-6:
             s.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(0, 0, 1), rot_z)
+        s.translate(FreeCAD.Vector(x, y, z))
+        return [(pid, s)]
+
+    if cat == "dc022_strain_relief":
+        s = shape.copy()
+        depth_h = float(pr["depth_h"])  # 13.5
+        s.translate(FreeCAD.Vector(-bx / 2.0, -by / 2.0, -depth_h))
+        s.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1, 0, 0), 90.0)
+        s.translate(FreeCAD.Vector(x, y, z))
+        return [(pid, s)]
+
+    if cat == "led5mm_collar":
+        s = shape.copy()
+        collar_h = float(pr["collar_h"])  # 5.0
+        s.translate(FreeCAD.Vector(-bx / 2.0, -by / 2.0, -collar_h))
+        s.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1, 0, 0), 90.0)
+        if abs(rot_z) > 1e-6:
+            s.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(0, 0, 1), rot_z)
+        s.translate(FreeCAD.Vector(x, y, z))
+        return [(pid, s)]
+
+    if cat == "buzzer_collar":
+        s = shape.copy()
+        depth_h = float(pr["depth_h"])  # 9.5
+        s.translate(FreeCAD.Vector(-bx / 2.0, -by / 2.0, -depth_h))
+        s.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1, 0, 0), 90.0)
         s.translate(FreeCAD.Vector(x, y, z))
         return [(pid, s)]
 
@@ -307,8 +338,22 @@ def build_real_kicad_pcb_world_solid(pcb: pcb_ssot.PcbSpec) -> tuple[Any, list[t
     return board, keepouts
 
 
+def build_sg90_white_horn_solid(angle_deg: float = 0.0) -> Any:
+    """Build exact TowerPro SG90 white single-arm horn at coaxial pivot (77.0, 201.5, Z=99.3..100.9)."""
+    px, py = 77.0, 201.5
+    z0, th = 99.3, 1.6
+    hub = Part.makeCylinder(3.0, th, FreeCAD.Vector(px, py, z0))
+    # Single arm length: center-to-tip 17.5 mm (arm box to R=15.25 + rounded tip R=2.25 -> tip at 17.5 mm)
+    arm = Part.makeBox(15.25, 4.5, th, FreeCAD.Vector(px, py - 2.25, z0))
+    tip = Part.makeCylinder(2.25, th, FreeCAD.Vector(px + 15.25, py, z0))
+    horn = hub.fuse(arm).fuse(tip).removeSplitter()
+    if abs(angle_deg) > 1e-6:
+        horn.rotate(FreeCAD.Vector(px, py, 0.0), FreeCAD.Vector(0, 0, 1), angle_deg)
+    return horn
+
+
 def build_hardware_world_solids(pcb: pcb_ssot.PcbSpec) -> list[tuple[str, Any, tuple[float, float, float]]]:
-    """Build world-space 3D solids for KiCad Hub PCB + key off-board modules for fit & collision checks."""
+    """Build world-space 3D solids for KiCad Hub PCB + all 14 off-board modules for fit & collision checks."""
     out: list[tuple[str, Any, tuple[float, float, float]]] = []
     pcb_solid, _kps = build_real_kicad_pcb_world_solid(pcb)
     out.append(("HW_PCB", pcb_solid, (0.08, 0.45, 0.18)))
@@ -339,19 +384,64 @@ def build_hardware_world_solids(pcb: pcb_ssot.PcbSpec) -> list[tuple[str, Any, t
         elif h.part_id == "HW_SPEAKER":
             # Round speaker Dia 28 x 5.2 mm behind P15 (Y=13.0..18.2, centered at X=223, Z=26)
             box = Part.makeCylinder(14.0, 5.2, FreeCAD.Vector(223.0, 13.0, 26.0), FreeCAD.Vector(0, 1, 0))
+        elif h.part_id == "HW_SG90":
+            # Realistic inverted TowerPro SG90 seated on P07_SERVO_SHELF (Z=108.5..111.5), coaxial shaft at (77.0, 201.5)
+            body = Part.makeBox(22.8, 12.2, 22.5, FreeCAD.Vector(71.5 - 11.4, 201.5 - 6.1, 107.4))
+            ears = Part.makeBox(32.2, 12.2, 2.5, FreeCAD.Vector(71.5 - 16.1, 201.5 - 6.1, 111.5))
+            gear_hub = Part.makeCylinder(5.9, 4.2, FreeCAD.Vector(77.0, 201.5, 103.2))
+            spline = Part.makeCylinder(2.4, 2.3, FreeCAD.Vector(77.0, 201.5, 100.9))
+            box = body.fuse(ears).fuse(gear_hub).fuse(spline).removeSplitter()
+        elif h.part_id == "HW_DC_JACK":
+            # Realistic DC-022 M12 barrel jack: Dia 14x1 front flange + Dia 12x20 rear barrel inside SUP16
+            flange = Part.makeCylinder(7.0, 1.0, FreeCAD.Vector(30.0, 9.0, 22.0), FreeCAD.Vector(0, 1, 0))
+            barrel = Part.makeCylinder(6.0, 20.0, FreeCAD.Vector(30.0, 10.0, 22.0), FreeCAD.Vector(0, 1, 0))
+            box = flange.fuse(barrel).removeSplitter()
+        elif h.part_id == "HW_BUZZER":
+            # Realistic TMB12A05 Dia 12.0 x 9.5 mm active buzzer seated inside SUP18 behind P05
+            box = Part.makeCylinder(6.0, 9.5, FreeCAD.Vector(200.0, 192.05, 126.0), FreeCAD.Vector(0, 1, 0))
+        elif h.part_id == "HW_LED_LR":
+            # Realistic T-1 3/4 5mm LED seated in SUP17 (-X side of P06 @ Y=232, Z=126)
+            flange = Part.makeCylinder(2.9, 1.0, FreeCAD.Vector(197.4, 232.0, 126.0), FreeCAD.Vector(1, 0, 0))
+            dome = Part.makeCylinder(2.5, 7.6, FreeCAD.Vector(189.8, 232.0, 126.0), FreeCAD.Vector(1, 0, 0))
+            box = flange.fuse(dome).removeSplitter()
+        elif h.part_id == "HW_LED_BR":
+            # Realistic T-1 3/4 5mm LED seated in SUP17 (+X side of P06 @ Y=258, Z=126)
+            flange = Part.makeCylinder(2.9, 1.0, FreeCAD.Vector(201.6, 258.0, 126.0), FreeCAD.Vector(1, 0, 0))
+            dome = Part.makeCylinder(2.5, 7.6, FreeCAD.Vector(202.6, 258.0, 126.0), FreeCAD.Vector(1, 0, 0))
+            box = flange.fuse(dome).removeSplitter()
         else:
             box = Part.makeBox(sx, sy, sz, FreeCAD.Vector(cx - sx / 2.0, cy - sy / 2.0, cz - sz / 2.0))
         out.append((h.part_id, box, h.color_rgb))
     return out
 
 
-def build_door_swing_envelope() -> Any:
-    """95-degree swept arc of P08_DOOR_LEAF (56 mm radius around hinge pivot X=77, Y=198.5, Z=2..102)."""
-    pivot = FreeCAD.Vector(77.0, 198.5, 2.0)
-    r = 57.5
+def build_door_swing_envelope(step_deg: int = 5) -> Any:
+    """90-deg swept arc of P08_DOOR_LEAF around unified coaxial hinge pivot (77.0, 201.5, Z=2..102)."""
+    pivot = FreeCAD.Vector(77.0, 201.5, 2.0)
+    r = 58.0
     pts = [pivot]
-    for deg in range(0, 96, 5):
+    for deg in range(0, 91, max(1, step_deg)):
         rad = math.radians(deg)
-        pts.append(FreeCAD.Vector(77.0 + r * math.cos(rad), 198.5 + r * math.sin(rad), 2.0))
+        pts.append(FreeCAD.Vector(77.0 + r * math.cos(rad), 201.5 + r * math.sin(rad), 2.0))
     pts.append(pivot)
     return Part.Face(Part.makePolygon(pts)).extrude(FreeCAD.Vector(0, 0, 100.0))
+
+
+def build_door_swept_poses(
+    moving_parts: list[tuple[str, Any]],
+    pivot_xy: tuple[float, float] = (77.0, 201.5),
+    angles_deg: tuple[int, ...] = tuple(range(0, 91, 5)),
+) -> list[tuple[int, list[tuple[str, Any]]]]:
+    """Rotate moving door assembly (P08 + SUP10_LeafB x2 + SUP10B + SG90_WhiteHorn) across 0..90 deg."""
+    piv = FreeCAD.Vector(pivot_xy[0], pivot_xy[1], 0.0)
+    axis = FreeCAD.Vector(0.0, 0.0, 1.0)
+    poses: list[tuple[int, list[tuple[str, Any]]]] = []
+    for deg in angles_deg:
+        rotated: list[tuple[str, Any]] = []
+        for name, sh in moving_parts:
+            s = sh.copy()
+            if deg != 0:
+                s.rotate(piv, axis, float(deg))
+            rotated.append((name, s))
+        poses.append((deg, rotated))
+    return poses

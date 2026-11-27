@@ -474,6 +474,7 @@ def _build_unengraved_world_sets():
 
     pcb_solid, pcb_keepouts = wa.build_real_kicad_pcb_world_solid(pcb)
     hw_solids = wa.build_hardware_world_solids(pcb)
+    sg90_horn = wa.build_sg90_white_horn_solid(angle_deg=0.0)
 
     return {
         "cfg": cfg,
@@ -486,6 +487,7 @@ def _build_unengraved_world_sets():
         "pcb_solid": pcb_solid,
         "pcb_keepouts": pcb_keepouts,
         "hw_solids": hw_solids,
+        "sg90_horn": sg90_horn,
     }
 
 
@@ -527,6 +529,9 @@ def render_freecad_previews() -> list[pathlib.Path]:
         root_asm.addChild(_shape_to_coin_node(
             coin, hsh, rgb=col, edge_rgb=(0.06, 0.12, 0.08), edge_width=1.1, tess_tol=0.18
         ))
+    root_asm.addChild(_shape_to_coin_node(
+        coin, ws_data["sg90_horn"], rgb=(0.98, 0.98, 0.99), edge_rgb=(0.15, 0.18, 0.24), edge_width=1.2, tess_tol=0.12
+    ))
     for kname, ksh in ws_data["pcb_keepouts"]:
         kcol = (0.16, 0.17, 0.20) if ("U1" in kname or "U2" in kname or "J" not in kname) else (0.14, 0.42, 0.80)
         root_asm.addChild(_shape_to_coin_node(
@@ -537,18 +542,22 @@ def render_freecad_previews() -> list[pathlib.Path]:
     eye1 = (475.0, -265.0, 690.0)
     tgt1 = (203.0, 192.0, 32.0)
     fov1 = 34.0
+    n_unique = len(ws_data["metas"])
+    n_inst = sum(int(m.get("qty", 1)) for m in ws_data["metas"].values())
     img_asm = _render_coin_to_pil(coin, root_asm, eye1, tgt1, W1, H1, fov_deg=fov1)
     draw_header_banner(
         img_asm,
-        "MO HINH NHA THONG MINH IN 3D v2 — LAP RAP KHONG VIT + NOI THAT & MACH THUC",
-        "57 chi tiet (99 ban the) | 0 oc vit, 0 keo, 0 support | Phong khach (Sofa+TV), Phong ngu (Giuong+Den), Vuon (Be nuoc+Cay), Tech Bay (KiCad Hub PCB)",
+        "MO HINH NHA THONG MINH IN 3D v2 — SERVO SG90 DONG TRUC CUA CHINH + DU 14 MODULE",
+        f"{n_unique} chi tiet ({n_inst} ban the) | 0 oc vit, 0 keo, 0 support | Servo SG90 tren ke P07+SUP11+SUP10B (0..90 deg) | Du SUP01..SUP18 + FUR01..FUR09",
     )
     draw1 = ImageDraw.Draw(img_asm)
     asm_callouts = [
-        ((78.0, 352.0, 26.0), (36, 108), "PHONG KHACH: Sofa FUR01 + TV FUR02/03", (32, 92, 148)),
+        ((71.5, 201.5, 118.0), (28, 108), "CUA CHINH D1: SG90 Dong Truc (P07+SUP11+SUP10B)", (18, 84, 178)),
+        ((78.0, 352.0, 26.0), (540, 102), "PHONG KHACH: Sofa FUR01 + TV FUR02/03", (32, 92, 148)),
         ((326.0, 336.0, 22.0), (1120, 108), "PHONG NGU: Giuong FUR04 + Den ngu FUR05", (136, 86, 40)),
-        ((122.0, 104.0, 24.0), (28, 720), "TECH BAY: KiCad Hub PCB 100x80 (SUP06)", (16, 114, 48)),
-        ((226.0, 114.0, 20.0), (28, 925), "2x Relay (SUP07) + PAM8403 (SUP08)", (28, 78, 152)),
+        ((200.0, 199.0, 126.0), (1095, 210), "Coi SUP18 + 2x LED 5mm SUP17 + DHT11 SUP12", (84, 62, 128)),
+        ((122.0, 104.0, 24.0), (28, 720), "TECH BAY: KiCad Hub PCB 100x80 (SUP06) + DC-022 SUP16", (16, 114, 48)),
+        ((226.0, 114.0, 20.0), (28, 925), "2x Relay (SUP07) + PAM8403 (SUP08) + Loa (SUP09)", (28, 78, 152)),
         ((376.0, 163.0, 36.0), (1185, 650), "Chau cay FUR06/08 + Cay mini FUR07", (34, 128, 56)),
         ((292.75, 89.0, 35.0), (1125, 880), "VUON: Be nuoc SUP15 (khong keo) + Bom 5V", (22, 108, 168)),
     ]
@@ -558,10 +567,10 @@ def render_freecad_previews() -> list[pathlib.Path]:
 
     draw_legend_strip(img_asm, [
         ((186, 206, 226), "San P01A/P01B/P17 (duoi en)"),
-        ((232, 235, 229), "Tuong P02..P08 (chot mong)"),
+        ((232, 235, 229), "Tuong P02..P08 + Ke P07"),
         ((194, 230, 212), "Vuon P09..P14 + SUP15"),
-        ((235, 142, 42), "Kep & Gia do SUP01..SUP14"),
-        ((18, 117, 43), "KiCad Hub PCB + Relays + PAM8403"),
+        ((235, 142, 42), "Kep & Gia do SUP01..SUP18"),
+        ((18, 117, 43), "KiCad Hub PCB + 14 Module"),
         ((96, 148, 194), "Noi that FUR01..FUR09"),
     ])
     p_asm = PREV_DIR / "_assembled_house_furniture.png"
@@ -615,10 +624,12 @@ def render_freecad_previews() -> list[pathlib.Path]:
             dx, dy, dz = (-12.0, -24.0, 88.0)
         elif cat == "water_liner":
             dx, dy, dz = (45.0, -25.0, 68.0)
-        elif cat in ("door_hinge", "servo_link_clip", "sg90_saddle"):
+        elif cat in ("door_hinge", "door_horn_coupler", "sg90_saddle"):
             dx, dy, dz = (0.0, -45.0, 30.0)
-        elif cat == "speaker_retainer":
+        elif cat in ("speaker_retainer", "dc022_strain_relief"):
             dx, dy, dz = (0.0, -68.0, 12.0)
+        elif cat in ("led5mm_collar", "buzzer_collar"):
+            dx, dy, dz = (0.0, 10.0, 58.0)
         else:
             dx, dy, dz = (0.0, 22.0, 40.0)
         sh.translate(FreeCAD.Vector(dx, dy, dz))
@@ -908,6 +919,93 @@ def render_freecad_previews() -> list[pathlib.Path]:
     outputs.append(p_pcb)
     print(f"[OK] {p_pcb.name} ({W4}x{H4})", flush=True)
 
+    # ------------------------------------------------------------------
+    # 5. _servo_door_closeup.png (1400x950 — Coaxial Top-Jamb SG90 Door Close-Up)
+    # ------------------------------------------------------------------
+    root_door = coin.SoSeparator()
+    for it in ws_data["panels"]:
+        spid = it["piece"].source_panel_id
+        if spid == "P05_WALL_FRONT" and it["piece"].piece_index == 1:
+            root_door.addChild(_shape_to_coin_node(
+                coin, it["shape"], rgb=(0.88, 0.91, 0.94), edge_rgb=(0.18, 0.28, 0.40), edge_width=1.2, tess_tol=0.14
+            ))
+        elif spid == "P07_SERVO_SHELF":
+            root_door.addChild(_shape_to_coin_node(
+                coin, it["shape"], rgb=(0.56, 0.82, 0.96), edge_rgb=(0.08, 0.26, 0.44), edge_width=1.45, tess_tol=0.10
+            ))
+        elif spid == "P08_DOOR_LEAF":
+            root_door.addChild(_shape_to_coin_node(
+                coin, it["shape"], rgb=(0.88, 0.72, 0.52), edge_rgb=(0.30, 0.18, 0.08), edge_width=1.35, tess_tol=0.12
+            ))
+            # Semi-transparent 45-deg mid-swing ghost showing coaxial door arc clearing P07 lugs!
+            ghost_door = it["shape"].copy()
+            ghost_door.rotate(FreeCAD.Vector(77.0, 201.5, 0.0), FreeCAD.Vector(0, 0, 1), 45.0)
+            root_door.addChild(_shape_to_coin_node(
+                coin, ghost_door, rgb=(0.94, 0.78, 0.56), edge_rgb=(0.55, 0.35, 0.12), transparency=0.72, edge_width=0.9, tess_tol=0.16
+            ))
+
+    door_sups = {"SUP10_DOOR_MORTISE_HINGE", "SUP10B_DOOR_HORN_COUPLER", "SUP11_SG90_SNAP_SADDLE"}
+    sup_colors_door = {
+        "SUP10_DOOR_MORTISE_HINGE": (0.86, 0.46, 0.22),
+        "SUP10B_DOOR_HORN_COUPLER": (0.94, 0.34, 0.18),
+        "SUP11_SG90_SNAP_SADDLE": (0.96, 0.64, 0.14),
+    }
+    for it in ws_data["supports"]:
+        pid = it["sup"].part_id
+        if pid not in door_sups:
+            continue
+        root_door.addChild(_shape_to_coin_node(
+            coin, it["shape"], rgb=sup_colors_door[pid], edge_rgb=(0.24, 0.10, 0.04), edge_width=1.35, tess_tol=0.08
+        ))
+
+    for hid, hsh, _hrgb in ws_data["hw_solids"]:
+        if hid == "HW_SG90":
+            root_door.addChild(_shape_to_coin_node(
+                coin, hsh, rgb=(0.10, 0.44, 0.90), edge_rgb=(0.04, 0.14, 0.34), edge_width=1.4, tess_tol=0.08
+            ))
+    root_door.addChild(_shape_to_coin_node(
+        coin, ws_data["sg90_horn"], rgb=(0.98, 0.98, 0.99), edge_rgb=(0.12, 0.16, 0.22), edge_width=1.5, tess_tol=0.08
+    ))
+
+    W5, H5 = 1400, 950
+    # View from inside Living Room (+Y, +X, +Z) pulled back so entire blue SG90 + SUP11 + P07 + SUP10B + both SUP10 hinges fit cleanly
+    eye5 = (205.0, 365.0, 186.0)
+    tgt5 = (82.0, 199.0, 76.0)
+    fov5 = 37.5
+    img_door = _render_coin_to_pil(coin, root_door, eye5, tgt5, W5, H5, fov_deg=fov5)
+    draw_header_banner(
+        img_door,
+        "CAN CANH 3D CUA CHINH D1 — DAN DONG TRUC TIEP DONG TRUC SERVO SG90 (0 OC VIT, 0 KEO)",
+        "Truc quay dong nhat (77.0, 201.5) | P07 (in up + 2 vau chan -2/+92 deg) | SUP11 khoa tai SG90 | Tay don trang trong ngam chu U SUP10B | 2x Ban le SUP10 (Z=18, 78)",
+    )
+    draw5 = ImageDraw.Draw(img_door)
+    door_callouts = [
+        ((74.0, 201.5, 124.0), (28, 108), "Servo SG90 lap nguoc (truc X=77.0, Y=201.5 huong xuong)", (16, 76, 174)),
+        ((86.0, 201.5, 100.1), (28, 255), "Tay don trang SG90 + Ngam chu U SUP10B (khe 4.9 mm)", (186, 48, 22)),
+        ((110.0, 195.0, 52.0), (28, 690), "Canh cua P08_DOOR_LEAF (56x100) + quy dao quet 0..90 deg", (142, 86, 32)),
+        ((56.0, 209.0, 115.5), (845, 108), "Ngam khoa SUP11_SG90_SNAP_SADDLE (2 chot mong P07)", (192, 110, 14)),
+        ((72.3, 214.0, 102.0), (885, 210), "Ke P07_SERVO_SHELF + 2 vau chan goc (-2/+92 deg)", (18, 108, 158)),
+        ((48.0, 195.0, 110.0), (960, 305), "Lo cap rieng Cable_Servo_D1 (Dia 10 mm)", (42, 92, 72)),
+        ((77.0, 201.5, 78.0), (900, 480), "Ban le mong tren SUP10 (Z=78.0, truc 2.7 / lo 3.0 mm)", (176, 82, 28)),
+        ((77.0, 201.5, 18.0), (890, 790), "Ban le mong duoi SUP10 (Z=18.0, dong truc 77.0, 201.5)", (176, 82, 28)),
+    ]
+    for pt3, lxy, txt, acc in door_callouts:
+        px, py = project_3d_to_2d(pt3, eye5, tgt5, W5, H5, fov5)
+        draw_callout(draw5, (px, py), lxy, txt, accent_rgb=acc, font_size=13)
+
+    draw_legend_strip(img_door, [
+        ((26, 112, 230), "SG90 Body (22.8x12.2x22.5)"),
+        ((245, 245, 248), "Tay don trang SG90 (4.5x1.6)"),
+        ((143, 209, 245), "P07_SERVO_SHELF + Vau chan"),
+        ((245, 163, 36), "SUP11 Ngam khoa SG90"),
+        ((240, 87, 46), "SUP10B Ngam chu U tay don"),
+        ((219, 117, 56), "2x SUP10 Ban le mong"),
+    ])
+    p_door = PREV_DIR / "_servo_door_closeup.png"
+    img_door.save(str(p_door), format="PNG")
+    outputs.append(p_door)
+    print(f"[OK] {p_door.name} ({W5}x{H5})", flush=True)
+
     return outputs
 
 
@@ -920,7 +1018,7 @@ GROUP_COLORS = {
     "walls": ("#70AD47", "#2B542C", "Walls (Tuong)"),
     "garden": ("#2A9D8F", "#15544C", "Garden (Vuon)"),
     "tech": ("#8E6AC8", "#432874", "Tech Bay"),
-    "mounts": ("#F4A261", "#8C3D0A", "Mounts (SUP01..15)"),
+    "mounts": ("#F4A261", "#8C3D0A", "Mounts (SUP01..18)"),
     "furniture": ("#E76F51", "#7D2310", "Furniture (FUR01..09)"),
 }
 
@@ -1090,7 +1188,7 @@ def render_plate_layouts() -> list[pathlib.Path]:
         fig.patches.append(Rectangle((0, 0.880), 1, 0.005, transform=fig.transFigure, facecolor="#26A69A", edgecolor="none"))
         fig.text(
             0.03, 0.948,
-            f"BAN IN #{pidx:02d}/17 — {pid_name}",
+            f"BAN IN #{pidx:02d}/{len(plates):02d} — {pid_name}",
             fontsize=14, fontweight="bold", color="white", va="center",
         )
         fig.text(
@@ -1131,7 +1229,7 @@ def render_plate_layouts() -> list[pathlib.Path]:
     overview = Image.new("RGB", (ov_w, ov_h), (240, 244, 249))
     draw_header_banner(
         overview,
-        "TONG QUAN 17 BAN IN 3D (180 x 200 x 250 mm) — 57 CHI TIET / 99 BAN THE (0 SUPPORT)",
+        f"TONG QUAN {manifest['achieved_plate_count']} BAN IN 3D (180 x 200 x 250 mm) — {manifest['total_unique_parts']} CHI TIET / {manifest['total_part_instances']} BAN THE (0 SUPPORT)",
         f"Vung an toan 170x190 mm (le 5 mm) | Khe ho >= 3.0 mm | Can duoi ly thuyet {manifest['theoretical_lower_bound_bbox_ceil']} ban -> Dat {manifest['achieved_plate_count']} ban (Gate G3 PASS)",
     )
     odraw = ImageDraw.Draw(overview)
@@ -1421,6 +1519,97 @@ def render_slicer_plate_preview() -> pathlib.Path:
     fig.savefig(str(out_png), format="PNG", dpi=160)
     plt.close(fig)
     print(f"[OK] {out_png.name} (1800x680) in {time.time() - t0:.1f}s", flush=True)
+
+    # Also render dedicated PrusaSlicer toolpath preview of plate(s) containing P08, P07, SUP11, SUP10, SUP10B
+    servo_targets = {
+        "P08_DOOR_LEAF",
+        "P07_SERVO_SHELF",
+        "SUP11_SG90_SNAP_SADDLE",
+        "SUP10_DOOR_MORTISE_HINGE",
+        "SUP10B_DOOR_HORN_COUPLER",
+    }
+    servo_plates = [
+        pl for pl in pl_list if any(it["part_id"] in servo_targets for it in pl["items"])
+    ]
+    if servo_plates:
+        n_sp = len(servo_plates)
+        fig2, axes2 = plt.subplots(1, n_sp, figsize=(max(6.2, 4.2 * n_sp), 4.8), dpi=160)
+        if n_sp == 1:
+            axes2 = [axes2]
+        fig2.patch.set_facecolor("white")
+        with tempfile.TemporaryDirectory(prefix="slicer_servo_") as td2:
+            td2_path = pathlib.Path(td2)
+            for ax2, pl in zip(axes2, servo_plates):
+                mf_path = PRINT3D_ROOT / pl["threemf_file"]
+                out_gc2 = td2_path / (mf_path.stem + ".gcode")
+                cmd2 = [
+                    str(slicer_exe), "--export-gcode", "--dont-arrange",
+                    "--bed-shape", "0x0,180x0,180x200,0x200", "--max-print-height", "250",
+                    "--layer-height", "0.2", "--nozzle-diameter", "0.4",
+                    "--filament-diameter", "1.75", "--filament-density", "1.24",
+                    "--perimeters", "3", "--fill-density", "20%",
+                    "--support-material=0", "--skirts", "1", "--skirt-distance", "2",
+                    "--output", str(out_gc2), str(mf_path),
+                ]
+                proc2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=180)
+                if proc2.returncode != 0 or not out_gc2.exists():
+                    raise RuntimeError(f"PrusaSlicer failed on {mf_path.name}: {proc2.stderr[:300]}")
+                metrics2, sk2, base2, up2 = _parse_gcode_metrics_and_segments(out_gc2.read_text(encoding="utf-8", errors="ignore"))
+                ax2.add_patch(Rectangle((0, 0), bed_x, bed_y, facecolor="#F5F7FA", edgecolor="#1B365D", lw=2.0, zorder=1))
+                ax2.add_patch(Rectangle((margin, margin), usable_x, usable_y, facecolor="#FFFFFF", edgecolor="#27AE60", lw=1.25, ls="--", zorder=2))
+                if sk2:
+                    ax2.add_collection(LineCollection(sk2, colors="#16A085", linewidths=0.75, alpha=0.85, zorder=3))
+                if base2:
+                    ax2.add_collection(LineCollection(base2, colors="#E67E22", linewidths=0.55, alpha=0.88, zorder=4))
+                if up2:
+                    ax2.add_collection(LineCollection(up2, colors="#1F618D", linewidths=0.55, alpha=0.82, zorder=5))
+                # Highlight the target servo/door parts with crisp crimson dashed boxes & tags
+                found_tags: list[str] = []
+                for it in pl["items"]:
+                    if it["part_id"] in servo_targets:
+                        x0, y0, w, h = float(it["x_mm"]), float(it["y_mm"]), float(it["w_mm"]), float(it["h_mm"])
+                        ax2.add_patch(Rectangle((x0 - 1.2, y0 - 1.2), w + 2.4, h + 2.4, facecolor="none", edgecolor="#C0392B", lw=1.8, zorder=8))
+                        short = it["part_id"].split("_")[0]
+                        if short not in found_tags:
+                            found_tags.append(short)
+                        ax2.text(
+                            x0 + w / 2.0, y0 + h / 2.0, short,
+                            ha="center", va="center", fontsize=7.2, fontweight="bold", color="#922B21",
+                            bbox=dict(boxstyle="round,pad=0.18", facecolor="#FDEDEC", edgecolor="#C0392B", lw=0.9, alpha=0.92),
+                            zorder=9,
+                        )
+                ax2.set_xlim(-6, bed_x + 6)
+                ax2.set_ylim(-6, bed_y + 6)
+                ax2.set_aspect("equal", adjustable="box")
+                ax2.set_xticks(range(0, 181, 30))
+                ax2.set_yticks(range(0, 201, 40))
+                ax2.grid(True, linestyle=":", color="#CBD5E1", linewidth=0.5, zorder=0)
+                ax2.tick_params(labelsize=7.5)
+                ax2.set_xlabel("X ban in (mm)", fontsize=8.2, fontweight="bold", color="#1B365D")
+                if ax2 is axes2[0]:
+                    ax2.set_ylabel("Y ban in (mm)", fontsize=8.2, fontweight="bold", color="#1B365D")
+                ax2.set_title(
+                    f"{pl['plate_id']} [{', '.join(found_tags)}]\n{metrics2['time_str']} | {metrics2['filament_g']:.1f} g | {metrics2['layer_count']} lop | 0 support",
+                    fontsize=8.2, fontweight="bold", color="#0D233E", pad=6,
+                )
+        fig2.patches.append(Rectangle((0, 0.875), 1, 0.125, transform=fig2.transFigure, facecolor="#0D233E", edgecolor="none"))
+        fig2.patches.append(Rectangle((0, 0.869), 1, 0.006, transform=fig2.transFigure, facecolor="#26A69A", edgecolor="none"))
+        fig2.text(
+            0.02, 0.952,
+            "PRUSASLICER CLI G-CODE — BAN IN CHUA CUM CUA & SERVO SG90 (P08, P07, SUP11, SUP10, SUP10B)",
+            fontsize=10.8, fontweight="bold", color="white", va="center",
+        )
+        fig2.text(
+            0.02, 0.902,
+            "Cat lop that --dont-arrange | Ban 180x200x250 mm | PLA 0.20 mm | Support: OFF (0 overhang) | Khung do: chi tiet cum cua & servo",
+            fontsize=8.0, color="#C3E0F6", va="center",
+        )
+        fig2.subplots_adjust(left=0.06, right=0.985, top=0.77, bottom=0.14, wspace=0.18)
+        out_servo_png = PREV_DIR / "_slicer_servo_door_plates.png"
+        fig2.savefig(str(out_servo_png), format="PNG", dpi=160)
+        plt.close(fig2)
+        print(f"[OK] {out_servo_png.name}", flush=True)
+
     return out_png
 
 

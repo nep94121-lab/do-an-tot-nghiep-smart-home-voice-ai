@@ -102,6 +102,16 @@ def build_flat_panel_solid(
         body = body.cut(Part.makeCompound(cut_solids))
         body = body.removeSplitter()
 
+    if pspec.panel_id == "P07_SERVO_SHELF":
+        # Two integral non-stalling end-stop lugs on P07 underside (Z < 0 in unflipped local frame):
+        # 1) Closed stop (-2 deg): world X=89.5..92.5 (u_s=42.5..45.5), Y=195.6..197.3 (v_s=3.60..5.30),
+        #    Z=102.5..108.5 (z=-6.0..0.5, clears P08 door top Z<=102.0 and MORT_SG90_R v_s>=6.35!)
+        lug_closed = Part.makeBox(3.0, 1.7, 6.5, FreeCAD.Vector(42.5, 3.60, -6.0))
+        # 2) Open stop (+92 deg): world (72.3, 214.0) -> (u_s=25.3, v_s=22.0), Dia 3.0 mm,
+        #    Z=98.5..108.5 (z=-10.0..0.5, stops SG90 white horn cleanly at +92 deg!)
+        lug_open = Part.makeCylinder(1.5, 10.5, FreeCAD.Vector(25.3, 22.0, -10.0), FreeCAD.Vector(0, 0, 1))
+        body = body.fuse(lug_closed).fuse(lug_open).removeSplitter()
+
     if pspec.panel_id == "P17_BASE_JOINER":
         tx_w, ty_w = P17_TENON_SIZE_XY
         # Overlap base Z=0..T so BRep fusion has no coplanar seam at Z=T.
@@ -203,35 +213,66 @@ def build_panel_piece_solid(
         shape = shape.removeSplitter()
 
     bb_pre = shape.BoundBox
-    if piece.source_panel_id == "P17_BASE_JOINER":
+    flipped_x180 = False
+    flip_pre_min: list[float] | None = None
+    flip_pre_max: list[float] | None = None
+
+    if piece.source_panel_id == "P07_SERVO_SHELF":
+        # Print P07 flipped upside-down (180 deg around X) so Z_world=111.5 sits flat on Z=0
+        # and the 2 integral underside end-stop lugs point UP with ZERO overhang/supports!
+        flipped_x180 = True
+        flip_pre_min = [round(bb_pre.XMin, 4), round(bb_pre.YMin, 4), round(bb_pre.ZMin, 4)]
+        flip_pre_max = [round(bb_pre.XMax, 4), round(bb_pre.YMax, 4), round(bb_pre.ZMax, 4)]
+        shape.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1, 0, 0), 180.0)
+        bb_f = shape.BoundBox
+        shape.translate(FreeCAD.Vector(-bb_f.XMin, -bb_f.YMin, -bb_f.ZMin))
+        bb_f2 = shape.BoundBox
         real_engrave = pd_mod.EngraveSpec(
-            line1="P17",
-            line2=f"{bb_pre.XLength:.0f}x{bb_pre.YLength:.0f}x{bb_pre.ZLength:.0f}mm",
-            cx=32.0,
-            cy=14.0,
-            font_h=3.4,
+            line1="P07",
+            line2=f"{bb_f2.XLength:.0f}x{bb_f2.YLength:.0f}x{bb_f2.ZLength:.0f}",
+            cx=12.0,
+            cy=6.5,
+            font_h=2.4,
             rotated_90=False,
         )
+        shape_eng, engraved_ok = cad_common.safe_engrave_top_face(
+            shape, real_engrave, cfg.T_mm, cfg.engrave_depth
+        )
+        shape_print = shape_eng.copy()
+        bb_p = shape_print.BoundBox
+        shape_print.translate(FreeCAD.Vector(-bb_p.XMin, -bb_p.YMin, -bb_p.ZMin))
+        local_min = tuple(flip_pre_min)
+        local_max = tuple(flip_pre_max)
     else:
-        real_engrave = pd_mod.EngraveSpec(
-            line1=piece.engrave.line1,
-            line2=f"{bb_pre.XLength:.0f}x{bb_pre.YLength:.0f}x{bb_pre.ZLength:.0f}mm",
-            cx=piece.engrave.cx,
-            cy=piece.engrave.cy,
-            font_h=piece.engrave.font_h,
-            rotated_90=piece.engrave.rotated_90,
+        if piece.source_panel_id == "P17_BASE_JOINER":
+            real_engrave = pd_mod.EngraveSpec(
+                line1="P17",
+                line2=f"{bb_pre.XLength:.0f}x{bb_pre.YLength:.0f}x{bb_pre.ZLength:.0f}mm",
+                cx=32.0,
+                cy=14.0,
+                font_h=3.4,
+                rotated_90=False,
+            )
+        else:
+            real_engrave = pd_mod.EngraveSpec(
+                line1=piece.engrave.line1,
+                line2=f"{bb_pre.XLength:.0f}x{bb_pre.YLength:.0f}x{bb_pre.ZLength:.0f}mm",
+                cx=piece.engrave.cx,
+                cy=piece.engrave.cy,
+                font_h=piece.engrave.font_h,
+                rotated_90=piece.engrave.rotated_90,
+            )
+
+        shape_eng, engraved_ok = cad_common.safe_engrave_top_face(
+            shape, real_engrave, cfg.T_mm, cfg.engrave_depth
         )
 
-    shape_eng, engraved_ok = cad_common.safe_engrave_top_face(
-        shape, real_engrave, cfg.T_mm, cfg.engrave_depth
-    )
+        bb_local = shape_eng.BoundBox
+        local_min = (round(bb_local.XMin, 4), round(bb_local.YMin, 4), round(bb_local.ZMin, 4))
+        local_max = (round(bb_local.XMax, 4), round(bb_local.YMax, 4), round(bb_local.ZMax, 4))
 
-    bb_local = shape_eng.BoundBox
-    local_min = (round(bb_local.XMin, 4), round(bb_local.YMin, 4), round(bb_local.ZMin, 4))
-    local_max = (round(bb_local.XMax, 4), round(bb_local.YMax, 4), round(bb_local.ZMax, 4))
-
-    shape_print = shape_eng.copy()
-    shape_print.translate(FreeCAD.Vector(-bb_local.XMin, -bb_local.YMin, -bb_local.ZMin))
+        shape_print = shape_eng.copy()
+        shape_print.translate(FreeCAD.Vector(-bb_local.XMin, -bb_local.YMin, -bb_local.ZMin))
 
     bb_p = shape_print.BoundBox
     print_bbox = [round(bb_p.XLength, 3), round(bb_p.YLength, 3), round(bb_p.ZLength, 3)]
@@ -251,6 +292,7 @@ def build_panel_piece_solid(
         "shift_v": piece.shift_v,
         "local_bbox_min": list(local_min),
         "local_bbox_max": list(local_max),
+        "print_flipped_x180": flipped_x180,
         "print_bbox_mm": print_bbox,
         "print_z_min": round(bb_p.ZMin, 4),
         "volume_mm3": round(shape_print.Volume, 3),

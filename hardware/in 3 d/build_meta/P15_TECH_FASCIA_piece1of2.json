@@ -30,19 +30,20 @@
     45.0,
     3.0
   ],
+  "print_flipped_x180": false,
   "print_bbox_mm": [
     142.95,
     45.0,
     3.0
   ],
   "print_z_min": 0.0,
-  "volume_mm3": 11028.964,
+  "volume_mm3": 10866.424,
   "solids": 1,
   "valid": true,
   "engraved_ok": true,
   "engrave_text": "P15 p1/2 | 143x45x3mm",
   "dovetail_count": 1,
-  "mortise_count": 0,
+  "mortise_count": 2,
   "stripped_fastener_holes": [
     "Speaker_Clamp_L",
     "Speaker_Clamp_R"
@@ -78,5 +79,5 @@
   ],
   "step_file": "parts/P15_TECH_FASCIA_piece1of2.step",
   "stl_file": "parts/P15_TECH_FASCIA_piece1of2.stl",
-  "stl_facets": 5140
+  "stl_facets": 5180
 }

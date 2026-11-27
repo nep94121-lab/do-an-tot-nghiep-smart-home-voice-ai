@@ -30,6 +30,7 @@
     150.0,
     3.0
   ],
+  "print_flipped_x180": false,
   "print_bbox_mm": [
     93.45,
     150.0,

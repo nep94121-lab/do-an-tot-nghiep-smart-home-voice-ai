@@ -1,0 +1,56 @@
+{
+  "part_id": "SUP10B_DOOR_HORN_COUPLER",
+  "kind": "support",
+  "category": "door_horn_coupler",
+  "qty": 1,
+  "vi_name": "Ngam chu U noi truc tiep tay don Servo SG90 (dong truc cua)",
+  "mating_source": "P08_DOOR_LEAF MORT_DOOR_LINK (u=10, v=95) <-> coaxial SG90 white horn (4.5x1.6 mm @ Z=99.3..100.9)",
+  "params": {
+    "slot_w": 4.9,
+    "horn_w": 4.5,
+    "fork_len_x": 5.0,
+    "fork_wall_t": 1.6,
+    "floor_h": 4.5,
+    "total_h": 7.5,
+    "base_t": 2.5,
+    "tenon_x": 4.0,
+    "tenon_y": 6.0,
+    "tenon_h": 3.0
+  },
+  "assembly_placements": [
+    {
+      "x": 88.0,
+      "y": 195.0,
+      "z": 97.0,
+      "rot_z": 0.0
+    }
+  ],
+  "print_bbox_mm": [
+    9.0,
+    13.55,
+    11.5
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 482.032,
+  "solids": 1,
+  "expected_solids": 1,
+  "valid": true,
+  "bed_fit": true,
+  "color_rgb": [
+    0.85,
+    0.52,
+    0.3
+  ],
+  "notes": "Ngam ranh chu U mo dinh (rong long 4.9 mm) om truc tiep tay don trang SG90 dong truc voi ban le (77.0, 201.5).",
+  "engraved_ok": true,
+  "engrave_text": "10B",
+  "print_rotation_for_world": "translate_82.5_192.0_94.0",
+  "world_origin_offset": [
+    82.5,
+    192.0,
+    94.0
+  ],
+  "step_file": "parts/SUP10B_DOOR_HORN_COUPLER.step",
+  "stl_file": "parts/SUP10B_DOOR_HORN_COUPLER.stl",
+  "stl_facets": 1292
+}

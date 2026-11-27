@@ -1348,7 +1348,7 @@ def draw_pcb_module_fit(cfg: pd_mod.PrintConfig) -> tuple[pathlib.Path, pathlib.
     ax6.set_ylim(0, 1)
     ax6.add_patch(MplRect((0.0, 0.0), 1.0, 1.0, facecolor="#f8fafc", edgecolor="#0f2b46", lw=1.2))
     ax6.add_patch(MplRect((0.0, 0.915), 1.0, 0.085, facecolor="#0f2b46", edgecolor="none"))
-    ax6.text(0.50, 0.957, "6. BANG KIEM TRA DO KHIT 12 MODULE (fit_table.json)", fontsize=8.4,
+    ax6.text(0.50, 0.957, f"6. BANG KIEM TRA DO KHIT {len(fit_rows)} MODULE (fit_table.json)", fontsize=8.4,
              fontweight="bold", color="white", ha="center", va="center")
 
     cols_x = [0.012, 0.250, 0.492, 0.658, 0.918]
@@ -1358,29 +1358,16 @@ def draw_pcb_module_fit(cfg: pd_mod.PrintConfig) -> tuple[pathlib.Path, pathlib.
         ax6.text(cx, 0.885, htxt, fontsize=6.9, fontweight="bold", color="#0f2b46", va="center", ha="left")
 
     row_h = 0.845 / max(1, len(fit_rows))
-    part_short_map = {
-        "Hub PCB (Type 1)": "Hub PCB (KiCad)",
-        "ESP8266 NodeMCU v2": "NodeMCU v2",
-        "Relay 1 & Relay 2 (SRD-05VDC)": "Relay 1 & 2 (5V)",
-        "PAM8403 3W Audio Amp": "PAM8403 Amp",
-        "Mini Speaker 28mm (PUI AS02808MR-R)": "Speaker 28mm",
-        "SG90 9g Micro Servo": "Servo SG90 9g",
-        "DHT11 Temp/Humidity Breakout": "DHT11 Sensor",
-        "KY-037 Sound Sensor": "KY-037 Mic",
-        "YL-69 Soil Moisture Probe": "YL-69 Probe",
-        "LM393 Soil Comparator (YL-38)": "LM393 Module",
-        "Door Leaf & Hinge / Linkage": "Door P08 Hinge",
-        "5V Mini Submersible Pump": "5V Water Pump",
-    }
+    fs_row = 5.4 if len(fit_rows) > 12 else 6.1
     for idx, row in enumerate(fit_rows):
         y_top = 0.855 - idx * row_h
         y_mid = y_top - row_h * 0.5
         bg = "#ffffff" if idx % 2 == 0 else "#f2f6fa"
         ax6.add_patch(MplRect((0.0, y_top - row_h), 1.0, row_h, facecolor=bg, edgecolor="#dce4ec", lw=0.4))
 
-        part_short = part_short_map.get(row["part"], row["part"][:18])
+        part_short = row["part"][:21]
         bsz = row["board_size_mm"].split("(")[0].split(",")[0].split(";")[0].strip()
-        bsz = bsz.replace("Body ", "").replace("Door ", "")
+        bsz = bsz.replace("Body ", "").replace("Door ", "")[:18]
         mnt = (
             row["mount_part"].split(" ")[0]
             .replace("_HUB_PCB_SNAP_CARRIER", "")
@@ -1394,25 +1381,28 @@ def draw_pcb_module_fit(cfg: pd_mod.PrintConfig) -> tuple[pathlib.Path, pathlib.
             .replace("_LM393_SNAP_CRADLE", "")
             .replace("_DOOR_MORTISE_HINGE", "")
             .replace("_WATER_TANK_LINER", "")
-        )
+            .replace("_TECH_FASCIA", "+SUP16")
+            .replace("_WALL_MID", "+SUP17")
+            .replace("_WALL_FRONT", "+SUP18")
+        )[:13]
         clr_s = row["clearance_mm"].split(",")[0].split("(")[0].strip()
-        clr_s = clr_s.replace("underside pin clearance", "pin clr").replace("body cutout", "cutout")
+        clr_s = clr_s.replace("underside pin clearance", "pin clr").replace("body cutout", "cutout")[:20]
         st = row["status"]
 
-        ax6.text(cols_x[0], y_mid, part_short, fontsize=6.25, fontweight="bold", color="#1a2530", va="center", ha="left")
-        ax6.text(cols_x[1], y_mid, bsz, fontsize=6.1, color="#2c3e50", va="center", ha="left")
-        ax6.text(cols_x[2], y_mid, mnt, fontsize=6.15, fontweight="bold", color="#1b4f72", va="center", ha="left")
-        ax6.text(cols_x[3], y_mid, clr_s, fontsize=6.0, color="#7e5109", va="center", ha="left")
+        ax6.text(cols_x[0], y_mid, part_short, fontsize=fs_row, fontweight="bold", color="#1a2530", va="center", ha="left")
+        ax6.text(cols_x[1], y_mid, bsz, fontsize=fs_row - 0.1, color="#2c3e50", va="center", ha="left")
+        ax6.text(cols_x[2], y_mid, mnt, fontsize=fs_row, fontweight="bold", color="#1b4f72", va="center", ha="left")
+        ax6.text(cols_x[3], y_mid, clr_s, fontsize=fs_row - 0.2, color="#7e5109", va="center", ha="left")
         ax6.text(
-            cols_x[4] + 0.032, y_mid, st, fontsize=6.3, fontweight="bold",
+            cols_x[4] + 0.032, y_mid, st, fontsize=fs_row, fontweight="bold",
             color="#145a32" if st == "PASS" else "#922b21", ha="center", va="center",
-            bbox=dict(boxstyle="round,pad=0.14", facecolor="#d5f5e3" if st == "PASS" else "#fadbd8",
+            bbox=dict(boxstyle="round,pad=0.10", facecolor="#d5f5e3" if st == "PASS" else "#fadbd8",
                       edgecolor="#1e8449" if st == "PASS" else "#c0392b", lw=0.5),
         )
 
     fig.text(
         0.025, 0.020,
-        "TAT CA 12 MODULE DIEN TU DEU LAP GHEP KHONG VIT - KHONG KEO | Hub PCB do truc tiep tu smarthome_hub.kicad_pcb | Don vi: mm",
+        f"TAT CA {len(fit_rows)} MODULE DIEN TU DEU LAP GHEP KHONG VIT - KHONG KEO | Hub PCB do truc tiep tu smarthome_hub.kicad_pcb | Don vi: mm",
         fontsize=8.2, fontweight="bold", color="#145a32",
     )
 

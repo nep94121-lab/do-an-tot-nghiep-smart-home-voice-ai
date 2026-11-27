@@ -30,19 +30,20 @@
     150.0,
     3.0
   ],
+  "print_flipped_x180": false,
   "print_bbox_mm": [
     167.45,
     150.0,
     3.0
   ],
   "print_z_min": 0.0,
-  "volume_mm3": 28031.888,
+  "volume_mm3": 27907.148,
   "solids": 1,
   "valid": true,
   "engraved_ok": true,
   "engrave_text": "P05 p2/3 | 167x150x3mm",
   "dovetail_count": 2,
-  "mortise_count": 2,
+  "mortise_count": 4,
   "stripped_fastener_holes": [
     "KY037_Mount_M3"
   ],
@@ -50,6 +51,7 @@
     "Buzzer_12mm",
     "KY037_Mic_Aperture",
     "Cable_Front_LR",
+    "Cable_Servo_D1",
     "Cable_Front_BR"
   ],
   "bed_fit": true,
@@ -60,5 +62,5 @@
   ],
   "step_file": "parts/P05_WALL_FRONT_piece2of3.step",
   "stl_file": "parts/P05_WALL_FRONT_piece2of3.stl",
-  "stl_facets": 7214
+  "stl_facets": 7254
 }

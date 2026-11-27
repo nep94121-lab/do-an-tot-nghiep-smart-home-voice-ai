@@ -8,9 +8,9 @@
   "vi_name": "Ke gan Servo SG90 cua chinh (mong cai)",
   "plane": "XY",
   "origin_xyz": [
-    34.0,
+    47.0,
     195.125,
-    26.5
+    108.5
   ],
   "extra_origins_xyz": [],
   "explode_xyz": [
@@ -23,29 +23,30 @@
   "local_bbox_min": [
     0.0,
     0.0,
-    0.0
+    -10.0
   ],
   "local_bbox_max": [
-    34.0,
-    49.125,
+    49.0,
+    29.125,
     3.0
   ],
+  "print_flipped_x180": true,
   "print_bbox_mm": [
-    34.0,
-    49.125,
-    3.0
+    49.0,
+    29.125,
+    13.0
   ],
   "print_z_min": 0.0,
-  "volume_mm3": 3819.957,
+  "volume_mm3": 3182.724,
   "solids": 1,
   "valid": true,
   "engraved_ok": true,
-  "engrave_text": "P07 | 34x49x3mm",
+  "engrave_text": "P07 | 49x29x13",
   "dovetail_count": 0,
   "mortise_count": 2,
   "stripped_fastener_holes": [
-    "SG90_M2_Front",
-    "SG90_M2_Rear"
+    "SG90_M2_Left",
+    "SG90_M2_Right"
   ],
   "kept_functional_holes": [],
   "bed_fit": true,
@@ -56,5 +57,5 @@
   ],
   "step_file": "parts/P07_SERVO_SHELF.step",
   "stl_file": "parts/P07_SERVO_SHELF.stl",
-  "stl_facets": 4338
+  "stl_facets": 3754
 }

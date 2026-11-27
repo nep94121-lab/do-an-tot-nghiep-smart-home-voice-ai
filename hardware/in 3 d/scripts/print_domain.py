@@ -88,7 +88,7 @@ CLEARANCE_TABLE: tuple[ClearanceEntry, ...] = (
         vi_name="Mong chot vuong ep khit (mortise-and-tenon)",
         clearance_mm=0.15,
         tolerance_band="0.12 - 0.18 mm / canh (+0.30 mm tong)",
-        where_used="P17 thanh noi day, chan gia do SUP05..SUP14 va chot noi that FUR01..FUR08 cam xuong san",
+        where_used="P17 thanh noi day, chan gia do SUP05..SUP18 va chot noi that FUR01..FUR08 cam xuong san",
     ),
     ClearanceEntry(
         fit_type="snap_fit_peg",
@@ -102,7 +102,7 @@ CLEARANCE_TABLE: tuple[ClearanceEntry, ...] = (
         vi_name="Ranh truot & ngoam kep mep bo mach",
         clearance_mm=0.20,
         tolerance_band="0.20 mm / canh (+0.40 mm tong khoang trong)",
-        where_used="SUP08 (PAM8403), SUP09 (Loa 28mm), SUP11 (SG90), SUP12 (DHT11), SUP13 (KY-037), SUP14 (LM393)",
+        where_used="SUP08 (PAM8403), SUP09 (Loa 28mm), SUP10B (Tay don SG90), SUP11 (SG90), SUP12 (DHT11), SUP13 (KY-037), SUP14 (LM393), SUP16 (DC-022), SUP17 (LED 5mm), SUP18 (Coi TMB12A05)",
     ),
     ClearanceEntry(
         fit_type="hinge_pivot",
@@ -344,25 +344,33 @@ def build_panel_mortise_map(cfg: PrintConfig | None = None) -> dict[str, list[Mo
             # SUP13_KY037_SNAP_CRADLE flanking KY-037 (centered u=158, v=29; mic at u=148)
             m("MORT_KY037_L", 138.0, 29.0, 3.0, 6.0, "SUP13_KY037_SNAP_CRADLE left tenon"),
             m("MORT_KY037_R", 178.0, 29.0, 3.0, 6.0, "SUP13_KY037_SNAP_CRADLE right tenon"),
-            # SUP10_DOOR_MORTISE_HINGE jamb slots (world X=72.5 -> u=62.5; world Z=18, 86 -> v=21, 89)
+            # SUP10_DOOR_MORTISE_HINGE jamb slots (world X=72.5 -> u=62.5; world Z=18, 78 -> v_s=21, 81)
             m("MORT_HINGE_BOT", 62.5, 21.0, 4.0, 6.0, "SUP10_DOOR_MORTISE_HINGE bottom jamb tenon"),
-            m("MORT_HINGE_TOP", 62.5, 89.0, 4.0, 6.0, "SUP10_DOOR_MORTISE_HINGE top jamb tenon"),
+            m("MORT_HINGE_TOP", 62.5, 81.0, 4.0, 6.0, "SUP10_DOOR_MORTISE_HINGE top jamb tenon (Z=78)"),
+            # SUP18_BUZZER_SNAP_COLLAR flanking TMB12A05 buzzer (u=190, v_s=129; strictly in P06 relief Z>112)
+            m("MORT_BUZZ_BOT", 190.0, 118.0, 6.0, 3.0, "SUP18_BUZZER_SNAP_COLLAR bottom tenon"),
+            m("MORT_BUZZ_TOP", 190.0, 140.0, 6.0, 3.0, "SUP18_BUZZER_SNAP_COLLAR top tenon"),
         ],
         "P06_WALL_MID": [
             # SUP12_DHT11_SNAP_CRADLE flanking DHT11_Airflow on P06 (u=87.75..100.25, v_shifted=83..99)
             m("MORT_DHT11_L", 83.0, 91.0, 3.0, 6.0, "SUP12_DHT11_SNAP_CRADLE left tenon"),
             m("MORT_DHT11_R", 105.0, 91.0, 3.0, 6.0, "SUP12_DHT11_SNAP_CRADLE right tenon"),
+            # SUP17_LED5MM_RETAINING_COLLAR flanking Living Room LED (u=40, v_s=129) & Bedroom LED (u=66, v_s=129)
+            m("MORT_LED_LR_L", 32.0, 129.0, 3.0, 6.0, "SUP17_LED5MM_RETAINING_COLLAR living room left tenon"),
+            m("MORT_LED_LR_R", 48.0, 129.0, 3.0, 6.0, "SUP17_LED5MM_RETAINING_COLLAR living room right tenon"),
+            m("MORT_LED_BR_L", 58.0, 129.0, 3.0, 6.0, "SUP17_LED5MM_RETAINING_COLLAR bedroom left tenon"),
+            m("MORT_LED_BR_R", 74.0, 129.0, 3.0, 6.0, "SUP17_LED5MM_RETAINING_COLLAR bedroom right tenon"),
         ],
         "P07_SERVO_SHELF": [
-            # SUP11_SG90_SNAP_SADDLE mortise slots outside SG90 ears (v=9.0 and v=43.2)
-            m("MORT_SG90_F", 17.0, 9.0, 6.0, 3.0, "SUP11_SG90_SNAP_SADDLE front tenon"),
-            m("MORT_SG90_R", 17.0, 43.2, 6.0, 3.0, "SUP11_SG90_SNAP_SADDLE rear tenon"),
+            # SUP11_SG90_SNAP_SADDLE mortises flanking SG90 ears along X (unshifted u=3.5, 43.5, v=6.375 -> v_s=9.500)
+            m("MORT_SG90_L", 3.5, 9.5, 3.0, 6.0, "SUP11_SG90_SNAP_SADDLE left tenon"),
+            m("MORT_SG90_R", 43.5, 9.5, 3.0, 6.0, "SUP11_SG90_SNAP_SADDLE right tenon"),
         ],
         "P08_DOOR_LEAF": [
-            # SUP10_DOOR_MORTISE_HINGE leaf slots + SUP10B_SERVO_LINK_CLIP slot
+            # SUP10_DOOR_MORTISE_HINGE leaf slots (Z=18, 78 -> v=16, 76) + SUP10B_DOOR_HORN_COUPLER slot (Z=97 -> v=95)
             m("MORT_DOOR_HBOT", 5.5, 16.0, 4.0, 6.0, "SUP10_DOOR_MORTISE_HINGE bottom door tenon"),
-            m("MORT_DOOR_HTOP", 5.5, 84.0, 4.0, 6.0, "SUP10_DOOR_MORTISE_HINGE top door tenon"),
-            m("MORT_DOOR_LINK", 15.0, 28.0, 4.0, 6.0, "SUP10B_SERVO_LINK_CLIP linkage tenon"),
+            m("MORT_DOOR_HTOP", 5.5, 76.0, 4.0, 6.0, "SUP10_DOOR_MORTISE_HINGE top door tenon (Z=78)"),
+            m("MORT_DOOR_LINK", 10.0, 95.0, 4.0, 6.0, "SUP10B_DOOR_HORN_COUPLER coaxial top-jamb fork tenon"),
         ],
         "P12_GARDEN_FRONT": [],
         "P13_GARDEN_BACK": [
@@ -371,6 +379,9 @@ def build_panel_mortise_map(cfg: PrintConfig | None = None) -> dict[str, list[Mo
             m("MORT_LM393_R", 45.0, 27.0, 3.0, 6.0, "SUP14_LM393_SNAP_CRADLE right tenon"),
         ],
         "P15_TECH_FASCIA": [
+            # SUP16_DC022_STRAIN_RELIEF flanking DC-022 barrel jack (u=22, v_s=25; 24mm span)
+            m("MORT_DC022_L", 10.0, 25.0, 4.0, 6.0, "SUP16_DC022_STRAIN_RELIEF left tenon"),
+            m("MORT_DC022_R", 34.0, 25.0, 4.0, 6.0, "SUP16_DC022_STRAIN_RELIEF right tenon"),
             # SUP09_SPEAKER_SNAP_RETAINER flanking 28mm speaker grille (36mm span)
             m("MORT_SPK_L", 197.0, 29.0, 4.0, 6.0, "SUP09_SPEAKER_SNAP_RETAINER left tenon"),
             m("MORT_SPK_R", 233.0, 29.0, 4.0, 6.0, "SUP09_SPEAKER_SNAP_RETAINER right tenon"),
@@ -1008,17 +1019,17 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
     sup09_placements = ({"x": 223.0, "y": 13.0, "z": 26.0, "rot_z": 0.0},)
 
     # SUP10_DOOR_MORTISE_HINGE: 2x screwless mortise pin-and-knuckle hinges joining P05 (X=72.5) and P08 (X=83.5)
-    # Placed behind door at Y=195.0, Z=18.0 and Z=86.0
+    # Placed behind door at Y=195.0, Z=18.0 and Z=78.0 with exact coaxial pivot (77.0, 201.5)
     sup10_placements = (
-        {"x": 78.0, "y": 195.0, "z": 18.0, "rot_z": 0.0},
-        {"x": 78.0, "y": 195.0, "z": 86.0, "rot_z": 0.0},
+        {"x": 77.0, "y": 195.0, "z": 18.0, "rot_z": 0.0},
+        {"x": 77.0, "y": 195.0, "z": 78.0, "rot_z": 0.0},
     )
 
-    # SUP10B_SERVO_LINK_CLIP: 1x snap-in linkage horn clip plugging into P08 mortise (X=93.0, Y=195.0, Z=30.0)
-    sup10b_placements = ({"x": 93.0, "y": 195.0, "z": 30.0, "rot_z": 0.0},)
+    # SUP10B_DOOR_HORN_COUPLER: 1x coaxial open-top U-channel fork plugging into P08 MORT_DOOR_LINK (X=88.0, Y=195.0, Z=97.0)
+    sup10b_placements = ({"x": 88.0, "y": 195.0, "z": 97.0, "rot_z": 0.0},)
 
-    # SUP11_SG90_SNAP_SADDLE: 1x snap-on top retention saddle locking SG90 onto P07_SERVO_SHELF (X=51, Y=218.1, Z=29.5)
-    sup11_placements = ({"x": 51.0, "y": 218.125, "z": 29.5, "rot_z": 0.0},)
+    # SUP11_SG90_SNAP_SADDLE: 1x top-jamb retention saddle clamping inverted SG90 onto P07_SERVO_SHELF (X=71.5, Y=201.5, Z=111.5)
+    sup11_placements = ({"x": 71.5, "y": 201.5, "z": 111.5, "rot_z": 0.0},)
 
     # SUP12_DHT11_SNAP_CRADLE: 1x wall snap cradle plugging into P06_WALL_MID Living Room face at X=198.5, Y=286, Z=88 (-X inward)
     sup12_placements = ({"x": 198.5, "y": 286.0, "z": 88.0, "rot_z": -90.0},)
@@ -1031,6 +1042,18 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
 
     # SUP15_WATER_TANK_LINER: 1x one-piece watertight drop-in cup inside P09/P10/P12/P13 (X=269..316.5, Y=29..149, Z=0..54)
     sup15_placements = ({"x": 292.75, "y": 89.0, "z": 0.0, "rot_z": 0.0},)
+
+    # SUP16_DC022_STRAIN_RELIEF: 1x rear mortise snap-collar & wire guide for DC-022 behind P15 (X=30, Y=13, Z=22)
+    sup16_placements = ({"x": 30.0, "y": 13.0, "z": 22.0, "rot_z": 0.0},)
+
+    # SUP17_LED5MM_RETAINING_COLLAR: 2x press-fit bezel collars for Living Room (-X of P06 @ Y=232) & Bedroom (+X of P06 @ Y=258)
+    sup17_placements = (
+        {"x": 198.5, "y": 232.0, "z": 126.0, "rot_z": 90.0, "face_sign": -1},
+        {"x": 201.5, "y": 258.0, "z": 126.0, "rot_z": -90.0, "face_sign": +1},
+    )
+
+    # SUP18_BUZZER_SNAP_COLLAR: 1x rear mortise snap cup for TMB12A05 buzzer behind P05 CenterPillar (X=200, Y=195, Z=126)
+    sup18_placements = ({"x": 200.0, "y": 195.0, "z": 126.0, "rot_z": 0.0},)
 
     return [
         SupportSpec(
@@ -1265,38 +1288,54 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
             color_rgb=(0.82, 0.48, 0.32),
         ),
         SupportSpec(
-            part_id="SUP10B_SERVO_LINK_CLIP",
-            vi_name="Tai keo mong lien ket Servo SG90 tren canh cua",
-            category="servo_link_clip",
+            part_id="SUP10B_DOOR_HORN_COUPLER",
+            vi_name="Ngam chu U noi truc tiep tay don Servo SG90 (dong truc cua)",
+            category="door_horn_coupler",
             qty=1,
-            size_xyz=(14.0, 12.0, 9.0),
-            engrave=EngraveSpec("S10B", "", 7.0, 6.0, 1.8, False),
-            params={"base_x": 10.0, "base_y": 12.0, "base_t": 3.0, "arm_h": 6.0, "link_hole_d": 1.8, "tenon_x": 4.0, "tenon_y": 6.0, "tenon_h": 3.0},
-            mating_source="P08_DOOR_LEAF MORT_DOOR_LINK -> SG90 pushrod wire (1.2 mm)",
+            size_xyz=(10.5, 13.55, 7.5),
+            engrave=EngraveSpec("10B", "", 5.2, 4.2, 1.5, False),
+            params={
+                "slot_w": 4.9,
+                "horn_w": 4.5,
+                "fork_len_x": 5.0,
+                "fork_wall_t": 1.6,
+                "floor_h": 4.5,
+                "total_h": 7.5,
+                "base_t": 2.5,
+                "tenon_x": 4.0,
+                "tenon_y": 6.0,
+                "tenon_h": 3.0,
+            },
+            mating_source="P08_DOOR_LEAF MORT_DOOR_LINK (u=10, v=95) <-> coaxial SG90 white horn (4.5x1.6 mm @ Z=99.3..100.9)",
             assembly_placements=sup10b_placements,
-            notes="Tai keo mong gam vao ranh canh cua P08 de moc thanh day tu tay don Servo SG90.",
+            notes="Ngam ranh chu U mo dinh (rong long 4.9 mm) om truc tiep tay don trang SG90 dong truc voi ban le (77.0, 201.5).",
             color_rgb=(0.85, 0.52, 0.30),
         ),
         SupportSpec(
             part_id="SUP11_SG90_SNAP_SADDLE",
-            vi_name="Ngam mong khoa Servo SG90 tren ke P07 (khong vit)",
+            vi_name="Ngam mong khoa Servo SG90 dong truc tren ke P07",
             category="sg90_saddle",
             qty=1,
-            size_xyz=(14.0, 42.0, 9.5),
-            engrave=EngraveSpec("SUP11", "SG90", 7.0, 21.0, 2.0, True),
+            size_xyz=(45.0, 16.6, 8.6),
+            engrave=EngraveSpec("SUP11", "", 22.5, 14.5, 1.8, False),
             params={
-                "width_x": 14.0,
-                "length_y": 42.0,
-                "ear_clear_y": 32.6,  # clears 32.2 mm SG90 ear span
-                "ear_t": 2.6,  # holds 2.5 mm SG90 mounting ears flush against P07
-                "tenon_span_y": 34.2,  # matches P07 v=9.0 and v=43.2
-                "tenon_x": 6.0,
-                "tenon_y": 3.0,
+                "length_x": 45.0,
+                "width_y": 16.6,
+                "window_x": 23.6,
+                "window_y": 12.6,
+                "ear_clear_x": 33.2,  # clears 32.2 mm SG90 ear span (+0.5 mm/side)
+                "ear_t": 2.6,  # holds 2.5 mm SG90 mounting ears flush atop P07 (Z=111.5..114.0)
+                "bridge_t": 3.0,
+                "tenon_x": 3.0,
+                "tenon_y": 6.0,
                 "tenon_h": 3.0,
+                "tenon_l_local_x": 2.0,  # world X = 48.5 + 2.0 = 50.5 (P07 u=3.5)
+                "tenon_r_local_x": 42.0,  # world X = 48.5 + 42.0 = 90.5 (P07 u=43.5)
+                "tenon_local_y": 6.3,  # world Y = 195.2 + 6.3 = 201.5 (P07 v=6.375)
             },
-            mating_source="SG90 (22.8x12.2 body, 32.2 mm ear span) + P07_SERVO_SHELF mortises (34.2 mm span)",
+            mating_source="Inverted SG90 (22.8x12.2 body, 32.2 mm ear span) + P07_SERVO_SHELF mortises (u=3.5 & 43.5, v=6.375)",
             assembly_placements=sup11_placements,
-            notes="Ngam chup cai mong xuong 2 ranh cua P07 ep giu tai Servo SG90, thay the hoan toan 2 vit M2.",
+            notes="Ngam chup cai mong xuong 2 ranh cua P07 ep giu tai Servo SG90 lap nguoc dong truc cua, ho than xanh len tren.",
             color_rgb=(0.18, 0.50, 0.88),
         ),
         SupportSpec(
@@ -1398,6 +1437,80 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
             assembly_placements=sup15_placements,
             notes="Long be nuoc in lien khoi khong moi ghep dat long trong khoang P09-P13, thay the hoan toan keo chong tham.",
             color_rgb=(0.24, 0.62, 0.88),
+        ),
+        SupportSpec(
+            part_id="SUP16_DC022_STRAIN_RELIEF",
+            vi_name="Vong mong giu & giam cang day giac nguon DC-022 sau P15",
+            category="dc022_strain_relief",
+            qty=1,
+            size_xyz=(32.0, 16.4, 16.5),
+            engrave=EngraveSpec("SUP16", "", 16.0, 2.4, 1.6, False),
+            params={
+                "length": 32.0,
+                "width": 16.4,
+                "depth_h": 13.5,
+                "flange_t": 3.0,
+                "barrel_id": 12.4,  # clears Dia 12.0 mm DC-022 body (+0.20 mm radial)
+                "collar_od": 16.4,
+                "wire_slot_w": 4.2,
+                "tenon_span": 24.0,  # P15 u=10 and u=34
+                "tenon_x": 4.0,
+                "tenon_y": 6.0,
+                "tenon_h": 3.0,
+            },
+            mating_source="DC-022 M12 barrel jack (Dia 12.0x21 mm) + P15_TECH_FASCIA mortises (24.0 mm span)",
+            assembly_placements=sup16_placements,
+            notes="Vong mong sau mat na P15 om than giac DC-022 va dan huong giam cang cap nguon 5V 2A toi cau dau J1.",
+            color_rgb=(0.26, 0.44, 0.68),
+        ),
+        SupportSpec(
+            part_id="SUP17_LED5MM_RETAINING_COLLAR",
+            vi_name="Vong mong chao giu den LED 5mm tren vach giua P06",
+            category="led5mm_collar",
+            qty=2,
+            size_xyz=(22.0, 11.0, 8.0),
+            engrave=EngraveSpec("S17", "", 4.0, 5.5, 1.5, True),
+            params={
+                "length": 22.0,
+                "width": 11.0,
+                "collar_h": 5.0,
+                "dome_id": 5.1,  # press-fit bezel for Dia 5.0 mm T-1 3/4 LED dome
+                "dome_h": 2.0,
+                "flange_id": 6.0,  # seats Dia 5.8 mm LED rear flange cleanly
+                "tenon_span": 16.0,  # P06 u=32/48 (LR) and u=58/74 (BR)
+                "tenon_x": 3.0,
+                "tenon_y": 6.0,
+                "tenon_h": 3.0,
+            },
+            mating_source="5mm T-1 3/4 LED (Dia 5.0 dome, Dia 5.8 flange) + P06_WALL_MID mortises (16.0 mm span)",
+            assembly_placements=sup17_placements,
+            notes="Vong chao cai mong 2 chot giu chat den LED 5 mm phong khach (D0) va phong ngu (D4) tren P06.",
+            color_rgb=(0.94, 0.76, 0.24),
+        ),
+        SupportSpec(
+            part_id="SUP18_BUZZER_SNAP_COLLAR",
+            vi_name="Coc mong cai giu coi bao dong TMB12A05 sau cot P05",
+            category="buzzer_collar",
+            qty=1,
+            size_xyz=(17.0, 26.0, 12.5),
+            engrave=EngraveSpec("SUP18", "", 8.5, 2.0, 1.5, False),
+            params={
+                "width_x": 17.0,
+                "height_y": 26.0,
+                "depth_h": 9.5,
+                "back_t": 2.5,
+                "cup_id": 12.4,  # clears Dia 12.0 mm TMB12A05 buzzer (+0.20 mm radial)
+                "cup_od": 16.4,
+                "pin_hole_d": 9.2,  # clears 7.6 mm pin pitch rear exit
+                "tenon_span": 22.0,  # P05 v_s=118 and v_s=140
+                "tenon_x": 6.0,
+                "tenon_y": 3.0,
+                "tenon_h": 3.0,
+            },
+            mating_source="TMB12A05 5V buzzer (Dia 12.0x9.5 mm) + P05_WALL_FRONT mortises (v_s=118 & 140, in P06 relief zone)",
+            assembly_placements=sup18_placements,
+            notes="Coc mong sau tru giua P05 om tron coi TMB12A05 trong vung cat tranh P06 (u<22, Z>112), co lo thoat 2 chan.",
+            color_rgb=(0.34, 0.36, 0.44),
         ),
     ]
 

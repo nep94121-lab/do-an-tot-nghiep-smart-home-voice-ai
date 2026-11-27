@@ -15,28 +15,28 @@
   "zero_screws_zero_glue": true,
   "needs_slicer_supports": false,
   "packing_summary": {
-    "total_unique_parts": 57,
-    "total_part_instances": 99,
+    "total_unique_parts": 60,
+    "total_part_instances": 103,
     "usable_area_mm2": 32300.0,
-    "total_solid_area_mm2": 392796.69,
-    "total_bbox_area_mm2": 483931.6,
-    "theoretical_lower_bound_solid_exact": 12.16,
+    "total_solid_area_mm2": 393463.61,
+    "total_bbox_area_mm2": 485122.22,
+    "theoretical_lower_bound_solid_exact": 12.18,
     "theoretical_lower_bound_solid_ceil": 13,
-    "theoretical_lower_bound_bbox_exact": 14.98,
-    "theoretical_lower_bound_bbox_ceil": 15,
+    "theoretical_lower_bound_bbox_exact": 15.02,
+    "theoretical_lower_bound_bbox_ceil": 16,
     "achieved_plate_count": 17
   },
   "slicer_totals": {
     "total_plates": 17,
     "plates_passed": 17,
-    "total_part_instances": 99,
-    "total_print_time_sec": 393667,
-    "total_print_time_str": "109h 21m 7s",
-    "total_print_time_hours": 109.35,
-    "total_filament_mm": 347289.85,
-    "total_filament_m": 347.29,
-    "total_filament_cm3": 835.32,
-    "total_filament_g": 1035.8,
+    "total_part_instances": 103,
+    "total_print_time_sec": 398383,
+    "total_print_time_str": "110h 39m 43s",
+    "total_print_time_hours": 110.66,
+    "total_filament_mm": 350329.51,
+    "total_filament_m": 350.33,
+    "total_filament_cm3": 842.65,
+    "total_filament_g": 1044.86,
     "any_plate_needs_supports": false
   },
   "clearances": [
@@ -66,7 +66,7 @@
       "vi_name": "Mong chot vuong ep khit (mortise-and-tenon)",
       "clearance_mm": 0.15,
       "tolerance_band": "0.12 - 0.18 mm / canh (+0.30 mm tong)",
-      "where_used": "P17 thanh noi day, chan gia do SUP05..SUP14 va chot noi that FUR01..FUR08 cam xuong san"
+      "where_used": "P17 thanh noi day, chan gia do SUP05..SUP18 va chot noi that FUR01..FUR08 cam xuong san"
     },
     {
       "fit_type": "snap_fit_peg",
@@ -80,7 +80,7 @@
       "vi_name": "Ranh truot & ngoam kep mep bo mach",
       "clearance_mm": 0.2,
       "tolerance_band": "0.20 mm / canh (+0.40 mm tong khoang trong)",
-      "where_used": "SUP08 (PAM8403), SUP09 (Loa 28mm), SUP11 (SG90), SUP12 (DHT11), SUP13 (KY-037), SUP14 (LM393)"
+      "where_used": "SUP08 (PAM8403), SUP09 (Loa 28mm), SUP10B (Tay don SG90), SUP11 (SG90), SUP12 (DHT11), SUP13 (KY-037), SUP14 (LM393), SUP16 (DC-022), SUP17 (LED 5mm), SUP18 (Coi TMB12A05)"
     },
     {
       "fit_type": "hinge_pivot",
@@ -561,7 +561,7 @@
         123.0,
         3.0
       ],
-      "volume_mm3": 17695.054,
+      "volume_mm3": 17322.934,
       "stl_file": "parts/P05_WALL_FRONT_piece1of3.stl",
       "step_file": "parts/P05_WALL_FRONT_piece1of3.step",
       "drawing_png": "drawings/P05_WALL_FRONT_piece1of3.png",
@@ -581,7 +581,7 @@
         150.0,
         3.0
       ],
-      "volume_mm3": 28031.888,
+      "volume_mm3": 27907.148,
       "stl_file": "parts/P05_WALL_FRONT_piece2of3.stl",
       "step_file": "parts/P05_WALL_FRONT_piece2of3.step",
       "drawing_png": "drawings/P05_WALL_FRONT_piece2of3.png",
@@ -621,7 +621,7 @@
         150.0,
         3.0
       ],
-      "volume_mm3": 62560.865,
+      "volume_mm3": 62311.385,
       "stl_file": "parts/P06_WALL_MID.stl",
       "step_file": "parts/P06_WALL_MID.step",
       "drawing_png": "drawings/P06_WALL_MID.png",
@@ -637,11 +637,11 @@
       "qty": 1,
       "vi_name": "Ke gan Servo SG90 cua chinh (mong cai)",
       "print_bbox_mm": [
-        34.0,
-        49.125,
-        3.0
+        49.0,
+        29.125,
+        13.0
       ],
-      "volume_mm3": 3819.957,
+      "volume_mm3": 3182.724,
       "stl_file": "parts/P07_SERVO_SHELF.stl",
       "step_file": "parts/P07_SERVO_SHELF.step",
       "drawing_png": "drawings/P07_SERVO_SHELF.png",
@@ -649,7 +649,7 @@
       "manifold": true,
       "bed_fit": true,
       "engraved_ok": true,
-      "engrave_text": "P07 | 34x49x3mm"
+      "engrave_text": "P07 | 49x29x13"
     },
     {
       "part_id": "P08_DOOR_LEAF",
@@ -801,7 +801,7 @@
         45.0,
         3.0
       ],
-      "volume_mm3": 11028.964,
+      "volume_mm3": 10866.424,
       "stl_file": "parts/P15_TECH_FASCIA_piece1of2.stl",
       "step_file": "parts/P15_TECH_FASCIA_piece1of2.step",
       "drawing_png": "drawings/P15_TECH_FASCIA_piece1of2.png",
@@ -1112,20 +1112,20 @@
       "engrave_text": "10A | 10B"
     },
     {
-      "part_id": "SUP10B_SERVO_LINK_CLIP",
+      "part_id": "SUP10B_DOOR_HORN_COUPLER",
       "kind": "support",
       "qty": 1,
-      "vi_name": "Tai keo mong lien ket Servo SG90 tren canh cua",
+      "vi_name": "Ngam chu U noi truc tiep tay don Servo SG90 (dong truc cua)",
       "print_bbox_mm": [
-        10.0,
-        13.0,
-        9.0
+        9.0,
+        13.55,
+        11.5
       ],
-      "volume_mm3": 465.799,
-      "stl_file": "parts/SUP10B_SERVO_LINK_CLIP.stl",
-      "step_file": "parts/SUP10B_SERVO_LINK_CLIP.step",
-      "drawing_png": "drawings/SUP10B_SERVO_LINK_CLIP.png",
-      "drawing_pdf": "drawings/SUP10B_SERVO_LINK_CLIP.pdf",
+      "volume_mm3": 482.032,
+      "stl_file": "parts/SUP10B_DOOR_HORN_COUPLER.stl",
+      "step_file": "parts/SUP10B_DOOR_HORN_COUPLER.step",
+      "drawing_png": "drawings/SUP10B_DOOR_HORN_COUPLER.png",
+      "drawing_pdf": "drawings/SUP10B_DOOR_HORN_COUPLER.pdf",
       "manifold": true,
       "bed_fit": true,
       "engraved_ok": true,
@@ -1135,13 +1135,13 @@
       "part_id": "SUP11_SG90_SNAP_SADDLE",
       "kind": "support",
       "qty": 1,
-      "vi_name": "Ngam mong khoa Servo SG90 tren ke P07 (khong vit)",
+      "vi_name": "Ngam mong khoa Servo SG90 dong truc tren ke P07",
       "print_bbox_mm": [
-        18.0,
-        42.0,
+        45.0,
+        16.6,
         8.6
       ],
-      "volume_mm3": 1889.755,
+      "volume_mm3": 1963.095,
       "stl_file": "parts/SUP11_SG90_SNAP_SADDLE.stl",
       "step_file": "parts/SUP11_SG90_SNAP_SADDLE.step",
       "drawing_png": "drawings/SUP11_SG90_SNAP_SADDLE.png",
@@ -1230,256 +1230,124 @@
       "bed_fit": true,
       "engraved_ok": true,
       "engrave_text": "SUP15 WATER LINER"
+    },
+    {
+      "part_id": "SUP16_DC022_STRAIN_RELIEF",
+      "kind": "support",
+      "qty": 1,
+      "vi_name": "Vong mong giu & giam cang day giac nguon DC-022 sau P15",
+      "print_bbox_mm": [
+        32.0,
+        16.4,
+        16.5
+      ],
+      "volume_mm3": 4821.387,
+      "stl_file": "parts/SUP16_DC022_STRAIN_RELIEF.stl",
+      "step_file": "parts/SUP16_DC022_STRAIN_RELIEF.step",
+      "drawing_png": "drawings/SUP16_DC022_STRAIN_RELIEF.png",
+      "drawing_pdf": "drawings/SUP16_DC022_STRAIN_RELIEF.pdf",
+      "manifold": true,
+      "bed_fit": true,
+      "engraved_ok": true,
+      "engrave_text": "S16"
+    },
+    {
+      "part_id": "SUP17_LED5MM_RETAINING_COLLAR",
+      "kind": "support",
+      "qty": 2,
+      "vi_name": "Vong mong chao giu den LED 5mm tren vach giua P06",
+      "print_bbox_mm": [
+        22.0,
+        11.0,
+        8.0
+      ],
+      "volume_mm3": 1190.247,
+      "stl_file": "parts/SUP17_LED5MM_RETAINING_COLLAR.stl",
+      "step_file": "parts/SUP17_LED5MM_RETAINING_COLLAR.step",
+      "drawing_png": "drawings/SUP17_LED5MM_RETAINING_COLLAR.png",
+      "drawing_pdf": "drawings/SUP17_LED5MM_RETAINING_COLLAR.pdf",
+      "manifold": true,
+      "bed_fit": true,
+      "engraved_ok": true,
+      "engrave_text": "S17"
+    },
+    {
+      "part_id": "SUP18_BUZZER_SNAP_COLLAR",
+      "kind": "support",
+      "qty": 1,
+      "vi_name": "Coc mong cai giu coi bao dong TMB12A05 sau cot P05",
+      "print_bbox_mm": [
+        17.0,
+        26.0,
+        12.5
+      ],
+      "volume_mm3": 2238.076,
+      "stl_file": "parts/SUP18_BUZZER_SNAP_COLLAR.stl",
+      "step_file": "parts/SUP18_BUZZER_SNAP_COLLAR.step",
+      "drawing_png": "drawings/SUP18_BUZZER_SNAP_COLLAR.png",
+      "drawing_pdf": "drawings/SUP18_BUZZER_SNAP_COLLAR.pdf",
+      "manifold": true,
+      "bed_fit": true,
+      "engraved_ok": true,
+      "engrave_text": "S18"
     }
   ],
   "plates": [
     {
       "plate_index": 1,
-      "plate_id": "PLATE01_base_walls",
-      "stl_file": "plates/PLATE01_base_walls.stl",
-      "threemf_file": "plates/PLATE01_base_walls.3mf",
+      "plate_id": "PLATE01_base_tech",
+      "stl_file": "plates/PLATE01_base_tech.stl",
+      "threemf_file": "plates/PLATE01_base_tech.3mf",
       "preview_png": "previews/_plate01_layout.png",
-      "part_count": 10,
+      "part_count": 7,
       "unique_parts": [
-        "FUR02_TV_STAND",
-        "FUR03_TV_SCREEN",
+        "FUR07_MINI_TREE",
         "FUR09_FLOOR_TENON_PEG",
-        "P01B_BASE_HOUSE_piece4of6",
-        "P08_DOOR_LEAF",
-        "P14_SOIL_BRIDGE",
-        "SUP05B_CARRIER_TENON_PEG"
-      ],
-      "used_bbox_mm": [
-        170.0,
-        189.95,
-        18.0
-      ],
-      "bed_bounds_min_mm": [
-        5.0,
-        5.03,
-        0.0
-      ],
-      "bed_bounds_max_mm": [
-        175.0,
-        194.97,
-        18.0
-      ],
-      "bbox_utilization_pct": 92.7,
-      "solid_utilization_pct": 85.7,
-      "print_time_str": "7h 26m 36s",
-      "print_time_sec": 26796,
-      "filament_g": 70.97,
-      "filament_m": 23.8,
-      "manifold_3mf": true,
-      "manifold_stl": true,
-      "slice_ok": true,
-      "gcode_x_range_mm": [
-        2.821,
-        177.179
-      ],
-      "gcode_y_range_mm": [
-        2.846,
-        197.154
-      ],
-      "gcode_z_max_mm": 18.0,
-      "items": [
-        {
-          "inst_id": "P01B_BASE_HOUSE_piece4of6",
-          "part_id": "P01B_BASE_HOUSE_piece4of6",
-          "kind": "panel",
-          "group": "base",
-          "x_mm": 5.0,
-          "y_mm": 5.025,
-          "w_mm": 131.375,
-          "h_mm": 130.95,
-          "z_mm": 3.0,
-          "rotated_90": true,
-          "bbox_area_mm2": 17203.56,
-          "solid_area_mm2": 16112.16
-        },
-        {
-          "inst_id": "P08_DOOR_LEAF",
-          "part_id": "P08_DOOR_LEAF",
-          "kind": "panel",
-          "group": "walls",
-          "x_mm": 5.0,
-          "y_mm": 138.975,
-          "w_mm": 100.0,
-          "h_mm": 56.0,
-          "z_mm": 3.0,
-          "rotated_90": true,
-          "bbox_area_mm2": 5600.0,
-          "solid_area_mm2": 4738.73
-        },
-        {
-          "inst_id": "P14_SOIL_BRIDGE",
-          "part_id": "P14_SOIL_BRIDGE",
-          "kind": "panel",
-          "group": "garden",
-          "x_mm": 139.375,
-          "y_mm": 5.025,
-          "w_mm": 32.0,
-          "h_mm": 126.0,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 4032.0,
-          "solid_area_mm2": 3842.5
-        },
-        {
-          "inst_id": "FUR03_TV_SCREEN",
-          "part_id": "FUR03_TV_SCREEN",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 139.375,
-          "y_mm": 134.025,
-          "w_mm": 35.0,
-          "h_mm": 48.0,
-          "z_mm": 5.0,
-          "rotated_90": true,
-          "bbox_area_mm2": 1680.0,
-          "solid_area_mm2": 1511.84
-        },
-        {
-          "inst_id": "FUR02_TV_STAND",
-          "part_id": "FUR02_TV_STAND",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 108.0,
-          "y_mm": 138.975,
-          "w_mm": 22.0,
-          "h_mm": 56.0,
-          "z_mm": 18.0,
-          "rotated_90": true,
-          "bbox_area_mm2": 1232.0,
-          "solid_area_mm2": 1294.88
-        },
-        {
-          "inst_id": "FUR09_FLOOR_TENON_PEG_copy8of10",
-          "part_id": "FUR09_FLOOR_TENON_PEG",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 133.0,
-          "y_mm": 185.025,
-          "w_mm": 6.0,
-          "h_mm": 7.0,
-          "z_mm": 4.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 42.0,
-          "solid_area_mm2": 41.82
-        },
-        {
-          "inst_id": "FUR09_FLOOR_TENON_PEG_copy9of10",
-          "part_id": "FUR09_FLOOR_TENON_PEG",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 142.0,
-          "y_mm": 185.025,
-          "w_mm": 6.0,
-          "h_mm": 7.0,
-          "z_mm": 4.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 42.0,
-          "solid_area_mm2": 41.82
-        },
-        {
-          "inst_id": "FUR09_FLOOR_TENON_PEG_copy10of10",
-          "part_id": "FUR09_FLOOR_TENON_PEG",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 151.0,
-          "y_mm": 185.025,
-          "w_mm": 6.0,
-          "h_mm": 7.0,
-          "z_mm": 4.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 42.0,
-          "solid_area_mm2": 41.82
-        },
-        {
-          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy2of10",
-          "part_id": "SUP05B_CARRIER_TENON_PEG",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 160.0,
-          "y_mm": 185.025,
-          "w_mm": 6.0,
-          "h_mm": 6.0,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 36.0,
-          "solid_area_mm2": 34.24
-        },
-        {
-          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy3of10",
-          "part_id": "SUP05B_CARRIER_TENON_PEG",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 169.0,
-          "y_mm": 185.025,
-          "w_mm": 6.0,
-          "h_mm": 6.0,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 36.0,
-          "solid_area_mm2": 34.24
-        }
-      ]
-    },
-    {
-      "plate_index": 2,
-      "plate_id": "PLATE02_base_tech",
-      "stl_file": "plates/PLATE02_base_tech.stl",
-      "threemf_file": "plates/PLATE02_base_tech.3mf",
-      "preview_png": "previews/_plate02_layout.png",
-      "part_count": 5,
-      "unique_parts": [
         "P01A_BASE_TECH_piece2of3",
         "P15_TECH_FASCIA_piece2of2",
-        "SUP07_RELAY_SNAP_CADDY",
-        "SUP12_DHT11_SNAP_CRADLE",
-        "SUP13_KY037_SNAP_CRADLE"
+        "SUP03_SEAM_U_CLIP"
       ],
       "used_bbox_mm": [
-        168.85,
-        189.4,
-        11.4
+        169.65,
+        190.0,
+        9.0
       ],
       "bed_bounds_min_mm": [
-        5.58,
-        5.3,
+        5.17,
+        5.0,
         0.0
       ],
       "bed_bounds_max_mm": [
-        174.43,
-        194.7,
-        11.4
+        174.82,
+        195.0,
+        9.0
       ],
-      "bbox_utilization_pct": 90.3,
-      "solid_utilization_pct": 76.2,
-      "print_time_str": "7h 11m 6s",
-      "print_time_sec": 25866,
-      "filament_g": 63.26,
-      "filament_m": 21.21,
+      "bbox_utilization_pct": 91.8,
+      "solid_utilization_pct": 73.7,
+      "print_time_str": "6h 23m 58s",
+      "print_time_sec": 23038,
+      "filament_g": 57.52,
+      "filament_m": 19.29,
       "manifold_3mf": true,
       "manifold_stl": true,
       "slice_ok": true,
       "gcode_x_range_mm": [
-        3.396,
-        176.6
+        2.996,
+        177.004
       ],
       "gcode_y_range_mm": [
-        3.121,
-        196.879
+        2.821,
+        197.179
       ],
-      "gcode_z_max_mm": 11.4,
+      "gcode_z_max_mm": 9.0,
       "items": [
         {
           "inst_id": "P01A_BASE_TECH_piece2of3",
           "part_id": "P01A_BASE_TECH_piece2of3",
           "kind": "panel",
           "group": "base",
-          "x_mm": 5.575,
-          "y_mm": 5.3,
+          "x_mm": 5.175,
+          "y_mm": 5.0,
           "w_mm": 111.45,
           "h_mm": 181.875,
           "z_mm": 3.0,
@@ -1492,8 +1360,8 @@
           "part_id": "P15_TECH_FASCIA_piece2of2",
           "kind": "panel",
           "group": "tech",
-          "x_mm": 120.025,
-          "y_mm": 5.3,
+          "x_mm": 119.625,
+          "y_mm": 5.0,
           "w_mm": 51.0,
           "h_mm": 107.0,
           "z_mm": 3.0,
@@ -1502,119 +1370,133 @@
           "solid_area_mm2": 3524.33
         },
         {
-          "inst_id": "SUP07_RELAY_SNAP_CADDY_copy2of2",
-          "part_id": "SUP07_RELAY_SNAP_CADDY",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 120.025,
-          "y_mm": 115.3,
-          "w_mm": 54.4,
-          "h_mm": 30.4,
-          "z_mm": 11.4,
+          "inst_id": "FUR07_MINI_TREE_copy1of2",
+          "part_id": "FUR07_MINI_TREE",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 119.625,
+          "y_mm": 115.0,
+          "w_mm": 43.0,
+          "h_mm": 38.0,
+          "z_mm": 3.0,
           "rotated_90": false,
-          "bbox_area_mm2": 1653.76,
-          "solid_area_mm2": 1405.02
+          "bbox_area_mm2": 1634.0,
+          "solid_area_mm2": 677.25
         },
         {
-          "inst_id": "SUP12_DHT11_SNAP_CRADLE",
-          "part_id": "SUP12_DHT11_SNAP_CRADLE",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 120.025,
-          "y_mm": 148.7,
-          "w_mm": 28.0,
-          "h_mm": 32.4,
-          "z_mm": 11.0,
+          "inst_id": "FUR07_MINI_TREE_copy2of2",
+          "part_id": "FUR07_MINI_TREE",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 119.625,
+          "y_mm": 156.0,
+          "w_mm": 43.0,
+          "h_mm": 38.0,
+          "z_mm": 3.0,
           "rotated_90": false,
-          "bbox_area_mm2": 907.2,
-          "solid_area_mm2": 707.2
+          "bbox_area_mm2": 1634.0,
+          "solid_area_mm2": 677.25
         },
         {
-          "inst_id": "SUP13_KY037_SNAP_CRADLE",
-          "part_id": "SUP13_KY037_SNAP_CRADLE",
+          "inst_id": "SUP03_SEAM_U_CLIP_copy2of8",
+          "part_id": "SUP03_SEAM_U_CLIP",
           "kind": "support",
           "group": "mounts",
-          "x_mm": 151.025,
-          "y_mm": 148.7,
-          "w_mm": 19.4,
-          "h_mm": 46.0,
-          "z_mm": 11.0,
+          "x_mm": 165.625,
+          "y_mm": 115.0,
+          "w_mm": 9.2,
+          "h_mm": 34.0,
+          "z_mm": 9.0,
           "rotated_90": true,
-          "bbox_area_mm2": 892.4,
-          "solid_area_mm2": 724.4
+          "bbox_area_mm2": 312.8,
+          "solid_area_mm2": 312.8
+        },
+        {
+          "inst_id": "SUP03_SEAM_U_CLIP_copy3of8",
+          "part_id": "SUP03_SEAM_U_CLIP",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 165.625,
+          "y_mm": 152.0,
+          "w_mm": 9.2,
+          "h_mm": 34.0,
+          "z_mm": 9.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 312.8,
+          "solid_area_mm2": 312.8
+        },
+        {
+          "inst_id": "FUR09_FLOOR_TENON_PEG_copy1of10",
+          "part_id": "FUR09_FLOOR_TENON_PEG",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 165.625,
+          "y_mm": 189.0,
+          "w_mm": 7.0,
+          "h_mm": 6.0,
+          "z_mm": 4.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 42.0,
+          "solid_area_mm2": 41.82
         }
       ]
     },
     {
-      "plate_index": 3,
-      "plate_id": "PLATE03_base_mounts",
-      "stl_file": "plates/PLATE03_base_mounts.stl",
-      "threemf_file": "plates/PLATE03_base_mounts.3mf",
-      "preview_png": "previews/_plate03_layout.png",
-      "part_count": 7,
+      "plate_index": 2,
+      "plate_id": "PLATE02_base_furniture",
+      "stl_file": "plates/PLATE02_base_furniture.stl",
+      "threemf_file": "plates/PLATE02_base_furniture.3mf",
+      "preview_png": "previews/_plate02_layout.png",
+      "part_count": 6,
       "unique_parts": [
-        "FUR05_BEDSIDE_TABLE",
-        "P01B_BASE_HOUSE_piece2of6",
+        "FUR01_SOFA",
+        "P01B_BASE_HOUSE_piece1of6",
         "P01B_BASE_HOUSE_piece3of6",
-        "P17_BASE_JOINER",
+        "P07_SERVO_SHELF",
         "SUP03_SEAM_U_CLIP",
-        "SUP05_P16_TENON_RISER"
+        "SUP08_PAM8403_SNAP_TRAY"
       ],
       "used_bbox_mm": [
-        167.5,
-        186.45,
-        28.0
+        168.62,
+        183.9,
+        34.0
       ],
       "bed_bounds_min_mm": [
-        6.25,
-        6.78,
+        5.69,
+        8.05,
         0.0
       ],
       "bed_bounds_max_mm": [
-        173.75,
-        193.22,
-        28.0
+        174.31,
+        191.95,
+        34.0
       ],
-      "bbox_utilization_pct": 90.1,
-      "solid_utilization_pct": 83.5,
-      "print_time_str": "7h 21m 0s",
-      "print_time_sec": 26460,
-      "filament_g": 68.57,
-      "filament_m": 22.99,
+      "bbox_utilization_pct": 90.8,
+      "solid_utilization_pct": 84.6,
+      "print_time_str": "8h 24m 46s",
+      "print_time_sec": 30286,
+      "filament_g": 83.97,
+      "filament_m": 28.15,
       "manifold_3mf": true,
       "manifold_stl": true,
       "slice_ok": true,
       "gcode_x_range_mm": [
-        4.071,
-        175.929
+        3.509,
+        176.492
       ],
       "gcode_y_range_mm": [
-        4.596,
-        195.404
+        5.871,
+        194.129
       ],
-      "gcode_z_max_mm": 28.0,
+      "gcode_z_max_mm": 34.0,
       "items": [
-        {
-          "inst_id": "P01B_BASE_HOUSE_piece2of6",
-          "part_id": "P01B_BASE_HOUSE_piece2of6",
-          "kind": "panel",
-          "group": "base",
-          "x_mm": 6.25,
-          "y_mm": 6.775,
-          "w_mm": 150.45,
-          "h_mm": 90.45,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 13608.2,
-          "solid_area_mm2": 12393.92
-        },
         {
           "inst_id": "P01B_BASE_HOUSE_piece3of6",
           "part_id": "P01B_BASE_HOUSE_piece3of6",
           "kind": "panel",
           "group": "base",
-          "x_mm": 6.25,
-          "y_mm": 100.225,
+          "x_mm": 5.688,
+          "y_mm": 8.05,
           "w_mm": 136.5,
           "h_mm": 90.45,
           "z_mm": 3.0,
@@ -1623,74 +1505,365 @@
           "solid_area_mm2": 11407.48
         },
         {
-          "inst_id": "P17_BASE_JOINER_copy1of2",
-          "part_id": "P17_BASE_JOINER",
+          "inst_id": "P01B_BASE_HOUSE_piece1of6",
+          "part_id": "P01B_BASE_HOUSE_piece1of6",
           "kind": "panel",
           "group": "base",
-          "x_mm": 145.75,
-          "y_mm": 100.225,
-          "w_mm": 28.0,
-          "h_mm": 64.0,
-          "z_mm": 6.0,
-          "rotated_90": true,
-          "bbox_area_mm2": 1792.0,
-          "solid_area_mm2": 1792.0
+          "x_mm": 5.688,
+          "y_mm": 101.5,
+          "w_mm": 130.95,
+          "h_mm": 90.45,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 11844.43,
+          "solid_area_mm2": 11154.99
         },
         {
-          "inst_id": "FUR05_BEDSIDE_TABLE",
-          "part_id": "FUR05_BEDSIDE_TABLE",
+          "inst_id": "FUR01_SOFA",
+          "part_id": "FUR01_SOFA",
           "kind": "furniture",
           "group": "furniture",
-          "x_mm": 145.75,
-          "y_mm": 167.225,
-          "w_mm": 22.0,
-          "h_mm": 26.0,
-          "z_mm": 28.0,
+          "x_mm": 139.638,
+          "y_mm": 101.5,
+          "w_mm": 34.0,
+          "h_mm": 76.0,
+          "z_mm": 34.0,
           "rotated_90": true,
-          "bbox_area_mm2": 572.0,
-          "solid_area_mm2": 635.77
+          "bbox_area_mm2": 2584.0,
+          "solid_area_mm2": 2586.16
         },
         {
-          "inst_id": "SUP03_SEAM_U_CLIP_copy4of8",
+          "inst_id": "P07_SERVO_SHELF",
+          "part_id": "P07_SERVO_SHELF",
+          "kind": "panel",
+          "group": "walls",
+          "x_mm": 145.188,
+          "y_mm": 8.05,
+          "w_mm": 29.125,
+          "h_mm": 49.0,
+          "z_mm": 13.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 1427.12,
+          "solid_area_mm2": 1030.26
+        },
+        {
+          "inst_id": "SUP08_PAM8403_SNAP_TRAY",
+          "part_id": "SUP08_PAM8403_SNAP_TRAY",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 145.188,
+          "y_mm": 60.05,
+          "w_mm": 23.0,
+          "h_mm": 36.0,
+          "z_mm": 8.8,
+          "rotated_90": true,
+          "bbox_area_mm2": 828.0,
+          "solid_area_mm2": 837.6
+        },
+        {
+          "inst_id": "SUP03_SEAM_U_CLIP_copy1of8",
           "part_id": "SUP03_SEAM_U_CLIP",
           "kind": "support",
           "group": "mounts",
-          "x_mm": 159.7,
-          "y_mm": 6.775,
-          "w_mm": 9.2,
-          "h_mm": 34.0,
+          "x_mm": 139.638,
+          "y_mm": 180.5,
+          "w_mm": 34.0,
+          "h_mm": 9.2,
           "z_mm": 9.0,
-          "rotated_90": true,
+          "rotated_90": false,
           "bbox_area_mm2": 312.8,
           "solid_area_mm2": 312.8
+        }
+      ]
+    },
+    {
+      "plate_index": 3,
+      "plate_id": "PLATE03_base_garden",
+      "stl_file": "plates/PLATE03_base_garden.stl",
+      "threemf_file": "plates/PLATE03_base_garden.3mf",
+      "preview_png": "previews/_plate03_layout.png",
+      "part_count": 17,
+      "unique_parts": [
+        "P01B_BASE_HOUSE_piece6of6",
+        "P11_GARDEN_RIGHT",
+        "SUP04_BASE_FOOT_CLIP",
+        "SUP05B_CARRIER_TENON_PEG",
+        "SUP07_RELAY_SNAP_CADDY",
+        "SUP10_DOOR_MORTISE_HINGE",
+        "SUP12_DHT11_SNAP_CRADLE",
+        "SUP14_LM393_SNAP_CRADLE"
+      ],
+      "used_bbox_mm": [
+        169.5,
+        188.78,
+        14.0
+      ],
+      "bed_bounds_min_mm": [
+        5.25,
+        5.61,
+        0.0
+      ],
+      "bed_bounds_max_mm": [
+        174.75,
+        194.39,
+        14.0
+      ],
+      "bbox_utilization_pct": 90.8,
+      "solid_utilization_pct": 81.7,
+      "print_time_str": "7h 49m 17s",
+      "print_time_sec": 28157,
+      "filament_g": 70.95,
+      "filament_m": 23.79,
+      "manifold_3mf": true,
+      "manifold_stl": true,
+      "slice_ok": true,
+      "gcode_x_range_mm": [
+        3.071,
+        176.929
+      ],
+      "gcode_y_range_mm": [
+        3.433,
+        196.566
+      ],
+      "gcode_z_max_mm": 14.0,
+      "items": [
+        {
+          "inst_id": "P01B_BASE_HOUSE_piece6of6",
+          "part_id": "P01B_BASE_HOUSE_piece6of6",
+          "kind": "panel",
+          "group": "base",
+          "x_mm": 5.25,
+          "y_mm": 5.612,
+          "w_mm": 136.5,
+          "h_mm": 131.375,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 17932.69,
+          "solid_area_mm2": 16347.22
         },
         {
-          "inst_id": "SUP03_SEAM_U_CLIP_copy5of8",
-          "part_id": "SUP03_SEAM_U_CLIP",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 159.7,
-          "y_mm": 43.775,
-          "w_mm": 9.2,
-          "h_mm": 34.0,
-          "z_mm": 9.0,
-          "rotated_90": true,
-          "bbox_area_mm2": 312.8,
-          "solid_area_mm2": 312.8
+          "inst_id": "P11_GARDEN_RIGHT",
+          "part_id": "P11_GARDEN_RIGHT",
+          "kind": "panel",
+          "group": "garden",
+          "x_mm": 5.25,
+          "y_mm": 139.987,
+          "w_mm": 126.0,
+          "h_mm": 51.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 6426.0,
+          "solid_area_mm2": 5919.5
         },
         {
-          "inst_id": "SUP05_P16_TENON_RISER_copy2of4",
-          "part_id": "SUP05_P16_TENON_RISER",
+          "inst_id": "SUP07_RELAY_SNAP_CADDY_copy1of2",
+          "part_id": "SUP07_RELAY_SNAP_CADDY",
           "kind": "support",
           "group": "mounts",
-          "x_mm": 159.7,
-          "y_mm": 80.775,
-          "w_mm": 12.0,
-          "h_mm": 14.0,
-          "z_mm": 9.0,
+          "x_mm": 134.25,
+          "y_mm": 139.987,
+          "w_mm": 30.4,
+          "h_mm": 54.4,
+          "z_mm": 11.4,
           "rotated_90": true,
-          "bbox_area_mm2": 168.0,
-          "solid_area_mm2": 131.82
+          "bbox_area_mm2": 1653.76,
+          "solid_area_mm2": 1405.02
+        },
+        {
+          "inst_id": "SUP14_LM393_SNAP_CRADLE",
+          "part_id": "SUP14_LM393_SNAP_CRADLE",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 144.75,
+          "y_mm": 5.612,
+          "w_mm": 18.4,
+          "h_mm": 44.0,
+          "z_mm": 11.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 809.6,
+          "solid_area_mm2": 629.6
+        },
+        {
+          "inst_id": "SUP12_DHT11_SNAP_CRADLE",
+          "part_id": "SUP12_DHT11_SNAP_CRADLE",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 144.75,
+          "y_mm": 52.612,
+          "w_mm": 28.0,
+          "h_mm": 32.4,
+          "z_mm": 11.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 907.2,
+          "solid_area_mm2": 707.2
+        },
+        {
+          "inst_id": "SUP04_BASE_FOOT_CLIP_copy1of4",
+          "part_id": "SUP04_BASE_FOOT_CLIP",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 144.75,
+          "y_mm": 88.012,
+          "w_mm": 30.0,
+          "h_mm": 30.0,
+          "z_mm": 14.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 900.0,
+          "solid_area_mm2": 900.0
+        },
+        {
+          "inst_id": "SUP10_DOOR_MORTISE_HINGE_copy1of2",
+          "part_id": "SUP10_DOOR_MORTISE_HINGE",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 144.75,
+          "y_mm": 121.012,
+          "w_mm": 27.2,
+          "h_mm": 12.7,
+          "z_mm": 6.2,
+          "rotated_90": false,
+          "bbox_area_mm2": 345.44,
+          "solid_area_mm2": 142.34
+        },
+        {
+          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy1of10",
+          "part_id": "SUP05B_CARRIER_TENON_PEG",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 166.15,
+          "y_mm": 5.612,
+          "w_mm": 6.0,
+          "h_mm": 6.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 36.0,
+          "solid_area_mm2": 34.24
+        },
+        {
+          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy2of10",
+          "part_id": "SUP05B_CARRIER_TENON_PEG",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 166.15,
+          "y_mm": 14.612,
+          "w_mm": 6.0,
+          "h_mm": 6.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 36.0,
+          "solid_area_mm2": 34.24
+        },
+        {
+          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy3of10",
+          "part_id": "SUP05B_CARRIER_TENON_PEG",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 166.15,
+          "y_mm": 23.612,
+          "w_mm": 6.0,
+          "h_mm": 6.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 36.0,
+          "solid_area_mm2": 34.24
+        },
+        {
+          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy4of10",
+          "part_id": "SUP05B_CARRIER_TENON_PEG",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 166.15,
+          "y_mm": 32.612,
+          "w_mm": 6.0,
+          "h_mm": 6.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 36.0,
+          "solid_area_mm2": 34.24
+        },
+        {
+          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy5of10",
+          "part_id": "SUP05B_CARRIER_TENON_PEG",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 166.15,
+          "y_mm": 41.612,
+          "w_mm": 6.0,
+          "h_mm": 6.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 36.0,
+          "solid_area_mm2": 34.24
+        },
+        {
+          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy6of10",
+          "part_id": "SUP05B_CARRIER_TENON_PEG",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 167.65,
+          "y_mm": 136.712,
+          "w_mm": 6.0,
+          "h_mm": 6.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 36.0,
+          "solid_area_mm2": 34.24
+        },
+        {
+          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy7of10",
+          "part_id": "SUP05B_CARRIER_TENON_PEG",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 167.65,
+          "y_mm": 145.712,
+          "w_mm": 6.0,
+          "h_mm": 6.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 36.0,
+          "solid_area_mm2": 34.24
+        },
+        {
+          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy8of10",
+          "part_id": "SUP05B_CARRIER_TENON_PEG",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 167.65,
+          "y_mm": 154.712,
+          "w_mm": 6.0,
+          "h_mm": 6.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 36.0,
+          "solid_area_mm2": 34.24
+        },
+        {
+          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy9of10",
+          "part_id": "SUP05B_CARRIER_TENON_PEG",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 167.65,
+          "y_mm": 163.712,
+          "w_mm": 6.0,
+          "h_mm": 6.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 36.0,
+          "solid_area_mm2": 34.24
+        },
+        {
+          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy10of10",
+          "part_id": "SUP05B_CARRIER_TENON_PEG",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 167.65,
+          "y_mm": 172.712,
+          "w_mm": 6.0,
+          "h_mm": 6.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 36.0,
+          "solid_area_mm2": 34.24
         }
       ]
     },
@@ -1756,335 +1929,216 @@
     },
     {
       "plate_index": 5,
-      "plate_id": "PLATE05_base_tech",
-      "stl_file": "plates/PLATE05_base_tech.stl",
-      "threemf_file": "plates/PLATE05_base_tech.3mf",
+      "plate_id": "PLATE05_base_mounts",
+      "stl_file": "plates/PLATE05_base_mounts.stl",
+      "threemf_file": "plates/PLATE05_base_mounts.3mf",
       "preview_png": "previews/_plate05_layout.png",
-      "part_count": 10,
+      "part_count": 12,
       "unique_parts": [
-        "FUR06_PLANT_POT_LARGE",
-        "FUR08_PLANT_POT_SMALL",
-        "P01B_BASE_HOUSE_piece6of6",
-        "P15_TECH_FASCIA_piece1of2",
-        "P17_BASE_JOINER",
-        "SUP02_CORNER_CLIP_LOW",
-        "SUP05B_CARRIER_TENON_PEG",
-        "SUP08_PAM8403_SNAP_TRAY"
+        "FUR09_FLOOR_TENON_PEG",
+        "P01B_BASE_HOUSE_piece4of6",
+        "SUP01B_T_CLIP_WALL",
+        "SUP04_BASE_FOOT_CLIP",
+        "SUP07_RELAY_SNAP_CADDY",
+        "SUP10_DOOR_MORTISE_HINGE",
+        "SUP15_WATER_TANK_LINER",
+        "SUP17_LED5MM_RETAINING_COLLAR"
       ],
       "used_bbox_mm": [
-        168.95,
-        189.0,
-        18.0
+        168.1,
+        188.35,
+        45.0
       ],
       "bed_bounds_min_mm": [
-        5.53,
-        5.5,
+        5.95,
+        5.83,
         0.0
       ],
       "bed_bounds_max_mm": [
-        174.47,
-        194.5,
-        18.0
+        174.05,
+        194.18,
+        45.0
       ],
       "bbox_utilization_pct": 88.0,
-      "solid_utilization_pct": 74.5,
-      "print_time_str": "6h 50m 33s",
-      "print_time_sec": 24633,
-      "filament_g": 63.2,
-      "filament_m": 21.19,
+      "solid_utilization_pct": 82.4,
+      "print_time_str": "10h 57m 43s",
+      "print_time_sec": 39463,
+      "filament_g": 110.33,
+      "filament_m": 36.99,
       "manifold_3mf": true,
       "manifold_stl": true,
       "slice_ok": true,
       "gcode_x_range_mm": [
-        3.346,
-        176.654
+        3.771,
+        176.228
       ],
       "gcode_y_range_mm": [
-        3.321,
-        196.679
+        3.646,
+        196.354
       ],
-      "gcode_z_max_mm": 18.0,
+      "gcode_z_max_mm": 45.0,
       "items": [
         {
-          "inst_id": "P01B_BASE_HOUSE_piece6of6",
-          "part_id": "P01B_BASE_HOUSE_piece6of6",
+          "inst_id": "P01B_BASE_HOUSE_piece4of6",
+          "part_id": "P01B_BASE_HOUSE_piece4of6",
           "kind": "panel",
           "group": "base",
-          "x_mm": 5.525,
-          "y_mm": 5.5,
-          "w_mm": 136.5,
-          "h_mm": 131.375,
+          "x_mm": 5.95,
+          "y_mm": 5.825,
+          "w_mm": 131.375,
+          "h_mm": 130.95,
           "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 17932.69,
-          "solid_area_mm2": 16347.22
-        },
-        {
-          "inst_id": "P17_BASE_JOINER_copy2of2",
-          "part_id": "P17_BASE_JOINER",
-          "kind": "panel",
-          "group": "base",
-          "x_mm": 145.025,
-          "y_mm": 5.5,
-          "w_mm": 28.0,
-          "h_mm": 64.0,
-          "z_mm": 6.0,
           "rotated_90": true,
-          "bbox_area_mm2": 1792.0,
-          "solid_area_mm2": 1792.0
+          "bbox_area_mm2": 17203.56,
+          "solid_area_mm2": 16112.16
         },
         {
-          "inst_id": "P15_TECH_FASCIA_piece1of2",
-          "part_id": "P15_TECH_FASCIA_piece1of2",
-          "kind": "panel",
-          "group": "tech",
-          "x_mm": 5.525,
-          "y_mm": 139.875,
-          "w_mm": 142.95,
-          "h_mm": 45.0,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 6432.75,
-          "solid_area_mm2": 3689.46
+          "inst_id": "SUP15_WATER_TANK_LINER",
+          "part_id": "SUP15_WATER_TANK_LINER",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 5.95,
+          "y_mm": 139.775,
+          "w_mm": 119.0,
+          "h_mm": 46.5,
+          "z_mm": 45.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 5533.5,
+          "solid_area_mm2": 5533.5
         },
         {
-          "inst_id": "FUR06_PLANT_POT_LARGE_copy1of2",
-          "part_id": "FUR06_PLANT_POT_LARGE",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 145.025,
-          "y_mm": 72.5,
-          "w_mm": 20.0,
-          "h_mm": 20.0,
-          "z_mm": 18.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 400.0,
-          "solid_area_mm2": 388.48
+          "inst_id": "SUP07_RELAY_SNAP_CADDY_copy2of2",
+          "part_id": "SUP07_RELAY_SNAP_CADDY",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 127.95,
+          "y_mm": 139.775,
+          "w_mm": 30.4,
+          "h_mm": 54.4,
+          "z_mm": 11.4,
+          "rotated_90": true,
+          "bbox_area_mm2": 1653.76,
+          "solid_area_mm2": 1405.02
         },
         {
-          "inst_id": "FUR06_PLANT_POT_LARGE_copy2of2",
-          "part_id": "FUR06_PLANT_POT_LARGE",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 145.025,
-          "y_mm": 95.5,
-          "w_mm": 20.0,
-          "h_mm": 20.0,
-          "z_mm": 18.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 400.0,
-          "solid_area_mm2": 388.48
-        },
-        {
-          "inst_id": "FUR08_PLANT_POT_SMALL",
-          "part_id": "FUR08_PLANT_POT_SMALL",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 145.025,
-          "y_mm": 118.5,
-          "w_mm": 16.0,
-          "h_mm": 16.0,
+          "inst_id": "SUP04_BASE_FOOT_CLIP_copy2of4",
+          "part_id": "SUP04_BASE_FOOT_CLIP",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 140.325,
+          "y_mm": 5.825,
+          "w_mm": 30.0,
+          "h_mm": 30.0,
           "z_mm": 14.0,
           "rotated_90": false,
-          "bbox_area_mm2": 256.0,
-          "solid_area_mm2": 249.98
+          "bbox_area_mm2": 900.0,
+          "solid_area_mm2": 900.0
         },
         {
-          "inst_id": "SUP08_PAM8403_SNAP_TRAY",
-          "part_id": "SUP08_PAM8403_SNAP_TRAY",
+          "inst_id": "SUP04_BASE_FOOT_CLIP_copy3of4",
+          "part_id": "SUP04_BASE_FOOT_CLIP",
           "kind": "support",
           "group": "mounts",
-          "x_mm": 151.475,
-          "y_mm": 137.5,
-          "w_mm": 23.0,
-          "h_mm": 36.0,
-          "z_mm": 8.8,
+          "x_mm": 140.325,
+          "y_mm": 38.825,
+          "w_mm": 30.0,
+          "h_mm": 30.0,
+          "z_mm": 14.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 900.0,
+          "solid_area_mm2": 900.0
+        },
+        {
+          "inst_id": "SUP04_BASE_FOOT_CLIP_copy4of4",
+          "part_id": "SUP04_BASE_FOOT_CLIP",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 140.325,
+          "y_mm": 71.825,
+          "w_mm": 30.0,
+          "h_mm": 30.0,
+          "z_mm": 14.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 900.0,
+          "solid_area_mm2": 900.0
+        },
+        {
+          "inst_id": "SUP01B_T_CLIP_WALL",
+          "part_id": "SUP01B_T_CLIP_WALL",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 140.325,
+          "y_mm": 104.825,
+          "w_mm": 22.0,
+          "h_mm": 28.0,
+          "z_mm": 14.0,
           "rotated_90": true,
-          "bbox_area_mm2": 828.0,
-          "solid_area_mm2": 837.6
+          "bbox_area_mm2": 616.0,
+          "solid_area_mm2": 369.69
         },
         {
-          "inst_id": "SUP02_CORNER_CLIP_LOW_copy1of6",
-          "part_id": "SUP02_CORNER_CLIP_LOW",
+          "inst_id": "SUP10_DOOR_MORTISE_HINGE_copy2of2",
+          "part_id": "SUP10_DOOR_MORTISE_HINGE",
           "kind": "support",
           "group": "mounts",
-          "x_mm": 151.475,
-          "y_mm": 176.5,
-          "w_mm": 18.0,
-          "h_mm": 18.0,
-          "z_mm": 10.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 324.0,
-          "solid_area_mm2": 304.16
-        },
-        {
-          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy4of10",
-          "part_id": "SUP05B_CARRIER_TENON_PEG",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 164.025,
-          "y_mm": 118.5,
-          "w_mm": 6.0,
-          "h_mm": 6.0,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 36.0,
-          "solid_area_mm2": 34.24
-        },
-        {
-          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy5of10",
-          "part_id": "SUP05B_CARRIER_TENON_PEG",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 164.025,
-          "y_mm": 127.5,
-          "w_mm": 6.0,
-          "h_mm": 6.0,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 36.0,
-          "solid_area_mm2": 34.24
-        }
-      ]
-    },
-    {
-      "plate_index": 6,
-      "plate_id": "PLATE06_base_garden",
-      "stl_file": "plates/PLATE06_base_garden.stl",
-      "threemf_file": "plates/PLATE06_base_garden.3mf",
-      "preview_png": "previews/_plate06_layout.png",
-      "part_count": 7,
-      "unique_parts": [
-        "FUR07_MINI_TREE",
-        "FUR09_FLOOR_TENON_PEG",
-        "P01B_BASE_HOUSE_piece5of6",
-        "P11_GARDEN_RIGHT"
-      ],
-      "used_bbox_mm": [
-        167.0,
-        187.38,
-        4.0
-      ],
-      "bed_bounds_min_mm": [
-        6.5,
-        6.31,
-        0.0
-      ],
-      "bed_bounds_max_mm": [
-        173.5,
-        193.69,
-        4.0
-      ],
-      "bbox_utilization_pct": 86.7,
-      "solid_utilization_pct": 76.4,
-      "print_time_str": "5h 58m 10s",
-      "print_time_sec": 21490,
-      "filament_g": 54.65,
-      "filament_m": 18.32,
-      "manifold_3mf": true,
-      "manifold_stl": true,
-      "slice_ok": true,
-      "gcode_x_range_mm": [
-        4.321,
-        175.679
-      ],
-      "gcode_y_range_mm": [
-        4.133,
-        195.666
-      ],
-      "gcode_z_max_mm": 4.0,
-      "items": [
-        {
-          "inst_id": "P01B_BASE_HOUSE_piece5of6",
-          "part_id": "P01B_BASE_HOUSE_piece5of6",
-          "kind": "panel",
-          "group": "base",
-          "x_mm": 6.5,
-          "y_mm": 6.312,
-          "w_mm": 150.45,
-          "h_mm": 131.375,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 19765.37,
-          "solid_area_mm2": 17915.69
-        },
-        {
-          "inst_id": "P11_GARDEN_RIGHT",
-          "part_id": "P11_GARDEN_RIGHT",
-          "kind": "panel",
-          "group": "garden",
-          "x_mm": 6.5,
-          "y_mm": 140.687,
-          "w_mm": 126.0,
-          "h_mm": 51.0,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 6426.0,
-          "solid_area_mm2": 5919.5
-        },
-        {
-          "inst_id": "FUR07_MINI_TREE_copy1of2",
-          "part_id": "FUR07_MINI_TREE",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 135.5,
-          "y_mm": 140.687,
-          "w_mm": 38.0,
-          "h_mm": 43.0,
-          "z_mm": 3.0,
+          "x_mm": 161.35,
+          "y_mm": 135.825,
+          "w_mm": 12.7,
+          "h_mm": 27.2,
+          "z_mm": 6.2,
           "rotated_90": true,
-          "bbox_area_mm2": 1634.0,
-          "solid_area_mm2": 677.25
+          "bbox_area_mm2": 345.44,
+          "solid_area_mm2": 142.34
         },
         {
-          "inst_id": "FUR09_FLOOR_TENON_PEG_copy1of10",
-          "part_id": "FUR09_FLOOR_TENON_PEG",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 135.5,
-          "y_mm": 186.687,
-          "w_mm": 6.0,
-          "h_mm": 7.0,
-          "z_mm": 4.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 42.0,
-          "solid_area_mm2": 41.82
-        },
-        {
-          "inst_id": "FUR09_FLOOR_TENON_PEG_copy2of10",
-          "part_id": "FUR09_FLOOR_TENON_PEG",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 144.5,
-          "y_mm": 186.687,
-          "w_mm": 6.0,
-          "h_mm": 7.0,
-          "z_mm": 4.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 42.0,
-          "solid_area_mm2": 41.82
-        },
-        {
-          "inst_id": "FUR09_FLOOR_TENON_PEG_copy3of10",
-          "part_id": "FUR09_FLOOR_TENON_PEG",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 153.5,
-          "y_mm": 186.687,
-          "w_mm": 6.0,
-          "h_mm": 7.0,
-          "z_mm": 4.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 42.0,
-          "solid_area_mm2": 41.82
+          "inst_id": "SUP17_LED5MM_RETAINING_COLLAR_copy1of2",
+          "part_id": "SUP17_LED5MM_RETAINING_COLLAR",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 161.35,
+          "y_mm": 166.025,
+          "w_mm": 11.0,
+          "h_mm": 22.0,
+          "z_mm": 8.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 242.0,
+          "solid_area_mm2": 221.62
         },
         {
           "inst_id": "FUR09_FLOOR_TENON_PEG_copy4of10",
           "part_id": "FUR09_FLOOR_TENON_PEG",
           "kind": "furniture",
           "group": "furniture",
-          "x_mm": 162.5,
-          "y_mm": 186.687,
+          "x_mm": 165.325,
+          "y_mm": 104.825,
+          "w_mm": 7.0,
+          "h_mm": 6.0,
+          "z_mm": 4.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 42.0,
+          "solid_area_mm2": 41.82
+        },
+        {
+          "inst_id": "FUR09_FLOOR_TENON_PEG_copy5of10",
+          "part_id": "FUR09_FLOOR_TENON_PEG",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 165.325,
+          "y_mm": 113.825,
+          "w_mm": 7.0,
+          "h_mm": 6.0,
+          "z_mm": 4.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 42.0,
+          "solid_area_mm2": 41.82
+        },
+        {
+          "inst_id": "FUR09_FLOOR_TENON_PEG_copy6of10",
+          "part_id": "FUR09_FLOOR_TENON_PEG",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 165.325,
+          "y_mm": 122.825,
           "w_mm": 6.0,
           "h_mm": 7.0,
           "z_mm": 4.0,
@@ -2095,11 +2149,11 @@
       ]
     },
     {
-      "plate_index": 7,
-      "plate_id": "PLATE07_base",
-      "stl_file": "plates/PLATE07_base.stl",
-      "threemf_file": "plates/PLATE07_base.3mf",
-      "preview_png": "previews/_plate07_layout.png",
+      "plate_index": 6,
+      "plate_id": "PLATE06_base",
+      "stl_file": "plates/PLATE06_base.stl",
+      "threemf_file": "plates/PLATE06_base.3mf",
+      "preview_png": "previews/_plate06_layout.png",
       "part_count": 1,
       "unique_parts": [
         "P01A_BASE_TECH_piece1of3"
@@ -2155,236 +2209,190 @@
       ]
     },
     {
-      "plate_index": 8,
-      "plate_id": "PLATE08_walls",
-      "stl_file": "plates/PLATE08_walls.stl",
-      "threemf_file": "plates/PLATE08_walls.3mf",
-      "preview_png": "previews/_plate08_layout.png",
+      "plate_index": 7,
+      "plate_id": "PLATE07_base_tech",
+      "stl_file": "plates/PLATE07_base_tech.stl",
+      "threemf_file": "plates/PLATE07_base_tech.3mf",
+      "preview_png": "previews/_plate07_layout.png",
       "part_count": 3,
       "unique_parts": [
-        "P05_WALL_FRONT_piece2of3",
-        "P05_WALL_FRONT_piece3of3",
-        "P07_SERVO_SHELF"
+        "P01B_BASE_HOUSE_piece5of6",
+        "P15_TECH_FASCIA_piece1of2",
+        "SUP13_KY037_SNAP_CRADLE"
       ],
       "used_bbox_mm": [
-        169.12,
-        190.0,
-        3.0
+        165.35,
+        180.38,
+        11.0
       ],
       "bed_bounds_min_mm": [
-        5.44,
-        5.0,
+        7.33,
+        9.81,
         0.0
       ],
       "bed_bounds_max_mm": [
-        174.56,
-        195.0,
-        3.0
+        172.68,
+        190.19,
+        11.0
       ],
-      "bbox_utilization_pct": 96.3,
-      "solid_utilization_pct": 45.0,
-      "print_time_str": "3h 39m 24s",
-      "print_time_sec": 13164,
-      "filament_g": 34.15,
-      "filament_m": 11.45,
+      "bbox_utilization_pct": 83.9,
+      "solid_utilization_pct": 69.0,
+      "print_time_str": "5h 34m 33s",
+      "print_time_sec": 20073,
+      "filament_g": 51.18,
+      "filament_m": 17.16,
       "manifold_3mf": true,
       "manifold_stl": true,
       "slice_ok": true,
       "gcode_x_range_mm": [
-        3.259,
-        176.742
+        5.146,
+        174.854
       ],
       "gcode_y_range_mm": [
-        2.821,
-        197.179
+        7.633,
+        192.366
       ],
-      "gcode_z_max_mm": 3.0,
+      "gcode_z_max_mm": 11.0,
+      "items": [
+        {
+          "inst_id": "P01B_BASE_HOUSE_piece5of6",
+          "part_id": "P01B_BASE_HOUSE_piece5of6",
+          "kind": "panel",
+          "group": "base",
+          "x_mm": 7.325,
+          "y_mm": 9.812,
+          "w_mm": 150.45,
+          "h_mm": 131.375,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 19765.37,
+          "solid_area_mm2": 17915.69
+        },
+        {
+          "inst_id": "P15_TECH_FASCIA_piece1of2",
+          "part_id": "P15_TECH_FASCIA_piece1of2",
+          "kind": "panel",
+          "group": "tech",
+          "x_mm": 7.325,
+          "y_mm": 144.187,
+          "w_mm": 142.95,
+          "h_mm": 45.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 6432.75,
+          "solid_area_mm2": 3635.28
+        },
+        {
+          "inst_id": "SUP13_KY037_SNAP_CRADLE",
+          "part_id": "SUP13_KY037_SNAP_CRADLE",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 153.275,
+          "y_mm": 144.187,
+          "w_mm": 19.4,
+          "h_mm": 46.0,
+          "z_mm": 11.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 892.4,
+          "solid_area_mm2": 724.4
+        }
+      ]
+    },
+    {
+      "plate_index": 8,
+      "plate_id": "PLATE08_walls_garden",
+      "stl_file": "plates/PLATE08_walls_garden.stl",
+      "threemf_file": "plates/PLATE08_walls_garden.3mf",
+      "preview_png": "previews/_plate08_layout.png",
+      "part_count": 5,
+      "unique_parts": [
+        "P05_WALL_FRONT_piece2of3",
+        "P14_SOIL_BRIDGE",
+        "SUP03_SEAM_U_CLIP"
+      ],
+      "used_bbox_mm": [
+        167.45,
+        187.0,
+        9.0
+      ],
+      "bed_bounds_min_mm": [
+        6.28,
+        6.5,
+        0.0
+      ],
+      "bed_bounds_max_mm": [
+        173.72,
+        193.5,
+        9.0
+      ],
+      "bbox_utilization_pct": 93.2,
+      "solid_utilization_pct": 43.7,
+      "print_time_str": "4h 0m 34s",
+      "print_time_sec": 14434,
+      "filament_g": 38.1,
+      "filament_m": 12.78,
+      "manifold_3mf": true,
+      "manifold_stl": true,
+      "slice_ok": true,
+      "gcode_x_range_mm": [
+        4.096,
+        175.904
+      ],
+      "gcode_y_range_mm": [
+        4.321,
+        195.679
+      ],
+      "gcode_z_max_mm": 9.0,
       "items": [
         {
           "inst_id": "P05_WALL_FRONT_piece2of3",
           "part_id": "P05_WALL_FRONT_piece2of3",
           "kind": "panel",
           "group": "walls",
-          "x_mm": 5.438,
-          "y_mm": 5.0,
+          "x_mm": 6.275,
+          "y_mm": 6.5,
           "w_mm": 167.45,
           "h_mm": 150.0,
           "z_mm": 3.0,
           "rotated_90": false,
           "bbox_area_mm2": 25117.5,
-          "solid_area_mm2": 9372.51
+          "solid_area_mm2": 9330.93
         },
         {
-          "inst_id": "P05_WALL_FRONT_piece3of3",
-          "part_id": "P05_WALL_FRONT_piece3of3",
+          "inst_id": "P14_SOIL_BRIDGE",
+          "part_id": "P14_SOIL_BRIDGE",
           "kind": "panel",
-          "group": "walls",
-          "x_mm": 5.438,
-          "y_mm": 158.0,
-          "w_mm": 117.0,
-          "h_mm": 37.0,
+          "group": "garden",
+          "x_mm": 6.275,
+          "y_mm": 159.5,
+          "w_mm": 126.0,
+          "h_mm": 32.0,
           "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 4329.0,
-          "solid_area_mm2": 3877.04
+          "rotated_90": true,
+          "bbox_area_mm2": 4032.0,
+          "solid_area_mm2": 3842.5
         },
         {
-          "inst_id": "P07_SERVO_SHELF",
-          "part_id": "P07_SERVO_SHELF",
-          "kind": "panel",
-          "group": "walls",
-          "x_mm": 125.438,
-          "y_mm": 158.0,
-          "w_mm": 49.125,
+          "inst_id": "SUP03_SEAM_U_CLIP_copy5of8",
+          "part_id": "SUP03_SEAM_U_CLIP",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 135.275,
+          "y_mm": 159.5,
+          "w_mm": 9.2,
           "h_mm": 34.0,
-          "z_mm": 3.0,
+          "z_mm": 9.0,
           "rotated_90": true,
-          "bbox_area_mm2": 1670.25,
-          "solid_area_mm2": 1276.51
-        }
-      ]
-    },
-    {
-      "plate_index": 9,
-      "plate_id": "PLATE09_walls_base",
-      "stl_file": "plates/PLATE09_walls_base.stl",
-      "threemf_file": "plates/PLATE09_walls_base.3mf",
-      "preview_png": "previews/_plate09_layout.png",
-      "part_count": 11,
-      "unique_parts": [
-        "FUR01_SOFA",
-        "FUR09_FLOOR_TENON_PEG",
-        "P01B_BASE_HOUSE_piece1of6",
-        "P02_WALL_BACK_piece2of3",
-        "SUP03_SEAM_U_CLIP",
-        "SUP05B_CARRIER_TENON_PEG",
-        "SUP05_P16_TENON_RISER"
-      ],
-      "used_bbox_mm": [
-        167.95,
-        190.0,
-        34.0
-      ],
-      "bed_bounds_min_mm": [
-        6.03,
-        5.0,
-        0.0
-      ],
-      "bed_bounds_max_mm": [
-        173.97,
-        195.0,
-        34.0
-      ],
-      "bbox_utilization_pct": 91.5,
-      "solid_utilization_pct": 85.2,
-      "print_time_str": "8h 38m 31s",
-      "print_time_sec": 31111,
-      "filament_g": 85.37,
-      "filament_m": 28.62,
-      "manifold_3mf": true,
-      "manifold_stl": true,
-      "slice_ok": true,
-      "gcode_x_range_mm": [
-        3.846,
-        176.154
-      ],
-      "gcode_y_range_mm": [
-        2.821,
-        197.179
-      ],
-      "gcode_z_max_mm": 34.0,
-      "items": [
-        {
-          "inst_id": "P01B_BASE_HOUSE_piece1of6",
-          "part_id": "P01B_BASE_HOUSE_piece1of6",
-          "kind": "panel",
-          "group": "base",
-          "x_mm": 6.025,
-          "y_mm": 5.0,
-          "w_mm": 130.95,
-          "h_mm": 90.45,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 11844.43,
-          "solid_area_mm2": 11154.99
-        },
-        {
-          "inst_id": "P02_WALL_BACK_piece2of3",
-          "part_id": "P02_WALL_BACK_piece2of3",
-          "kind": "panel",
-          "group": "walls",
-          "x_mm": 6.025,
-          "y_mm": 98.45,
-          "w_mm": 150.0,
-          "h_mm": 93.45,
-          "z_mm": 3.0,
-          "rotated_90": true,
-          "bbox_area_mm2": 14017.5,
-          "solid_area_mm2": 12716.14
-        },
-        {
-          "inst_id": "FUR01_SOFA",
-          "part_id": "FUR01_SOFA",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 139.975,
-          "y_mm": 5.0,
-          "w_mm": 34.0,
-          "h_mm": 76.0,
-          "z_mm": 34.0,
-          "rotated_90": true,
-          "bbox_area_mm2": 2584.0,
-          "solid_area_mm2": 2586.16
-        },
-        {
-          "inst_id": "FUR09_FLOOR_TENON_PEG_copy5of10",
-          "part_id": "FUR09_FLOOR_TENON_PEG",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 139.975,
-          "y_mm": 84.0,
-          "w_mm": 6.0,
-          "h_mm": 7.0,
-          "z_mm": 4.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 42.0,
-          "solid_area_mm2": 41.82
-        },
-        {
-          "inst_id": "FUR09_FLOOR_TENON_PEG_copy6of10",
-          "part_id": "FUR09_FLOOR_TENON_PEG",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 148.975,
-          "y_mm": 84.0,
-          "w_mm": 6.0,
-          "h_mm": 7.0,
-          "z_mm": 4.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 42.0,
-          "solid_area_mm2": 41.82
-        },
-        {
-          "inst_id": "FUR09_FLOOR_TENON_PEG_copy7of10",
-          "part_id": "FUR09_FLOOR_TENON_PEG",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 157.975,
-          "y_mm": 84.0,
-          "w_mm": 6.0,
-          "h_mm": 7.0,
-          "z_mm": 4.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 42.0,
-          "solid_area_mm2": 41.82
+          "bbox_area_mm2": 312.8,
+          "solid_area_mm2": 312.8
         },
         {
           "inst_id": "SUP03_SEAM_U_CLIP_copy6of8",
           "part_id": "SUP03_SEAM_U_CLIP",
           "kind": "support",
           "group": "mounts",
-          "x_mm": 159.025,
-          "y_mm": 94.0,
+          "x_mm": 147.475,
+          "y_mm": 159.5,
           "w_mm": 9.2,
           "h_mm": 34.0,
           "z_mm": 9.0,
@@ -2397,8 +2405,130 @@
           "part_id": "SUP03_SEAM_U_CLIP",
           "kind": "support",
           "group": "mounts",
-          "x_mm": 159.025,
-          "y_mm": 131.0,
+          "x_mm": 159.675,
+          "y_mm": 159.5,
+          "w_mm": 9.2,
+          "h_mm": 34.0,
+          "z_mm": 9.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 312.8,
+          "solid_area_mm2": 312.8
+        }
+      ]
+    },
+    {
+      "plate_index": 9,
+      "plate_id": "PLATE09_walls_base",
+      "stl_file": "plates/PLATE09_walls_base.stl",
+      "threemf_file": "plates/PLATE09_walls_base.3mf",
+      "preview_png": "previews/_plate09_layout.png",
+      "part_count": 7,
+      "unique_parts": [
+        "FUR08_PLANT_POT_SMALL",
+        "P01B_BASE_HOUSE_piece2of6",
+        "P02_WALL_BACK_piece2of3",
+        "SUP03_SEAM_U_CLIP",
+        "SUP09_SPEAKER_SNAP_RETAINER",
+        "SUP11_SG90_SNAP_SADDLE",
+        "SUP16_DC022_STRAIN_RELIEF"
+      ],
+      "used_bbox_mm": [
+        169.85,
+        186.9,
+        16.5
+      ],
+      "bed_bounds_min_mm": [
+        5.08,
+        6.55,
+        0.0
+      ],
+      "bed_bounds_max_mm": [
+        174.93,
+        193.45,
+        16.5
+      ],
+      "bbox_utilization_pct": 93.1,
+      "solid_utilization_pct": 84.0,
+      "print_time_str": "7h 30m 4s",
+      "print_time_sec": 27004,
+      "filament_g": 68.59,
+      "filament_m": 23.0,
+      "manifold_3mf": true,
+      "manifold_stl": true,
+      "slice_ok": true,
+      "gcode_x_range_mm": [
+        2.896,
+        177.104
+      ],
+      "gcode_y_range_mm": [
+        4.371,
+        195.629
+      ],
+      "gcode_z_max_mm": 16.6,
+      "items": [
+        {
+          "inst_id": "P01B_BASE_HOUSE_piece2of6",
+          "part_id": "P01B_BASE_HOUSE_piece2of6",
+          "kind": "panel",
+          "group": "base",
+          "x_mm": 5.075,
+          "y_mm": 6.55,
+          "w_mm": 150.45,
+          "h_mm": 90.45,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 13608.2,
+          "solid_area_mm2": 12393.92
+        },
+        {
+          "inst_id": "P02_WALL_BACK_piece2of3",
+          "part_id": "P02_WALL_BACK_piece2of3",
+          "kind": "panel",
+          "group": "walls",
+          "x_mm": 5.075,
+          "y_mm": 100.0,
+          "w_mm": 150.0,
+          "h_mm": 93.45,
+          "z_mm": 3.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 14017.5,
+          "solid_area_mm2": 12716.14
+        },
+        {
+          "inst_id": "SUP11_SG90_SNAP_SADDLE",
+          "part_id": "SUP11_SG90_SNAP_SADDLE",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 158.075,
+          "y_mm": 100.0,
+          "w_mm": 16.6,
+          "h_mm": 45.0,
+          "z_mm": 8.6,
+          "rotated_90": true,
+          "bbox_area_mm2": 747.0,
+          "solid_area_mm2": 449.64
+        },
+        {
+          "inst_id": "SUP09_SPEAKER_SNAP_RETAINER",
+          "part_id": "SUP09_SPEAKER_SNAP_RETAINER",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 158.075,
+          "y_mm": 148.0,
+          "w_mm": 14.0,
+          "h_mm": 44.0,
+          "z_mm": 12.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 616.0,
+          "solid_area_mm2": 616.0
+        },
+        {
+          "inst_id": "SUP03_SEAM_U_CLIP_copy8of8",
+          "part_id": "SUP03_SEAM_U_CLIP",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 158.525,
+          "y_mm": 6.55,
           "w_mm": 9.2,
           "h_mm": 34.0,
           "z_mm": 9.0,
@@ -2407,46 +2537,32 @@
           "solid_area_mm2": 312.8
         },
         {
-          "inst_id": "SUP05_P16_TENON_RISER_copy3of4",
-          "part_id": "SUP05_P16_TENON_RISER",
+          "inst_id": "SUP16_DC022_STRAIN_RELIEF",
+          "part_id": "SUP16_DC022_STRAIN_RELIEF",
           "kind": "support",
           "group": "mounts",
-          "x_mm": 159.025,
-          "y_mm": 168.0,
-          "w_mm": 14.0,
-          "h_mm": 12.0,
-          "z_mm": 9.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 168.0,
-          "solid_area_mm2": 131.82
+          "x_mm": 158.525,
+          "y_mm": 43.55,
+          "w_mm": 16.4,
+          "h_mm": 32.0,
+          "z_mm": 16.5,
+          "rotated_90": true,
+          "bbox_area_mm2": 524.8,
+          "solid_area_mm2": 403.89
         },
         {
-          "inst_id": "SUP05_P16_TENON_RISER_copy4of4",
-          "part_id": "SUP05_P16_TENON_RISER",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 159.025,
-          "y_mm": 183.0,
-          "w_mm": 14.0,
-          "h_mm": 12.0,
-          "z_mm": 9.0,
+          "inst_id": "FUR08_PLANT_POT_SMALL",
+          "part_id": "FUR08_PLANT_POT_SMALL",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 158.525,
+          "y_mm": 78.55,
+          "w_mm": 16.0,
+          "h_mm": 16.0,
+          "z_mm": 14.0,
           "rotated_90": false,
-          "bbox_area_mm2": 168.0,
-          "solid_area_mm2": 131.82
-        },
-        {
-          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy1of10",
-          "part_id": "SUP05B_CARRIER_TENON_PEG",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 166.975,
-          "y_mm": 84.0,
-          "w_mm": 6.0,
-          "h_mm": 6.0,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 36.0,
-          "solid_area_mm2": 34.24
+          "bbox_area_mm2": 256.0,
+          "solid_area_mm2": 249.98
         }
       ]
     },
@@ -2596,11 +2712,11 @@
         3.0
       ],
       "bbox_utilization_pct": 88.2,
-      "solid_utilization_pct": 64.7,
-      "print_time_str": "4h 53m 29s",
-      "print_time_sec": 17609,
-      "filament_g": 45.3,
-      "filament_m": 15.19,
+      "solid_utilization_pct": 64.4,
+      "print_time_str": "4h 56m 30s",
+      "print_time_sec": 17790,
+      "filament_g": 45.38,
+      "filament_m": 15.22,
       "manifold_3mf": true,
       "manifold_stl": true,
       "slice_ok": true,
@@ -2626,7 +2742,7 @@
           "z_mm": 3.0,
           "rotated_90": true,
           "bbox_area_mm2": 28500.0,
-          "solid_area_mm2": 20889.35
+          "solid_area_mm2": 20806.19
         }
       ]
     },
@@ -2636,54 +2752,55 @@
       "stl_file": "plates/PLATE13_walls_garden.stl",
       "threemf_file": "plates/PLATE13_walls_garden.3mf",
       "preview_png": "previews/_plate13_layout.png",
-      "part_count": 5,
+      "part_count": 6,
       "unique_parts": [
         "P02_WALL_BACK_piece1of3",
         "P12_GARDEN_FRONT",
-        "SUP05B_CARRIER_TENON_PEG",
-        "SUP07_RELAY_SNAP_CADDY"
+        "P17_BASE_JOINER",
+        "SUP05_P16_TENON_RISER",
+        "SUP18_BUZZER_SNAP_COLLAR"
       ],
       "used_bbox_mm": [
-        163.4,
-        188.35,
-        11.4
+        170.0,
+        188.95,
+        12.5
       ],
       "bed_bounds_min_mm": [
-        8.3,
-        5.83,
+        5.0,
+        5.53,
         0.0
       ],
       "bed_bounds_max_mm": [
-        171.7,
-        194.18,
-        11.4
+        175.0,
+        194.47,
+        12.5
       ],
-      "bbox_utilization_pct": 84.9,
-      "solid_utilization_pct": 79.0,
-      "print_time_str": "6h 35m 34s",
-      "print_time_sec": 23734,
-      "filament_g": 59.52,
-      "filament_m": 19.96,
+      "bbox_utilization_pct": 87.5,
+      "solid_utilization_pct": 82.0,
+      "print_time_str": "6h 45m 29s",
+      "print_time_sec": 24329,
+      "filament_g": 60.96,
+      "filament_m": 20.44,
       "manifold_3mf": true,
       "manifold_stl": true,
       "slice_ok": true,
       "gcode_x_range_mm": [
-        6.121,
-        173.879
+        2.821,
+        177.179
       ],
       "gcode_y_range_mm": [
-        3.646,
-        196.354
+        3.346,
+        196.654
       ],
-      "gcode_z_max_mm": 11.4,
+      "gcode_z_max_mm": 12.6,
       "items": [
         {
           "inst_id": "P02_WALL_BACK_piece1of3",
           "part_id": "P02_WALL_BACK_piece1of3",
           "kind": "panel",
           "group": "walls",
-          "x_mm": 8.3,
-          "y_mm": 5.825,
+          "x_mm": 5.0,
+          "y_mm": 5.525,
           "w_mm": 150.0,
           "h_mm": 121.95,
           "z_mm": 3.0,
@@ -2696,8 +2813,8 @@
           "part_id": "P12_GARDEN_FRONT",
           "kind": "panel",
           "group": "garden",
-          "x_mm": 8.3,
-          "y_mm": 130.775,
+          "x_mm": 5.0,
+          "y_mm": 130.475,
           "w_mm": 130.0,
           "h_mm": 57.0,
           "z_mm": 3.0,
@@ -2706,46 +2823,60 @@
           "solid_area_mm2": 6498.09
         },
         {
-          "inst_id": "SUP07_RELAY_SNAP_CADDY_copy1of2",
-          "part_id": "SUP07_RELAY_SNAP_CADDY",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 141.3,
-          "y_mm": 130.775,
-          "w_mm": 30.4,
-          "h_mm": 54.4,
-          "z_mm": 11.4,
+          "inst_id": "P17_BASE_JOINER_copy1of2",
+          "part_id": "P17_BASE_JOINER",
+          "kind": "panel",
+          "group": "base",
+          "x_mm": 138.0,
+          "y_mm": 130.475,
+          "w_mm": 28.0,
+          "h_mm": 64.0,
+          "z_mm": 6.0,
           "rotated_90": true,
-          "bbox_area_mm2": 1653.76,
-          "solid_area_mm2": 1405.02
+          "bbox_area_mm2": 1792.0,
+          "solid_area_mm2": 1792.0
         },
         {
-          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy9of10",
-          "part_id": "SUP05B_CARRIER_TENON_PEG",
+          "inst_id": "SUP18_BUZZER_SNAP_COLLAR",
+          "part_id": "SUP18_BUZZER_SNAP_COLLAR",
           "kind": "support",
           "group": "mounts",
-          "x_mm": 141.3,
-          "y_mm": 188.175,
-          "w_mm": 6.0,
-          "h_mm": 6.0,
-          "z_mm": 3.0,
+          "x_mm": 158.0,
+          "y_mm": 5.525,
+          "w_mm": 17.0,
+          "h_mm": 26.0,
+          "z_mm": 12.5,
           "rotated_90": false,
-          "bbox_area_mm2": 36.0,
-          "solid_area_mm2": 34.24
+          "bbox_area_mm2": 442.0,
+          "solid_area_mm2": 375.69
         },
         {
-          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy10of10",
-          "part_id": "SUP05B_CARRIER_TENON_PEG",
+          "inst_id": "SUP05_P16_TENON_RISER_copy3of4",
+          "part_id": "SUP05_P16_TENON_RISER",
           "kind": "support",
           "group": "mounts",
-          "x_mm": 150.3,
-          "y_mm": 188.175,
-          "w_mm": 6.0,
-          "h_mm": 6.0,
-          "z_mm": 3.0,
+          "x_mm": 158.0,
+          "y_mm": 34.525,
+          "w_mm": 14.0,
+          "h_mm": 12.0,
+          "z_mm": 9.0,
           "rotated_90": false,
-          "bbox_area_mm2": 36.0,
-          "solid_area_mm2": 34.24
+          "bbox_area_mm2": 168.0,
+          "solid_area_mm2": 131.82
+        },
+        {
+          "inst_id": "SUP05_P16_TENON_RISER_copy4of4",
+          "part_id": "SUP05_P16_TENON_RISER",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 158.0,
+          "y_mm": 49.525,
+          "w_mm": 14.0,
+          "h_mm": 12.0,
+          "z_mm": 9.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 168.0,
+          "solid_area_mm2": 131.82
         }
       ]
     },
@@ -2811,338 +2942,60 @@
     },
     {
       "plate_index": 15,
-      "plate_id": "PLATE15_walls_garden",
-      "stl_file": "plates/PLATE15_walls_garden.stl",
-      "threemf_file": "plates/PLATE15_walls_garden.3mf",
+      "plate_id": "PLATE15_garden_walls",
+      "stl_file": "plates/PLATE15_garden_walls.stl",
+      "threemf_file": "plates/PLATE15_garden_walls.3mf",
       "preview_png": "previews/_plate15_layout.png",
-      "part_count": 16,
+      "part_count": 6,
       "unique_parts": [
+        "FUR02_TV_STAND",
         "P05_WALL_FRONT_piece1of3",
-        "P13_GARDEN_BACK",
-        "SUP01_CORNER_CLIP_WALL",
-        "SUP03_SEAM_U_CLIP",
-        "SUP04_BASE_FOOT_CLIP",
-        "SUP05B_CARRIER_TENON_PEG",
-        "SUP10B_SERVO_LINK_CLIP",
-        "SUP10_DOOR_MORTISE_HINGE",
-        "SUP11_SG90_SNAP_SADDLE",
-        "SUP14_LM393_SNAP_CRADLE"
-      ],
-      "used_bbox_mm": [
-        170.0,
-        189.6,
-        14.0
-      ],
-      "bed_bounds_min_mm": [
-        5.0,
-        5.2,
-        0.0
-      ],
-      "bed_bounds_max_mm": [
-        175.0,
-        194.8,
-        14.0
-      ],
-      "bbox_utilization_pct": 83.4,
-      "solid_utilization_pct": 54.0,
-      "print_time_str": "6h 17m 24s",
-      "print_time_sec": 22644,
-      "filament_g": 60.88,
-      "filament_m": 20.41,
-      "manifold_3mf": true,
-      "manifold_stl": true,
-      "slice_ok": true,
-      "gcode_x_range_mm": [
-        2.821,
-        177.179
-      ],
-      "gcode_y_range_mm": [
-        3.021,
-        196.979
-      ],
-      "gcode_z_max_mm": 14.0,
-      "items": [
-        {
-          "inst_id": "P05_WALL_FRONT_piece1of3",
-          "part_id": "P05_WALL_FRONT_piece1of3",
-          "kind": "panel",
-          "group": "walls",
-          "x_mm": 5.0,
-          "y_mm": 5.2,
-          "w_mm": 123.0,
-          "h_mm": 109.45,
-          "z_mm": 3.0,
-          "rotated_90": true,
-          "bbox_area_mm2": 13462.35,
-          "solid_area_mm2": 5926.39
-        },
-        {
-          "inst_id": "P13_GARDEN_BACK",
-          "part_id": "P13_GARDEN_BACK",
-          "kind": "panel",
-          "group": "garden",
-          "x_mm": 5.0,
-          "y_mm": 117.65,
-          "w_mm": 130.0,
-          "h_mm": 57.0,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 7410.0,
-          "solid_area_mm2": 6456.51
-        },
-        {
-          "inst_id": "SUP04_BASE_FOOT_CLIP_copy3of4",
-          "part_id": "SUP04_BASE_FOOT_CLIP",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 131.0,
-          "y_mm": 5.2,
-          "w_mm": 30.0,
-          "h_mm": 30.0,
-          "z_mm": 14.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 900.0,
-          "solid_area_mm2": 900.0
-        },
-        {
-          "inst_id": "SUP04_BASE_FOOT_CLIP_copy4of4",
-          "part_id": "SUP04_BASE_FOOT_CLIP",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 131.0,
-          "y_mm": 38.2,
-          "w_mm": 30.0,
-          "h_mm": 30.0,
-          "z_mm": 14.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 900.0,
-          "solid_area_mm2": 900.0
-        },
-        {
-          "inst_id": "SUP14_LM393_SNAP_CRADLE",
-          "part_id": "SUP14_LM393_SNAP_CRADLE",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 131.0,
-          "y_mm": 71.2,
-          "w_mm": 44.0,
-          "h_mm": 18.4,
-          "z_mm": 11.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 809.6,
-          "solid_area_mm2": 629.6
-        },
-        {
-          "inst_id": "SUP11_SG90_SNAP_SADDLE",
-          "part_id": "SUP11_SG90_SNAP_SADDLE",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 131.0,
-          "y_mm": 92.6,
-          "w_mm": 42.0,
-          "h_mm": 18.0,
-          "z_mm": 8.6,
-          "rotated_90": true,
-          "bbox_area_mm2": 756.0,
-          "solid_area_mm2": 453.92
-        },
-        {
-          "inst_id": "SUP01_CORNER_CLIP_WALL_copy1of2",
-          "part_id": "SUP01_CORNER_CLIP_WALL",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 138.0,
-          "y_mm": 113.6,
-          "w_mm": 24.0,
-          "h_mm": 24.0,
-          "z_mm": 14.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 576.0,
-          "solid_area_mm2": 540.72
-        },
-        {
-          "inst_id": "SUP01_CORNER_CLIP_WALL_copy2of2",
-          "part_id": "SUP01_CORNER_CLIP_WALL",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 138.0,
-          "y_mm": 140.6,
-          "w_mm": 24.0,
-          "h_mm": 24.0,
-          "z_mm": 14.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 576.0,
-          "solid_area_mm2": 540.72
-        },
-        {
-          "inst_id": "SUP10_DOOR_MORTISE_HINGE_copy1of2",
-          "part_id": "SUP10_DOOR_MORTISE_HINGE",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 138.0,
-          "y_mm": 167.6,
-          "w_mm": 12.7,
-          "h_mm": 27.2,
-          "z_mm": 6.2,
-          "rotated_90": true,
-          "bbox_area_mm2": 345.44,
-          "solid_area_mm2": 142.34
-        },
-        {
-          "inst_id": "SUP10_DOOR_MORTISE_HINGE_copy2of2",
-          "part_id": "SUP10_DOOR_MORTISE_HINGE",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 153.7,
-          "y_mm": 167.6,
-          "w_mm": 12.7,
-          "h_mm": 27.2,
-          "z_mm": 6.2,
-          "rotated_90": true,
-          "bbox_area_mm2": 345.44,
-          "solid_area_mm2": 142.34
-        },
-        {
-          "inst_id": "SUP03_SEAM_U_CLIP_copy2of8",
-          "part_id": "SUP03_SEAM_U_CLIP",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 165.0,
-          "y_mm": 113.6,
-          "w_mm": 9.2,
-          "h_mm": 34.0,
-          "z_mm": 9.0,
-          "rotated_90": true,
-          "bbox_area_mm2": 312.8,
-          "solid_area_mm2": 312.8
-        },
-        {
-          "inst_id": "SUP03_SEAM_U_CLIP_copy3of8",
-          "part_id": "SUP03_SEAM_U_CLIP",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 164.0,
-          "y_mm": 5.2,
-          "w_mm": 9.2,
-          "h_mm": 34.0,
-          "z_mm": 9.0,
-          "rotated_90": true,
-          "bbox_area_mm2": 312.8,
-          "solid_area_mm2": 312.8
-        },
-        {
-          "inst_id": "SUP10B_SERVO_LINK_CLIP",
-          "part_id": "SUP10B_SERVO_LINK_CLIP",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 165.0,
-          "y_mm": 150.6,
-          "w_mm": 10.0,
-          "h_mm": 13.0,
-          "z_mm": 9.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 130.0,
-          "solid_area_mm2": 77.56
-        },
-        {
-          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy6of10",
-          "part_id": "SUP05B_CARRIER_TENON_PEG",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 164.0,
-          "y_mm": 42.2,
-          "w_mm": 6.0,
-          "h_mm": 6.0,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 36.0,
-          "solid_area_mm2": 34.24
-        },
-        {
-          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy7of10",
-          "part_id": "SUP05B_CARRIER_TENON_PEG",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 164.0,
-          "y_mm": 51.2,
-          "w_mm": 6.0,
-          "h_mm": 6.0,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 36.0,
-          "solid_area_mm2": 34.24
-        },
-        {
-          "inst_id": "SUP05B_CARRIER_TENON_PEG_copy8of10",
-          "part_id": "SUP05B_CARRIER_TENON_PEG",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 164.0,
-          "y_mm": 60.2,
-          "w_mm": 6.0,
-          "h_mm": 6.0,
-          "z_mm": 3.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 36.0,
-          "solid_area_mm2": 34.24
-        }
-      ]
-    },
-    {
-      "plate_index": 16,
-      "plate_id": "PLATE16_garden_tech",
-      "stl_file": "plates/PLATE16_garden_tech.stl",
-      "threemf_file": "plates/PLATE16_garden_tech.3mf",
-      "preview_png": "previews/_plate16_layout.png",
-      "part_count": 5,
-      "unique_parts": [
-        "FUR07_MINI_TREE",
         "P09_GARDEN_LEFT",
         "P10_WATER_DIVIDER",
-        "P16_PCB_PLATE",
-        "SUP03_SEAM_U_CLIP"
+        "SUP03_SEAM_U_CLIP",
+        "SUP05_P16_TENON_RISER"
       ],
       "used_bbox_mm": [
-        170.0,
-        190.0,
-        9.0
+        169.45,
+        186.0,
+        18.0
       ],
       "bed_bounds_min_mm": [
-        5.0,
-        5.0,
+        5.28,
+        7.0,
         0.0
       ],
       "bed_bounds_max_mm": [
-        175.0,
-        195.0,
-        9.0
+        174.72,
+        193.0,
+        18.0
       ],
-      "bbox_utilization_pct": 94.8,
-      "solid_utilization_pct": 87.4,
-      "print_time_str": "6h 57m 7s",
-      "print_time_sec": 25027,
-      "filament_g": 63.87,
-      "filament_m": 21.41,
+      "bbox_utilization_pct": 91.5,
+      "solid_utilization_pct": 64.0,
+      "print_time_str": "5h 54m 17s",
+      "print_time_sec": 21257,
+      "filament_g": 56.84,
+      "filament_m": 19.06,
       "manifold_3mf": true,
       "manifold_stl": true,
       "slice_ok": true,
       "gcode_x_range_mm": [
-        2.821,
-        177.179
+        3.096,
+        176.904
       ],
       "gcode_y_range_mm": [
-        2.821,
-        197.179
+        4.821,
+        195.179
       ],
-      "gcode_z_max_mm": 9.0,
+      "gcode_z_max_mm": 18.0,
       "items": [
         {
           "inst_id": "P09_GARDEN_LEFT",
           "part_id": "P09_GARDEN_LEFT",
           "kind": "panel",
           "group": "garden",
-          "x_mm": 5.0,
-          "y_mm": 5.0,
+          "x_mm": 5.275,
+          "y_mm": 7.0,
           "w_mm": 126.0,
           "h_mm": 57.0,
           "z_mm": 3.0,
@@ -3155,8 +3008,8 @@
           "part_id": "P10_WATER_DIVIDER",
           "kind": "panel",
           "group": "garden",
-          "x_mm": 5.0,
-          "y_mm": 65.0,
+          "x_mm": 5.275,
+          "y_mm": 67.0,
           "w_mm": 57.0,
           "h_mm": 126.0,
           "z_mm": 3.0,
@@ -3165,276 +3018,40 @@
           "solid_area_mm2": 6559.66
         },
         {
-          "inst_id": "P16_PCB_PLATE",
-          "part_id": "P16_PCB_PLATE",
+          "inst_id": "P05_WALL_FRONT_piece1of3",
+          "part_id": "P05_WALL_FRONT_piece1of3",
           "kind": "panel",
-          "group": "tech",
-          "x_mm": 65.0,
-          "y_mm": 65.0,
-          "w_mm": 110.0,
-          "h_mm": 130.0,
+          "group": "walls",
+          "x_mm": 65.275,
+          "y_mm": 67.0,
+          "w_mm": 109.45,
+          "h_mm": 123.0,
           "z_mm": 3.0,
-          "rotated_90": true,
-          "bbox_area_mm2": 14300.0,
-          "solid_area_mm2": 14107.28
+          "rotated_90": false,
+          "bbox_area_mm2": 13462.35,
+          "solid_area_mm2": 5802.55
         },
         {
-          "inst_id": "FUR07_MINI_TREE_copy2of2",
-          "part_id": "FUR07_MINI_TREE",
+          "inst_id": "FUR02_TV_STAND",
+          "part_id": "FUR02_TV_STAND",
           "kind": "furniture",
           "group": "furniture",
-          "x_mm": 134.0,
-          "y_mm": 5.0,
-          "w_mm": 38.0,
-          "h_mm": 43.0,
-          "z_mm": 3.0,
-          "rotated_90": true,
-          "bbox_area_mm2": 1634.0,
-          "solid_area_mm2": 677.25
-        },
-        {
-          "inst_id": "SUP03_SEAM_U_CLIP_copy1of8",
-          "part_id": "SUP03_SEAM_U_CLIP",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 134.0,
-          "y_mm": 51.0,
-          "w_mm": 34.0,
-          "h_mm": 9.2,
-          "z_mm": 9.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 312.8,
-          "solid_area_mm2": 312.8
-        }
-      ]
-    },
-    {
-      "plate_index": 17,
-      "plate_id": "PLATE17_mounts_furniture",
-      "stl_file": "plates/PLATE17_mounts_furniture.stl",
-      "threemf_file": "plates/PLATE17_mounts_furniture.3mf",
-      "preview_png": "previews/_plate17_layout.png",
-      "part_count": 14,
-      "unique_parts": [
-        "FUR04_BED",
-        "SUP01B_T_CLIP_WALL",
-        "SUP02_CORNER_CLIP_LOW",
-        "SUP03_SEAM_U_CLIP",
-        "SUP04_BASE_FOOT_CLIP",
-        "SUP05_P16_TENON_RISER",
-        "SUP06_HUB_PCB_SNAP_CARRIER",
-        "SUP09_SPEAKER_SNAP_RETAINER",
-        "SUP15_WATER_TANK_LINER"
-      ],
-      "used_bbox_mm": [
-        166.7,
-        190.0,
-        45.0
-      ],
-      "bed_bounds_min_mm": [
-        6.65,
-        5.0,
-        0.0
-      ],
-      "bed_bounds_max_mm": [
-        173.35,
-        195.0,
-        45.0
-      ],
-      "bbox_utilization_pct": 77.3,
-      "solid_utilization_pct": 64.5,
-      "print_time_str": "12h 1m 51s",
-      "print_time_sec": 43311,
-      "filament_g": 130.97,
-      "filament_m": 43.91,
-      "manifold_3mf": true,
-      "manifold_stl": true,
-      "slice_ok": true,
-      "gcode_x_range_mm": [
-        4.471,
-        175.529
-      ],
-      "gcode_y_range_mm": [
-        2.821,
-        197.179
-      ],
-      "gcode_z_max_mm": 45.0,
-      "items": [
-        {
-          "inst_id": "FUR04_BED",
-          "part_id": "FUR04_BED",
-          "kind": "furniture",
-          "group": "furniture",
-          "x_mm": 6.65,
-          "y_mm": 5.0,
-          "w_mm": 90.0,
-          "h_mm": 62.0,
-          "z_mm": 28.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 5580.0,
-          "solid_area_mm2": 5581.92
-        },
-        {
-          "inst_id": "SUP06_HUB_PCB_SNAP_CARRIER",
-          "part_id": "SUP06_HUB_PCB_SNAP_CARRIER",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 6.65,
-          "y_mm": 70.0,
-          "w_mm": 84.0,
-          "h_mm": 104.0,
-          "z_mm": 13.6,
-          "rotated_90": true,
-          "bbox_area_mm2": 8736.0,
-          "solid_area_mm2": 4980.93
-        },
-        {
-          "inst_id": "SUP15_WATER_TANK_LINER",
-          "part_id": "SUP15_WATER_TANK_LINER",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 93.65,
-          "y_mm": 70.0,
-          "w_mm": 46.5,
-          "h_mm": 119.0,
-          "z_mm": 45.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 5533.5,
-          "solid_area_mm2": 5533.5
-        },
-        {
-          "inst_id": "SUP04_BASE_FOOT_CLIP_copy1of4",
-          "part_id": "SUP04_BASE_FOOT_CLIP",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 99.65,
-          "y_mm": 5.0,
-          "w_mm": 30.0,
-          "h_mm": 30.0,
-          "z_mm": 14.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 900.0,
-          "solid_area_mm2": 900.0
-        },
-        {
-          "inst_id": "SUP04_BASE_FOOT_CLIP_copy2of4",
-          "part_id": "SUP04_BASE_FOOT_CLIP",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 132.65,
-          "y_mm": 5.0,
-          "w_mm": 30.0,
-          "h_mm": 30.0,
-          "z_mm": 14.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 900.0,
-          "solid_area_mm2": 900.0
-        },
-        {
-          "inst_id": "SUP01B_T_CLIP_WALL",
-          "part_id": "SUP01B_T_CLIP_WALL",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 99.65,
-          "y_mm": 38.0,
+          "x_mm": 134.275,
+          "y_mm": 7.0,
           "w_mm": 22.0,
-          "h_mm": 28.0,
-          "z_mm": 14.0,
+          "h_mm": 56.0,
+          "z_mm": 18.0,
           "rotated_90": true,
-          "bbox_area_mm2": 616.0,
-          "solid_area_mm2": 369.69
+          "bbox_area_mm2": 1232.0,
+          "solid_area_mm2": 1294.88
         },
         {
-          "inst_id": "SUP09_SPEAKER_SNAP_RETAINER",
-          "part_id": "SUP09_SPEAKER_SNAP_RETAINER",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 124.65,
-          "y_mm": 38.0,
-          "w_mm": 44.0,
-          "h_mm": 14.0,
-          "z_mm": 12.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 616.0,
-          "solid_area_mm2": 616.0
-        },
-        {
-          "inst_id": "SUP02_CORNER_CLIP_LOW_copy2of6",
-          "part_id": "SUP02_CORNER_CLIP_LOW",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 6.65,
-          "y_mm": 177.0,
-          "w_mm": 18.0,
-          "h_mm": 18.0,
-          "z_mm": 10.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 324.0,
-          "solid_area_mm2": 304.16
-        },
-        {
-          "inst_id": "SUP02_CORNER_CLIP_LOW_copy3of6",
-          "part_id": "SUP02_CORNER_CLIP_LOW",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 27.65,
-          "y_mm": 177.0,
-          "w_mm": 18.0,
-          "h_mm": 18.0,
-          "z_mm": 10.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 324.0,
-          "solid_area_mm2": 304.16
-        },
-        {
-          "inst_id": "SUP02_CORNER_CLIP_LOW_copy4of6",
-          "part_id": "SUP02_CORNER_CLIP_LOW",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 48.65,
-          "y_mm": 177.0,
-          "w_mm": 18.0,
-          "h_mm": 18.0,
-          "z_mm": 10.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 324.0,
-          "solid_area_mm2": 304.16
-        },
-        {
-          "inst_id": "SUP02_CORNER_CLIP_LOW_copy5of6",
-          "part_id": "SUP02_CORNER_CLIP_LOW",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 69.65,
-          "y_mm": 177.0,
-          "w_mm": 18.0,
-          "h_mm": 18.0,
-          "z_mm": 10.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 324.0,
-          "solid_area_mm2": 304.16
-        },
-        {
-          "inst_id": "SUP02_CORNER_CLIP_LOW_copy6of6",
-          "part_id": "SUP02_CORNER_CLIP_LOW",
-          "kind": "support",
-          "group": "mounts",
-          "x_mm": 143.15,
-          "y_mm": 55.0,
-          "w_mm": 18.0,
-          "h_mm": 18.0,
-          "z_mm": 10.0,
-          "rotated_90": false,
-          "bbox_area_mm2": 324.0,
-          "solid_area_mm2": 304.16
-        },
-        {
-          "inst_id": "SUP03_SEAM_U_CLIP_copy8of8",
+          "inst_id": "SUP03_SEAM_U_CLIP_copy4of8",
           "part_id": "SUP03_SEAM_U_CLIP",
           "kind": "support",
           "group": "mounts",
-          "x_mm": 164.15,
-          "y_mm": 55.0,
+          "x_mm": 159.275,
+          "y_mm": 7.0,
           "w_mm": 9.2,
           "h_mm": 34.0,
           "z_mm": 9.0,
@@ -3447,8 +3064,8 @@
           "part_id": "SUP05_P16_TENON_RISER",
           "kind": "support",
           "group": "mounts",
-          "x_mm": 124.65,
-          "y_mm": 55.0,
+          "x_mm": 159.275,
+          "y_mm": 44.0,
           "w_mm": 14.0,
           "h_mm": 12.0,
           "z_mm": 9.0,
@@ -3457,29 +3074,527 @@
           "solid_area_mm2": 131.82
         }
       ]
+    },
+    {
+      "plate_index": 16,
+      "plate_id": "PLATE16_tech_garden",
+      "stl_file": "plates/PLATE16_tech_garden.stl",
+      "threemf_file": "plates/PLATE16_tech_garden.3mf",
+      "preview_png": "previews/_plate16_layout.png",
+      "part_count": 4,
+      "unique_parts": [
+        "P05_WALL_FRONT_piece3of3",
+        "P13_GARDEN_BACK",
+        "P16_PCB_PLATE",
+        "P17_BASE_JOINER"
+      ],
+      "used_bbox_mm": [
+        170.0,
+        184.0,
+        6.0
+      ],
+      "bed_bounds_min_mm": [
+        5.0,
+        8.0,
+        0.0
+      ],
+      "bed_bounds_max_mm": [
+        175.0,
+        192.0,
+        6.0
+      ],
+      "bbox_utilization_pct": 86.2,
+      "solid_utilization_pct": 81.2,
+      "print_time_str": "6h 27m 31s",
+      "print_time_sec": 23251,
+      "filament_g": 58.51,
+      "filament_m": 19.62,
+      "manifold_3mf": true,
+      "manifold_stl": true,
+      "slice_ok": true,
+      "gcode_x_range_mm": [
+        2.821,
+        177.176
+      ],
+      "gcode_y_range_mm": [
+        5.821,
+        194.179
+      ],
+      "gcode_z_max_mm": 6.0,
+      "items": [
+        {
+          "inst_id": "P16_PCB_PLATE",
+          "part_id": "P16_PCB_PLATE",
+          "kind": "panel",
+          "group": "tech",
+          "x_mm": 5.0,
+          "y_mm": 8.0,
+          "w_mm": 130.0,
+          "h_mm": 110.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 14300.0,
+          "solid_area_mm2": 14107.28
+        },
+        {
+          "inst_id": "P13_GARDEN_BACK",
+          "part_id": "P13_GARDEN_BACK",
+          "kind": "panel",
+          "group": "garden",
+          "x_mm": 5.0,
+          "y_mm": 121.0,
+          "w_mm": 130.0,
+          "h_mm": 57.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 7410.0,
+          "solid_area_mm2": 6456.51
+        },
+        {
+          "inst_id": "P05_WALL_FRONT_piece3of3",
+          "part_id": "P05_WALL_FRONT_piece3of3",
+          "kind": "panel",
+          "group": "walls",
+          "x_mm": 138.0,
+          "y_mm": 8.0,
+          "w_mm": 37.0,
+          "h_mm": 117.0,
+          "z_mm": 3.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 4329.0,
+          "solid_area_mm2": 3877.04
+        },
+        {
+          "inst_id": "P17_BASE_JOINER_copy2of2",
+          "part_id": "P17_BASE_JOINER",
+          "kind": "panel",
+          "group": "base",
+          "x_mm": 138.0,
+          "y_mm": 128.0,
+          "w_mm": 28.0,
+          "h_mm": 64.0,
+          "z_mm": 6.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 1792.0,
+          "solid_area_mm2": 1792.0
+        }
+      ]
+    },
+    {
+      "plate_index": 17,
+      "plate_id": "PLATE17_mounts_furniture",
+      "stl_file": "plates/PLATE17_mounts_furniture.stl",
+      "threemf_file": "plates/PLATE17_mounts_furniture.3mf",
+      "preview_png": "previews/_plate17_layout.png",
+      "part_count": 24,
+      "unique_parts": [
+        "FUR03_TV_SCREEN",
+        "FUR04_BED",
+        "FUR05_BEDSIDE_TABLE",
+        "FUR06_PLANT_POT_LARGE",
+        "FUR09_FLOOR_TENON_PEG",
+        "P08_DOOR_LEAF",
+        "SUP01_CORNER_CLIP_WALL",
+        "SUP02_CORNER_CLIP_LOW",
+        "SUP05_P16_TENON_RISER",
+        "SUP06_HUB_PCB_SNAP_CARRIER",
+        "SUP10B_DOOR_HORN_COUPLER",
+        "SUP17_LED5MM_RETAINING_COLLAR"
+      ],
+      "used_bbox_mm": [
+        168.0,
+        189.55,
+        28.0
+      ],
+      "bed_bounds_min_mm": [
+        6.0,
+        5.22,
+        0.0
+      ],
+      "bed_bounds_max_mm": [
+        174.0,
+        194.78,
+        28.0
+      ],
+      "bbox_utilization_pct": 83.1,
+      "solid_utilization_pct": 67.5,
+      "print_time_str": "10h 24m 39s",
+      "print_time_sec": 37479,
+      "filament_g": 107.44,
+      "filament_m": 36.02,
+      "manifold_3mf": true,
+      "manifold_stl": true,
+      "slice_ok": true,
+      "gcode_x_range_mm": [
+        3.821,
+        176.179
+      ],
+      "gcode_y_range_mm": [
+        3.046,
+        196.754
+      ],
+      "gcode_z_max_mm": 28.0,
+      "items": [
+        {
+          "inst_id": "SUP06_HUB_PCB_SNAP_CARRIER",
+          "part_id": "SUP06_HUB_PCB_SNAP_CARRIER",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 6.0,
+          "y_mm": 5.225,
+          "w_mm": 104.0,
+          "h_mm": 84.0,
+          "z_mm": 13.6,
+          "rotated_90": false,
+          "bbox_area_mm2": 8736.0,
+          "solid_area_mm2": 4980.93
+        },
+        {
+          "inst_id": "P08_DOOR_LEAF",
+          "part_id": "P08_DOOR_LEAF",
+          "kind": "panel",
+          "group": "walls",
+          "x_mm": 113.0,
+          "y_mm": 5.225,
+          "w_mm": 56.0,
+          "h_mm": 100.0,
+          "z_mm": 3.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 5600.0,
+          "solid_area_mm2": 4738.73
+        },
+        {
+          "inst_id": "FUR04_BED",
+          "part_id": "FUR04_BED",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 6.0,
+          "y_mm": 92.225,
+          "w_mm": 62.0,
+          "h_mm": 90.0,
+          "z_mm": 28.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 5580.0,
+          "solid_area_mm2": 5581.92
+        },
+        {
+          "inst_id": "FUR03_TV_SCREEN",
+          "part_id": "FUR03_TV_SCREEN",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 71.0,
+          "y_mm": 92.225,
+          "w_mm": 35.0,
+          "h_mm": 48.0,
+          "z_mm": 5.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 1680.0,
+          "solid_area_mm2": 1511.84
+        },
+        {
+          "inst_id": "FUR05_BEDSIDE_TABLE",
+          "part_id": "FUR05_BEDSIDE_TABLE",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 71.0,
+          "y_mm": 143.225,
+          "w_mm": 22.0,
+          "h_mm": 26.0,
+          "z_mm": 28.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 572.0,
+          "solid_area_mm2": 635.77
+        },
+        {
+          "inst_id": "SUP01_CORNER_CLIP_WALL_copy1of2",
+          "part_id": "SUP01_CORNER_CLIP_WALL",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 96.0,
+          "y_mm": 143.225,
+          "w_mm": 24.0,
+          "h_mm": 24.0,
+          "z_mm": 14.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 576.0,
+          "solid_area_mm2": 540.72
+        },
+        {
+          "inst_id": "SUP01_CORNER_CLIP_WALL_copy2of2",
+          "part_id": "SUP01_CORNER_CLIP_WALL",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 96.0,
+          "y_mm": 170.225,
+          "w_mm": 24.0,
+          "h_mm": 24.0,
+          "z_mm": 14.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 576.0,
+          "solid_area_mm2": 540.72
+        },
+        {
+          "inst_id": "SUP17_LED5MM_RETAINING_COLLAR_copy2of2",
+          "part_id": "SUP17_LED5MM_RETAINING_COLLAR",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 71.0,
+          "y_mm": 172.225,
+          "w_mm": 22.0,
+          "h_mm": 11.0,
+          "z_mm": 8.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 242.0,
+          "solid_area_mm2": 221.62
+        },
+        {
+          "inst_id": "FUR06_PLANT_POT_LARGE_copy1of2",
+          "part_id": "FUR06_PLANT_POT_LARGE",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 109.0,
+          "y_mm": 108.225,
+          "w_mm": 20.0,
+          "h_mm": 20.0,
+          "z_mm": 18.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 400.0,
+          "solid_area_mm2": 388.48
+        },
+        {
+          "inst_id": "FUR06_PLANT_POT_LARGE_copy2of2",
+          "part_id": "FUR06_PLANT_POT_LARGE",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 123.0,
+          "y_mm": 131.225,
+          "w_mm": 20.0,
+          "h_mm": 20.0,
+          "z_mm": 18.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 400.0,
+          "solid_area_mm2": 388.48
+        },
+        {
+          "inst_id": "SUP02_CORNER_CLIP_LOW_copy1of6",
+          "part_id": "SUP02_CORNER_CLIP_LOW",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 132.0,
+          "y_mm": 108.225,
+          "w_mm": 18.0,
+          "h_mm": 18.0,
+          "z_mm": 10.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 324.0,
+          "solid_area_mm2": 304.16
+        },
+        {
+          "inst_id": "SUP02_CORNER_CLIP_LOW_copy2of6",
+          "part_id": "SUP02_CORNER_CLIP_LOW",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 146.0,
+          "y_mm": 129.225,
+          "w_mm": 18.0,
+          "h_mm": 18.0,
+          "z_mm": 10.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 324.0,
+          "solid_area_mm2": 304.16
+        },
+        {
+          "inst_id": "SUP02_CORNER_CLIP_LOW_copy3of6",
+          "part_id": "SUP02_CORNER_CLIP_LOW",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 153.0,
+          "y_mm": 108.225,
+          "w_mm": 18.0,
+          "h_mm": 18.0,
+          "z_mm": 10.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 324.0,
+          "solid_area_mm2": 304.16
+        },
+        {
+          "inst_id": "SUP02_CORNER_CLIP_LOW_copy4of6",
+          "part_id": "SUP02_CORNER_CLIP_LOW",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 146.0,
+          "y_mm": 150.225,
+          "w_mm": 18.0,
+          "h_mm": 18.0,
+          "z_mm": 10.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 324.0,
+          "solid_area_mm2": 304.16
+        },
+        {
+          "inst_id": "SUP02_CORNER_CLIP_LOW_copy5of6",
+          "part_id": "SUP02_CORNER_CLIP_LOW",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 123.0,
+          "y_mm": 154.225,
+          "w_mm": 18.0,
+          "h_mm": 18.0,
+          "z_mm": 10.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 324.0,
+          "solid_area_mm2": 304.16
+        },
+        {
+          "inst_id": "SUP02_CORNER_CLIP_LOW_copy6of6",
+          "part_id": "SUP02_CORNER_CLIP_LOW",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 144.0,
+          "y_mm": 171.225,
+          "w_mm": 18.0,
+          "h_mm": 18.0,
+          "z_mm": 10.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 324.0,
+          "solid_area_mm2": 304.16
+        },
+        {
+          "inst_id": "SUP05_P16_TENON_RISER_copy2of4",
+          "part_id": "SUP05_P16_TENON_RISER",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 123.0,
+          "y_mm": 175.225,
+          "w_mm": 14.0,
+          "h_mm": 12.0,
+          "z_mm": 9.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 168.0,
+          "solid_area_mm2": 131.82
+        },
+        {
+          "inst_id": "SUP10B_DOOR_HORN_COUPLER",
+          "part_id": "SUP10B_DOOR_HORN_COUPLER",
+          "kind": "support",
+          "group": "mounts",
+          "x_mm": 165.0,
+          "y_mm": 171.225,
+          "w_mm": 9.0,
+          "h_mm": 13.55,
+          "z_mm": 11.5,
+          "rotated_90": false,
+          "bbox_area_mm2": 121.95,
+          "solid_area_mm2": 74.95
+        },
+        {
+          "inst_id": "FUR09_FLOOR_TENON_PEG_copy2of10",
+          "part_id": "FUR09_FLOOR_TENON_PEG",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 165.0,
+          "y_mm": 187.775,
+          "w_mm": 6.0,
+          "h_mm": 7.0,
+          "z_mm": 4.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 42.0,
+          "solid_area_mm2": 41.82
+        },
+        {
+          "inst_id": "FUR09_FLOOR_TENON_PEG_copy3of10",
+          "part_id": "FUR09_FLOOR_TENON_PEG",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 109.0,
+          "y_mm": 131.225,
+          "w_mm": 6.0,
+          "h_mm": 7.0,
+          "z_mm": 4.0,
+          "rotated_90": false,
+          "bbox_area_mm2": 42.0,
+          "solid_area_mm2": 41.82
+        },
+        {
+          "inst_id": "FUR09_FLOOR_TENON_PEG_copy7of10",
+          "part_id": "FUR09_FLOOR_TENON_PEG",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 167.0,
+          "y_mm": 129.225,
+          "w_mm": 7.0,
+          "h_mm": 6.0,
+          "z_mm": 4.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 42.0,
+          "solid_area_mm2": 41.82
+        },
+        {
+          "inst_id": "FUR09_FLOOR_TENON_PEG_copy8of10",
+          "part_id": "FUR09_FLOOR_TENON_PEG",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 167.0,
+          "y_mm": 138.225,
+          "w_mm": 7.0,
+          "h_mm": 6.0,
+          "z_mm": 4.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 42.0,
+          "solid_area_mm2": 41.82
+        },
+        {
+          "inst_id": "FUR09_FLOOR_TENON_PEG_copy9of10",
+          "part_id": "FUR09_FLOOR_TENON_PEG",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 167.0,
+          "y_mm": 147.225,
+          "w_mm": 7.0,
+          "h_mm": 6.0,
+          "z_mm": 4.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 42.0,
+          "solid_area_mm2": 41.82
+        },
+        {
+          "inst_id": "FUR09_FLOOR_TENON_PEG_copy10of10",
+          "part_id": "FUR09_FLOOR_TENON_PEG",
+          "kind": "furniture",
+          "group": "furniture",
+          "x_mm": 167.0,
+          "y_mm": 156.225,
+          "w_mm": 7.0,
+          "h_mm": 6.0,
+          "z_mm": 4.0,
+          "rotated_90": true,
+          "bbox_area_mm2": 42.0,
+          "solid_area_mm2": 41.82
+        }
+      ]
     }
   ],
-  "files_count": 305,
+  "files_count": 319,
   "files": [
     {
       "path": "drawings/_joint_closeup_mong.pdf",
-      "bytes": 162712,
-      "sha256": "954e61fb8278089664de6c6eb55fe6958938253510e3b2e795cffe6a44199846"
+      "bytes": 158632,
+      "sha256": "03fc56b16836bdc455dfa76cbc7f915df3268580c48364e9ecefb94acb826cd9"
     },
     {
       "path": "drawings/_joint_closeup_mong.png",
-      "bytes": 652628,
-      "sha256": "84ef87ef53d9c74ce66cdc7613b6ece863980f81ce24529c6c9037c7223d9504"
+      "bytes": 653036,
+      "sha256": "5ad3f8555d74b09241b8f5519462c57e998d4a53deadee49c34e7400d7b1c22c"
     },
     {
       "path": "drawings/_pcb_module_fit.pdf",
-      "bytes": 61372,
-      "sha256": "ee668681f72023d260111f2a35973551e530c9f1e757d38971e3c9a9484d421f"
+      "bytes": 63084,
+      "sha256": "8591ec4a7056b41d5dba931700e5013bd4c35dc9d41a37dceb0306ae0f52c5cb"
     },
     {
       "path": "drawings/_pcb_module_fit.png",
-      "bytes": 701568,
-      "sha256": "8e564d78dc9a7e21bd3cc85cd1acfc1ec988ef39c7e162156489c6a1e71137b4"
+      "bytes": 737645,
+      "sha256": "5073a29ef3f0a71d4cf6430b73071d29d3f7f3ea8f5a6e6c0ad317fb5a36a2bb"
     },
     {
       "path": "drawings/FUR01_SOFA.pdf",
@@ -3713,63 +3828,63 @@
     },
     {
       "path": "drawings/P05_WALL_FRONT_piece1of3.pdf",
-      "bytes": 107832,
-      "sha256": "cbf5155f9b5b1a5a8b5773d821e07f827be062d36db83d03b24fe624129c229d"
+      "bytes": 109267,
+      "sha256": "72d9f1a347224c03871ecbeabbb5b0738975ae561f9888fbbf59617620f6f247"
     },
     {
       "path": "drawings/P05_WALL_FRONT_piece1of3.png",
-      "bytes": 221955,
-      "sha256": "8a0e9e2aa1dde286bcbb60a34b7723c698ffd75d83bf5b933cf046a8932cfa49"
+      "bytes": 224219,
+      "sha256": "c5aba9ed531e9b2498fd4317eae67b366aabea9f32c7dedefaf6d91c05afe2aa"
     },
     {
       "path": "drawings/P05_WALL_FRONT_piece2of3.pdf",
-      "bytes": 108347,
-      "sha256": "c5b470e3176c8bf31cfac3f703cd9d35df9a1e3e5ad3819893837da25e6536fd"
+      "bytes": 108254,
+      "sha256": "36ecdfc28d4737acc473bf0aa0153ee3e8e0b1e4765f209dd2c3340394438240"
     },
     {
       "path": "drawings/P05_WALL_FRONT_piece2of3.png",
-      "bytes": 232390,
-      "sha256": "fc81c532ed3e41518537940fb675f36d0839b5905d33b703ca3901c99a3708f5"
+      "bytes": 232923,
+      "sha256": "200f9299ebfd0ef1597c13186068921c59f8d264f93dfac0381f64d96a42414d"
     },
     {
       "path": "drawings/P05_WALL_FRONT_piece3of3.pdf",
-      "bytes": 94242,
-      "sha256": "179fbac0c7dae5455e58b7e1a1427969eb33cdb2da331b53c9bbfa8e39847457"
+      "bytes": 93779,
+      "sha256": "aaa92c13e531377666afb85267ec2822eb80cb435b95cd30d6fb0019c50dace6"
     },
     {
       "path": "drawings/P05_WALL_FRONT_piece3of3.png",
-      "bytes": 192541,
-      "sha256": "1d6b4a0b2ef630be51e48f7cac260ed93287b46d257ea601a389cacab598c0be"
+      "bytes": 190935,
+      "sha256": "3add363c5fe1de783dce125620410750ddcfa12d8376b93871a550c536d35690"
     },
     {
       "path": "drawings/P06_WALL_MID.pdf",
-      "bytes": 101304,
-      "sha256": "4dd9a55f693460c4054f77ab9d08c6702ab8217651c701b9fd843a9a38807f71"
+      "bytes": 105193,
+      "sha256": "fa7084428c6a6f9b190276f4a60befdd57b231792f604d25b762447621c7d6e3"
     },
     {
       "path": "drawings/P06_WALL_MID.png",
-      "bytes": 210077,
-      "sha256": "8fdbef0e7b6770e588b9812e613043bfda02b2357d120d4af48bc300b071cab3"
+      "bytes": 213798,
+      "sha256": "79e6b7a66b67c9c61540dfd13e44e8fbb24c84da2fd5e26c73b793998bebc335"
     },
     {
       "path": "drawings/P07_SERVO_SHELF.pdf",
-      "bytes": 78186,
-      "sha256": "d3739904e098c927dab1b6a2239902d47766ae19abc42d78171fdce632d5da86"
+      "bytes": 62705,
+      "sha256": "2594648da618f4d04274c2c5c971f24b8f4a5dfc3f8e5e9239b354b6fc9f8765"
     },
     {
       "path": "drawings/P07_SERVO_SHELF.png",
-      "bytes": 195912,
-      "sha256": "80baae1b63e4b8d94efafc83de446ae3c29a5ca3c664e22e41cd9f22462001c2"
+      "bytes": 171783,
+      "sha256": "1787a11fc5f66b66425d5140640c34294002ddfbae07a45ef210826d2e6120de"
     },
     {
       "path": "drawings/P08_DOOR_LEAF.pdf",
-      "bytes": 97198,
-      "sha256": "26438d2759ace497e8b6980457f49ca4815f959ed7d59bba1c97c52a545b3b18"
+      "bytes": 96800,
+      "sha256": "26fee834794eac6a2e2399454d5b8dd9de833201d558dcc5521407f65e525810"
     },
     {
       "path": "drawings/P08_DOOR_LEAF.png",
-      "bytes": 205493,
-      "sha256": "4b5a4b56c514d9728fd1396f9850e6f4521a1041832ee327303157c8edf9131b"
+      "bytes": 204828,
+      "sha256": "6d9eae65878e71ca1a843953d9bb7b69d54f605e7409876405ab42860b6d9252"
     },
     {
       "path": "drawings/P09_GARDEN_LEFT.pdf",
@@ -3833,23 +3948,23 @@
     },
     {
       "path": "drawings/P15_TECH_FASCIA_piece1of2.pdf",
-      "bytes": 86602,
-      "sha256": "c24b83885b247c5e10496883eaeb34975964bda81af39ae73bf0297a0b8ca0c7"
+      "bytes": 86610,
+      "sha256": "f8278fbd8d1b42e4e9cc43db7e8546f664ff53ecc689a218e84799de80808b53"
     },
     {
       "path": "drawings/P15_TECH_FASCIA_piece1of2.png",
-      "bytes": 192615,
-      "sha256": "4c4640573bfc27ff0cbad1f17f08f08fc42ef167bc68824f05de25c523eadcc6"
+      "bytes": 192204,
+      "sha256": "f0a365960dda52ff04057903aa9d045c1bb051a37838e4b787ba2301635ef2e1"
     },
     {
       "path": "drawings/P15_TECH_FASCIA_piece2of2.pdf",
-      "bytes": 110571,
-      "sha256": "192afb6ddf767805b2d980f1f7c6e9b1d4c766c786690e8902a84c59f6936ee5"
+      "bytes": 110362,
+      "sha256": "45a8f9c9edc6618d72871b47ee54ac5721a01f20fb3191dbfec6fa159f58a976"
     },
     {
       "path": "drawings/P15_TECH_FASCIA_piece2of2.png",
-      "bytes": 222204,
-      "sha256": "e302dc69e57e07f8b88931cb3de45dc8964236234be05b65eaf4a862f2eccfe8"
+      "bytes": 221037,
+      "sha256": "70cb21eb1867d53b4755fb18e741b5ed95a0da277d674f6466ff09bcbbe2bed3"
     },
     {
       "path": "drawings/P16_PCB_PLATE.pdf",
@@ -3984,7 +4099,7 @@
     {
       "path": "drawings/SUP10_DOOR_MORTISE_HINGE.pdf",
       "bytes": 105819,
-      "sha256": "cbf097997aeeafbd36f8e42623fe000c7a1d35536d1fd25b54b4ddcf6ae61d09"
+      "sha256": "0f116ddb40277cec4a788e9dd7c9474f09d0c8212820cade5d0c1510e5c21a0f"
     },
     {
       "path": "drawings/SUP10_DOOR_MORTISE_HINGE.png",
@@ -3992,24 +4107,24 @@
       "sha256": "d8d506f1791bc17fa3d44da5b226bc98081bf7309e700eff37f0cb080325b88d"
     },
     {
-      "path": "drawings/SUP10B_SERVO_LINK_CLIP.pdf",
-      "bytes": 76845,
-      "sha256": "d59ee54ad004c519e919940114b32a68a19784dbd56f49b1ab0b44803a132db2"
+      "path": "drawings/SUP10B_DOOR_HORN_COUPLER.pdf",
+      "bytes": 71479,
+      "sha256": "a47ebfd347d097e95a13d18c4fa69a17e1e06039ac123972db621b903e9cbab8"
     },
     {
-      "path": "drawings/SUP10B_SERVO_LINK_CLIP.png",
-      "bytes": 231313,
-      "sha256": "62e6cf2755d4a6c33287e73af1b84a894b1cf3fc251efcd65320aff35d69edef"
+      "path": "drawings/SUP10B_DOOR_HORN_COUPLER.png",
+      "bytes": 224440,
+      "sha256": "bc9e747462dde554d058f99ba0702cc726079345ac5188964806a16be410078c"
     },
     {
       "path": "drawings/SUP11_SG90_SNAP_SADDLE.pdf",
-      "bytes": 74298,
-      "sha256": "761df634c86fa628f2cccade5733e60504348cf64bce2df5e2806aa98c0fc86c"
+      "bytes": 75233,
+      "sha256": "19287008c15fe14998b3bb2e4322d3912c8668db20fa9bad5dcdedb1403f5006"
     },
     {
       "path": "drawings/SUP11_SG90_SNAP_SADDLE.png",
-      "bytes": 206976,
-      "sha256": "b3361b0fa0a2a0e18fdb968ca36c2cbf3f6dda60bb71222c7e7db92a77ff91cd"
+      "bytes": 210310,
+      "sha256": "7efe88cc62f1783afc9343ac65a22fef09468c2e06cf5caea596ebf2ea057217"
     },
     {
       "path": "drawings/SUP12_DHT11_SNAP_CRADLE.pdf",
@@ -4050,6 +4165,36 @@
       "path": "drawings/SUP15_WATER_TANK_LINER.png",
       "bytes": 218629,
       "sha256": "d15748c76b7f6af6383ffc4474c80918fe48ab8e07f0614fdf3e9065b343c988"
+    },
+    {
+      "path": "drawings/SUP16_DC022_STRAIN_RELIEF.pdf",
+      "bytes": 86588,
+      "sha256": "9f1da0b4d194cd2a556b625c61ac818c67601e9f506dbf04334039f10e2311bd"
+    },
+    {
+      "path": "drawings/SUP16_DC022_STRAIN_RELIEF.png",
+      "bytes": 246719,
+      "sha256": "408cb5753a42559f62a59f59e92d8d13a2e17edb8ef4246d78b2d49da67151ee"
+    },
+    {
+      "path": "drawings/SUP17_LED5MM_RETAINING_COLLAR.pdf",
+      "bytes": 65594,
+      "sha256": "654950efca27400d33793c2a8dfb9c4bdc848c94839c82a84a76cf5141bced23"
+    },
+    {
+      "path": "drawings/SUP17_LED5MM_RETAINING_COLLAR.png",
+      "bytes": 230020,
+      "sha256": "0a985e8108fe44e4b62b9924a445ceba1b1cf3b5c70a657f5c64adc0011fd714"
+    },
+    {
+      "path": "drawings/SUP18_BUZZER_SNAP_COLLAR.pdf",
+      "bytes": 99228,
+      "sha256": "76734545cbc79e2092615281f26d5f588ecf97d8b87b0f7ca64838f553bc9d32"
+    },
+    {
+      "path": "drawings/SUP18_BUZZER_SNAP_COLLAR.png",
+      "bytes": 248220,
+      "sha256": "33df9b47c5e33f348029933cbbe47dc5893a993d15c0e4c90df1f8b1207fdc9c"
     },
     {
       "path": "parts/FUR01_SOFA.step",
@@ -4144,7 +4289,7 @@
     {
       "path": "parts/P01A_BASE_TECH_piece1of3.step",
       "bytes": 1046310,
-      "sha256": "cd0393109ef4a64dc7c979da13beafd51d58719d3a620171eea1832212e36ca8"
+      "sha256": "0841c15b6fea4563572b7f43b44491f9b6e69c4eefb423efdc85af57185ff320"
     },
     {
       "path": "parts/P01A_BASE_TECH_piece1of3.stl",
@@ -4154,7 +4299,7 @@
     {
       "path": "parts/P01A_BASE_TECH_piece2of3.step",
       "bytes": 1017351,
-      "sha256": "6959c89ba025e2aab22b1652872ce4378b3a019a3f22e525eaac90b0d7401fcb"
+      "sha256": "d56da2a07712488e4065f090c20aa25c35cd681b329a7f490e461d2230bbfcc9"
     },
     {
       "path": "parts/P01A_BASE_TECH_piece2of3.stl",
@@ -4164,7 +4309,7 @@
     {
       "path": "parts/P01A_BASE_TECH_piece3of3.step",
       "bytes": 1215419,
-      "sha256": "a7200012937916ce14c44c69ae67e366e6c6bd6d56f7c61f6e0cab209afa1447"
+      "sha256": "dffcbfd493957af5e2bcd0478f1ff064911336515e227b8fbfac321e2826f174"
     },
     {
       "path": "parts/P01A_BASE_TECH_piece3of3.stl",
@@ -4174,7 +4319,7 @@
     {
       "path": "parts/P01B_BASE_HOUSE_piece1of6.step",
       "bytes": 1046928,
-      "sha256": "344a6869e86511bb277b1675b82101a4c77457f3d5500f8e7d7959c8a8e98cb7"
+      "sha256": "0ffb0199ef8f1b76ce66a029967687bf14a68f68b1eb4f55affe04b485600ef4"
     },
     {
       "path": "parts/P01B_BASE_HOUSE_piece1of6.stl",
@@ -4184,7 +4329,7 @@
     {
       "path": "parts/P01B_BASE_HOUSE_piece2of6.step",
       "bytes": 1116409,
-      "sha256": "dfc871ce569c4fb116168639b2a42d820aa6729a392ec83214bccbc7e2cf474b"
+      "sha256": "abf5f0affa7fa107ebac3ac65202ac0cae48b113221e6f44a5acd243f9eccce1"
     },
     {
       "path": "parts/P01B_BASE_HOUSE_piece2of6.stl",
@@ -4194,7 +4339,7 @@
     {
       "path": "parts/P01B_BASE_HOUSE_piece3of6.step",
       "bytes": 1215878,
-      "sha256": "617e76e8f440288a6370d8f9ad6fd94af31a4729433e405e3a274dc1af430704"
+      "sha256": "03d9f1e390e53b6815fd79ee68423ce59c48675edc827db5aa0b862c2ceb2c4f"
     },
     {
       "path": "parts/P01B_BASE_HOUSE_piece3of6.stl",
@@ -4204,7 +4349,7 @@
     {
       "path": "parts/P01B_BASE_HOUSE_piece4of6.step",
       "bytes": 1021223,
-      "sha256": "1e9c84b889a38ff44df8a368c40c6b0397b256f3ae14aa83001f43b2763edeeb"
+      "sha256": "359ffa6dbbaac13c977b40fd07630e06813ccd6d5b8f208ebe415ed7e1d71a80"
     },
     {
       "path": "parts/P01B_BASE_HOUSE_piece4of6.stl",
@@ -4214,7 +4359,7 @@
     {
       "path": "parts/P01B_BASE_HOUSE_piece5of6.step",
       "bytes": 1095300,
-      "sha256": "a3420b33724ae3e2ec19b2715f7ffbcb29c96849e10299d9d3b0bbb9888a40b2"
+      "sha256": "0f9093d29234aab0e71f65f4f0d9e6f92b2737037419ce0f075730c6285e718e"
     },
     {
       "path": "parts/P01B_BASE_HOUSE_piece5of6.stl",
@@ -4224,7 +4369,7 @@
     {
       "path": "parts/P01B_BASE_HOUSE_piece6of6.step",
       "bytes": 1181131,
-      "sha256": "703bd81bfd6c68e160d54b8530f754beca6af6e4ca1c029e686ae991924b3459"
+      "sha256": "083afc58382b013136bc0678ef38025a2535c5e542bdcc21f148113f220a366d"
     },
     {
       "path": "parts/P01B_BASE_HOUSE_piece6of6.stl",
@@ -4234,7 +4379,7 @@
     {
       "path": "parts/P02_WALL_BACK_piece1of3.step",
       "bytes": 978244,
-      "sha256": "1ba2cb9bfda976f74824eea15617c5d045c5bcd06141b2c158b3ff1dce0c369e"
+      "sha256": "7e852374736ad94825a2e1301ee50a813cec9cbd99e9e6ad576accb3023d0c86"
     },
     {
       "path": "parts/P02_WALL_BACK_piece1of3.stl",
@@ -4244,7 +4389,7 @@
     {
       "path": "parts/P02_WALL_BACK_piece2of3.step",
       "bytes": 1094272,
-      "sha256": "fa8477f4d74e919ad2dde493794fd3c059941f96806e6be6692ad0969bddffb1"
+      "sha256": "2de134aed53624551e855ed916ea3e214420598d8933140398b4131d6fc6f89e"
     },
     {
       "path": "parts/P02_WALL_BACK_piece2of3.stl",
@@ -4254,7 +4399,7 @@
     {
       "path": "parts/P02_WALL_BACK_piece3of3.step",
       "bytes": 1156797,
-      "sha256": "085872c3748de4042bc9d9c1e0c80c9027a9a83eaeba71a0292a1f023ca5ad34"
+      "sha256": "7659018897a1f2513e95bfc0c158412112cc00fa604339007109c79138e00ff8"
     },
     {
       "path": "parts/P02_WALL_BACK_piece3of3.stl",
@@ -4264,7 +4409,7 @@
     {
       "path": "parts/P03_WALL_LEFT.step",
       "bytes": 1022884,
-      "sha256": "d46d7d02354d812a6eb1d30e630945bad79a887e063262d5b5d8e167ba36fb24"
+      "sha256": "40a055b9319e0c0dc4b61d962abf318d50a623bcefb04964dfb8718c0ebca373"
     },
     {
       "path": "parts/P03_WALL_LEFT.stl",
@@ -4283,28 +4428,28 @@
     },
     {
       "path": "parts/P05_WALL_FRONT_piece1of3.step",
-      "bytes": 1066077,
-      "sha256": "4a3f745b84cb4031657222254fbeba078484a94a6f528c49c36beffd52589c72"
+      "bytes": 1067694,
+      "sha256": "0d3cf764076f9a82881a9f6929194370cba0c1c4e0ac02254c7327265d83f98c"
     },
     {
       "path": "parts/P05_WALL_FRONT_piece1of3.stl",
-      "bytes": 352684,
-      "sha256": "af5eae9814b2e6691140d55cbd7922b2c226924cf140c99816b133a027901fb6"
+      "bytes": 363084,
+      "sha256": "c6c9441e5d5031371476bc5b91ba14c0d8ff8c5a1aa2e75171ab0edbd4d5fd97"
     },
     {
       "path": "parts/P05_WALL_FRONT_piece2of3.step",
-      "bytes": 1029720,
-      "sha256": "d5464ff8ae4d12afa9bed06aebf496426ae9e1fd1628ee99e5c5acd033644402"
+      "bytes": 1041136,
+      "sha256": "34f7d39ce6e162657ec1a0ec2e300afd784ff88de517a79769ac2b9853bac002"
     },
     {
       "path": "parts/P05_WALL_FRONT_piece2of3.stl",
-      "bytes": 360784,
-      "sha256": "1582b3835c06ee9d4de5bffdc3ef84e83b5bdf4c60e4857bdabe311302f1ca5b"
+      "bytes": 362784,
+      "sha256": "9521c828cec63e875d732ba0b902214d8b5d747a56879596616c5478187a2d2d"
     },
     {
       "path": "parts/P05_WALL_FRONT_piece3of3.step",
-      "bytes": 910049,
-      "sha256": "aaa7e3f9c8764792b26d1fb646ab46fe947ee75c5dcffcaacb09c1d231dd7588"
+      "bytes": 910047,
+      "sha256": "3b48812229c41656408f2bef986ef869851f44f9f77a1d95ae43d3b7b92245fa"
     },
     {
       "path": "parts/P05_WALL_FRONT_piece3of3.stl",
@@ -4313,33 +4458,33 @@
     },
     {
       "path": "parts/P06_WALL_MID.step",
-      "bytes": 1082585,
-      "sha256": "616f2d8e7ce7f71dae770ca0c70d5878a4343a9c47ea82e27023ea5dfca7ad02"
+      "bytes": 1105442,
+      "sha256": "be185272381528982687150b6b60bfc94342df0cffb36e2a4e099462aa024f91"
     },
     {
       "path": "parts/P06_WALL_MID.stl",
-      "bytes": 363384,
-      "sha256": "c3a35029f61628e43832f15c1fad7492d54523be2f00ee1f130a212458b9e8c7"
+      "bytes": 367384,
+      "sha256": "b1095ccc1700682480121df030e38e0b4fc0a8a21c52845baaac705670ba633b"
     },
     {
       "path": "parts/P07_SERVO_SHELF.step",
-      "bytes": 663644,
-      "sha256": "127226e2a29788fd0d78c0c5faefa2154ff4bf9e6f7a632a3ec1dad37d0e4439"
+      "bytes": 570186,
+      "sha256": "d8710a095cb36e85ee49e684070c7061df60580b6ad79e1202f2839ccc1b0655"
     },
     {
       "path": "parts/P07_SERVO_SHELF.stl",
-      "bytes": 216984,
-      "sha256": "3a50a96a733ee01923fd37dec0c82cdc6e65c9606ecfa6c18bbc3f0bff382086"
+      "bytes": 187784,
+      "sha256": "b77c40a2db972071459459dd9be4bd56552120cc3159521daa0cac1e0cfe837a"
     },
     {
       "path": "parts/P08_DOOR_LEAF.step",
-      "bytes": 883732,
-      "sha256": "15c9ecba8f32ae6425df6fb3e09925c0e7e7a2dd30680f63033fb2b90b072c44"
+      "bytes": 885865,
+      "sha256": "007b903d38434dc6619bfa1bb775e66f5c67e0ed004ac91dc68c6d0491655d0b"
     },
     {
       "path": "parts/P08_DOOR_LEAF.stl",
       "bytes": 310384,
-      "sha256": "0cad09ef3b7f6d10f9ab49999bfa2556008178bd60576734530da25d3863ac24"
+      "sha256": "5fb3855f6823a8d6228d7651e5f091d585ec40ea4ee9d6726df21c23e37e3aed"
     },
     {
       "path": "parts/P09_GARDEN_LEFT.step",
@@ -4403,18 +4548,18 @@
     },
     {
       "path": "parts/P15_TECH_FASCIA_piece1of2.step",
-      "bytes": 769107,
-      "sha256": "6d06fc3d52ae73c6ad4869313b32c0b011c93df99ad925d877e11edc21c05fae"
+      "bytes": 780473,
+      "sha256": "8295245f7e485d70693ca0abdb9f363bcc2f45ab0fa02dc07dcbe5f644d3a13d"
     },
     {
       "path": "parts/P15_TECH_FASCIA_piece1of2.stl",
-      "bytes": 257084,
-      "sha256": "de0a52e4d64e87cc8b3b9e6985fd72e6d739b6e098110c3519a833cf5856532c"
+      "bytes": 259084,
+      "sha256": "d7ca67d0123d6002926d1734f9e7a0f694187974d9baded773b9f32bef600686"
     },
     {
       "path": "parts/P15_TECH_FASCIA_piece2of2.step",
-      "bytes": 810970,
-      "sha256": "66333c79f9925db93dd85a2fa2db55fa68f1f134a9f6c6e40dfc95e20b54a1f6"
+      "bytes": 810968,
+      "sha256": "9d5db783668702c6eae71012bfa4dadbf8ce3f28d59c745167ecc799cd8ae3b4"
     },
     {
       "path": "parts/P15_TECH_FASCIA_piece2of2.stl",
@@ -4444,7 +4589,7 @@
     {
       "path": "parts/SUP01_CORNER_CLIP_WALL.step",
       "bytes": 303899,
-      "sha256": "6ec7c1ec9c0706597ee0c476ca52fa0e430e03af619552259a9931da3987f095"
+      "sha256": "efb04d0b7e36f1512ad05314985bcd30207b3c6cb1fc4faa7799cf9c684640c3"
     },
     {
       "path": "parts/SUP01_CORNER_CLIP_WALL.stl",
@@ -4454,7 +4599,7 @@
     {
       "path": "parts/SUP01B_T_CLIP_WALL.step",
       "bytes": 380392,
-      "sha256": "a378242704a9c6220fbe9d3253d02a0bf79f01bdce7c678ffaab7caaab8d0f69"
+      "sha256": "eb3974b39edc66cc4f27e4606f2e109c3614954f81184424ecb573eed92e0d57"
     },
     {
       "path": "parts/SUP01B_T_CLIP_WALL.stl",
@@ -4464,7 +4609,7 @@
     {
       "path": "parts/SUP02_CORNER_CLIP_LOW.step",
       "bytes": 340542,
-      "sha256": "47722bb6c82d8f4cb3c03f201a0faa332284afab72eee9e875b77071c5ef5823"
+      "sha256": "931f96d82260fe61e11822345a53b31dd6c82c86c9613b6034f8a187d336b382"
     },
     {
       "path": "parts/SUP02_CORNER_CLIP_LOW.stl",
@@ -4474,7 +4619,7 @@
     {
       "path": "parts/SUP03_SEAM_U_CLIP.step",
       "bytes": 370005,
-      "sha256": "afee82a74efe79de11da7ed8cbf74132c70692283785336ee6390f53f350a716"
+      "sha256": "8d4eee78a77508dad778131dd556ebba87295276e30caa51e43e26c695f7484f"
     },
     {
       "path": "parts/SUP03_SEAM_U_CLIP.stl",
@@ -4484,7 +4629,7 @@
     {
       "path": "parts/SUP04_BASE_FOOT_CLIP.step",
       "bytes": 724837,
-      "sha256": "40f161829660f3bd16636b8018c2fd91511b5fcbd697c186778f10e25d5ed560"
+      "sha256": "8b59b6150f1edea77bf0fce6f5b28ae9b63f12f0d782b3dddc9bc015369ded39"
     },
     {
       "path": "parts/SUP04_BASE_FOOT_CLIP.stl",
@@ -4494,7 +4639,7 @@
     {
       "path": "parts/SUP05_P16_TENON_RISER.step",
       "bytes": 334600,
-      "sha256": "e8a4f5e52b1b752d58a3f2685fe2bfe45b4eceabfd6a0082dadd2a81c7057397"
+      "sha256": "84120b48ca528c4772f59aefec07f10318ff9a8fbc4f43597168d41322019aff"
     },
     {
       "path": "parts/SUP05_P16_TENON_RISER.stl",
@@ -4504,7 +4649,7 @@
     {
       "path": "parts/SUP05B_CARRIER_TENON_PEG.step",
       "bytes": 20720,
-      "sha256": "188031ec0addb71b05ba7d035b746a306a1aa455d53967706cbb519447a10faf"
+      "sha256": "848eeccef9065ec1cd6d9ef8958ceca0b409b7b66d3b61246ebf4c7c3da5606d"
     },
     {
       "path": "parts/SUP05B_CARRIER_TENON_PEG.stl",
@@ -4514,7 +4659,7 @@
     {
       "path": "parts/SUP06_HUB_PCB_SNAP_CARRIER.step",
       "bytes": 1134573,
-      "sha256": "557f17b305037de18c1e50ace5eb7785b5e98ff8993f5bcec0296c42d90cab52"
+      "sha256": "57dcc43e0aae4cbcff050c4b07381ebd5e890a3afb6ca3460b7d2d673c2e7e60"
     },
     {
       "path": "parts/SUP06_HUB_PCB_SNAP_CARRIER.stl",
@@ -4524,7 +4669,7 @@
     {
       "path": "parts/SUP07_RELAY_SNAP_CADDY.step",
       "bytes": 530738,
-      "sha256": "b969c827bdc48dca3413769044ca58158dadde3598ee9a66c1b6cf686eeb32d5"
+      "sha256": "93874b9037805bb6aa6e795be3b8f71a621896700630cc846adf583fc4f03f5f"
     },
     {
       "path": "parts/SUP07_RELAY_SNAP_CADDY.stl",
@@ -4534,7 +4679,7 @@
     {
       "path": "parts/SUP08_PAM8403_SNAP_TRAY.step",
       "bytes": 877047,
-      "sha256": "ba72749b220186ea3bc61bd397c397da575973cb909dfba61fcb147e5075dc81"
+      "sha256": "4b2462c0881828c7cea44b18a6739f2a5ce9251162e49dff16eb286a1202de3b"
     },
     {
       "path": "parts/SUP08_PAM8403_SNAP_TRAY.stl",
@@ -4544,7 +4689,7 @@
     {
       "path": "parts/SUP09_SPEAKER_SNAP_RETAINER.step",
       "bytes": 388084,
-      "sha256": "f3336dc54b30845a556d0252bca3527723d6c402fe2d403c4fbfa872bb119cd3"
+      "sha256": "f39fdbbff521ba271c151ce6f9f0660bec84a0e97945c724fd0466a4ec660f73"
     },
     {
       "path": "parts/SUP09_SPEAKER_SNAP_RETAINER.stl",
@@ -4554,7 +4699,7 @@
     {
       "path": "parts/SUP10_DOOR_MORTISE_HINGE.step",
       "bytes": 311040,
-      "sha256": "ef37928334e3d8dee4921c49ae34fff1c465ebfa9174117c5e9fcb4f8dbfedae"
+      "sha256": "d75ad3c7c97a35a8d70a4275fdbaee3e00600b551d896d82a9c7707d2e21f9f5"
     },
     {
       "path": "parts/SUP10_DOOR_MORTISE_HINGE.stl",
@@ -4562,29 +4707,29 @@
       "sha256": "0e6351713ad351ec5c27dc029b465ad72cb3606d059e4d4cbf5398745e4d2374"
     },
     {
-      "path": "parts/SUP10B_SERVO_LINK_CLIP.step",
-      "bytes": 177700,
-      "sha256": "628aec8030ce5ddaf25f6f0a5cb3bcf2cbca95369d61235c8b1ea622766e53b7"
+      "path": "parts/SUP10B_DOOR_HORN_COUPLER.step",
+      "bytes": 185644,
+      "sha256": "03f23ceb23b3d2915a5c5e844bf970714ed97a2952228d3dcaab20b7b531a376"
     },
     {
-      "path": "parts/SUP10B_SERVO_LINK_CLIP.stl",
-      "bytes": 78684,
-      "sha256": "5190b183c43af58c25646935643f06d33a8a898ae9f729d3844bfa28af52acc9"
+      "path": "parts/SUP10B_DOOR_HORN_COUPLER.stl",
+      "bytes": 64684,
+      "sha256": "3af5e2ab1582f5b44000e5294b6c91bdc9434290573953818a27d5d1aa667d1e"
     },
     {
       "path": "parts/SUP11_SG90_SNAP_SADDLE.step",
-      "bytes": 257500,
-      "sha256": "ee892713be6222f8fec4d919496916232d1cab0738225ab52d9f4ae15ce12837"
+      "bytes": 259549,
+      "sha256": "acfe74acde7766d9de327339f651e3a8e07d1c847386bb409a5bae4492c19042"
     },
     {
       "path": "parts/SUP11_SG90_SNAP_SADDLE.stl",
-      "bytes": 74984,
-      "sha256": "b89632099cb8d20c95c80c347adf914e3551cbce31ce39e02b3767fb11c91fd3"
+      "bytes": 74784,
+      "sha256": "614204e3f3d8f0eb89f12c1d56af0c9ea88d2ab14c736d1187432ae7287ac24f"
     },
     {
       "path": "parts/SUP12_DHT11_SNAP_CRADLE.step",
       "bytes": 298569,
-      "sha256": "e1377d5fde66606f3c91b4ba976ec1b3de68077e3d681e714a8d19b3f461809f"
+      "sha256": "fdc16055d320a864f718f622d9157ade3cfc5cbda6a6f540c0da0e4527fcf4fe"
     },
     {
       "path": "parts/SUP12_DHT11_SNAP_CRADLE.stl",
@@ -4594,7 +4739,7 @@
     {
       "path": "parts/SUP13_KY037_SNAP_CRADLE.step",
       "bytes": 340630,
-      "sha256": "724ce8ee451810516dbbb2bad3d8bef3c601463a26bbbb63bdb3097eb2716c44"
+      "sha256": "11c70054833cd964df0b16db1a31620463b41a93fa337e776f8d4cd6521c3819"
     },
     {
       "path": "parts/SUP13_KY037_SNAP_CRADLE.stl",
@@ -4604,7 +4749,7 @@
     {
       "path": "parts/SUP14_LM393_SNAP_CRADLE.step",
       "bytes": 266045,
-      "sha256": "634a1ca01ce04d88f044504ba4ba56af197fd1422bc33ec7473969e263ca25aa"
+      "sha256": "732d38e6fdb08e65a857a2bcb19bdd523553c3ed187cffcc8cf3f2aa077f420a"
     },
     {
       "path": "parts/SUP14_LM393_SNAP_CRADLE.stl",
@@ -4614,7 +4759,7 @@
     {
       "path": "parts/SUP15_WATER_TANK_LINER.step",
       "bytes": 540881,
-      "sha256": "5155b4c8a064fe70919f7415009ae79b50a9d1e3aa5fc39d64e18d889200c215"
+      "sha256": "80e971eabc83a6a1693a964222b9957bf72e9e88694538d5a75e9e4d51f2ac15"
     },
     {
       "path": "parts/SUP15_WATER_TANK_LINER.stl",
@@ -4622,39 +4767,69 @@
       "sha256": "f4dfcaeffe97f32edfce89de7976d13c1620344fe2260b663afc9da21f1a4e30"
     },
     {
-      "path": "plates/PLATE01_base_walls.3mf",
-      "bytes": 255366,
-      "sha256": "6dbcf6ea5fa2f203c80a7b31aba8e245b81ef2e4674f170300d89055fc465e55"
+      "path": "parts/SUP16_DC022_STRAIN_RELIEF.step",
+      "bytes": 248815,
+      "sha256": "4878cfd0c14d74ddacaeb95b298992ccd7f68404649063057313348f8944b9f9"
     },
     {
-      "path": "plates/PLATE01_base_walls.stl",
-      "bytes": 1255384,
-      "sha256": "24e9faac7016f123bc85238a2db7c6d594d092bd7e16f368adc449a44a58c439"
+      "path": "parts/SUP16_DC022_STRAIN_RELIEF.stl",
+      "bytes": 93684,
+      "sha256": "b490d4b5460a3d4fdff79ed22cda53a893c6d87e5742c8455f584bc51aba06f1"
     },
     {
-      "path": "plates/PLATE02_base_tech.3mf",
-      "bytes": 252513,
-      "sha256": "4d0b796e9b1ba41cb4a20a8b1ad6c6f7f4021d287316448f601236bff266fe99"
+      "path": "parts/SUP17_LED5MM_RETAINING_COLLAR.step",
+      "bytes": 157177,
+      "sha256": "b0434ad3196c403003e14e32d10c1fe043252e8b3772545367b7a4a6c8b987ef"
     },
     {
-      "path": "plates/PLATE02_base_tech.stl",
-      "bytes": 1262384,
-      "sha256": "d7eb823e4e115309e739cf85a612c73c40d729a3a7eda5439ae9e4d4d5be619b"
+      "path": "parts/SUP17_LED5MM_RETAINING_COLLAR.stl",
+      "bytes": 60184,
+      "sha256": "8a3c1fe2078f17a06afbec11fbe9a6bb5ab0af6bac2bf295faea917ba0fc838a"
     },
     {
-      "path": "plates/PLATE03_base_mounts.3mf",
-      "bytes": 304964,
-      "sha256": "ea622d035cc985c0b50881e0b697b76a94565d0bf6e8a8ba11a689c0f54728b7"
+      "path": "parts/SUP18_BUZZER_SNAP_COLLAR.step",
+      "bytes": 284463,
+      "sha256": "66054f7103804f394c63df2f93cc69c8a7f802b84bb7d6a5b0c4d886b07d010d"
     },
     {
-      "path": "plates/PLATE03_base_mounts.stl",
-      "bytes": 1486684,
-      "sha256": "780b671542798bffe91650347a81fcc028cd6c05758bd24dd736c5f32fc23df2"
+      "path": "parts/SUP18_BUZZER_SNAP_COLLAR.stl",
+      "bytes": 124084,
+      "sha256": "5c0f7d557feaa088409c2e8774ab8df1bb182a379cc04ef8c95778df2721700c"
+    },
+    {
+      "path": "plates/PLATE01_base_tech.3mf",
+      "bytes": 259216,
+      "sha256": "e8303c28519096ca753379855105a00a57d5b710833ca7aceb1916c4d82e1aac"
+    },
+    {
+      "path": "plates/PLATE01_base_tech.stl",
+      "bytes": 1288584,
+      "sha256": "71706d602e1e2fb13496ba8bed40c3759c8a6d7830ab7ae3e23aeb01c9969f14"
+    },
+    {
+      "path": "plates/PLATE02_base_furniture.3mf",
+      "bytes": 308914,
+      "sha256": "938def5886ff548ca6e2bab63a07bdb69a1f67e39e20ffedb920b1ac93e0e7ab"
+    },
+    {
+      "path": "plates/PLATE02_base_furniture.stl",
+      "bytes": 1509584,
+      "sha256": "27f79bb6da525120920849bb84ec9a4bf708ba318b7be0be41746ff45d70b226"
+    },
+    {
+      "path": "plates/PLATE03_base_garden.3mf",
+      "bytes": 287900,
+      "sha256": "1b18a644a0fe8e3429c608d7adfac28fdb35ce8914af95f622dfffca243cb9ab"
+    },
+    {
+      "path": "plates/PLATE03_base_garden.stl",
+      "bytes": 1455584,
+      "sha256": "f4592a7df5c5c57262e91861f66e3ed4ac4475d013f78aafe9b0d09c3f8fbc5c"
     },
     {
       "path": "plates/PLATE04_base.3mf",
       "bytes": 79239,
-      "sha256": "d8574ac2af9e6c02429481ea2a10a6fb96456abe6a02f62d2390db2c310f320d"
+      "sha256": "7d67129015dad1cdac3d2d2e438f1562c65aec78a681769cef73d3fe93809134"
     },
     {
       "path": "plates/PLATE04_base.stl",
@@ -4662,59 +4837,59 @@
       "sha256": "1c40fab7eec7e4816c705888a496041a705ea193fa17605240145e64283980b2"
     },
     {
-      "path": "plates/PLATE05_base_tech.3mf",
-      "bytes": 327629,
-      "sha256": "47242b62de998906fad66447ad808e1ed54478e85b65ad49f8e439f95dde2d67"
+      "path": "plates/PLATE05_base_mounts.3mf",
+      "bytes": 402995,
+      "sha256": "a92ee025ebe83370ab9fe4e0de09ba790615c5abce99077a5fc5288a0dfecf7d"
     },
     {
-      "path": "plates/PLATE05_base_tech.stl",
-      "bytes": 1616584,
-      "sha256": "0cb947b8a29c29e1437744cc5ff5bfe29af08c579da6d717fde2fcd6e3f7e357"
+      "path": "plates/PLATE05_base_mounts.stl",
+      "bytes": 2015284,
+      "sha256": "bdbac33bcb886266b85040f704043a41d9df1354d945815da418895aedcd7f69"
     },
     {
-      "path": "plates/PLATE06_base_garden.3mf",
-      "bytes": 183079,
-      "sha256": "b8ab6d02743bb6043d6ae6a225b32583533198c175eead606aedea78e2724178"
-    },
-    {
-      "path": "plates/PLATE06_base_garden.stl",
-      "bytes": 908384,
-      "sha256": "c031a0b582da4877ffa2bbfe71d2f6d7f87acbc09552ca52a87d85a2ceeb141c"
-    },
-    {
-      "path": "plates/PLATE07_base.3mf",
+      "path": "plates/PLATE06_base.3mf",
       "bytes": 69581,
-      "sha256": "86288a7340a460307cf8a4e5b4aabc262e2b43e66a6eaa90fa25b9019861013b"
+      "sha256": "de49e1b3d267ec2aaee2cf1c8fc465d1790997c9bf8da0a0f1e112a8f48b5098"
     },
     {
-      "path": "plates/PLATE07_base.stl",
+      "path": "plates/PLATE06_base.stl",
       "bytes": 334484,
       "sha256": "357f8fa0bdd7c58f0483eef35c2d2ec620844ee8d7bf40956cbd626d6565400e"
     },
     {
-      "path": "plates/PLATE08_walls.3mf",
-      "bytes": 180470,
-      "sha256": "ca4babcb691989e72dea901c35a2b58860d7d175674423131555a383f14f29f3"
+      "path": "plates/PLATE07_base_tech.3mf",
+      "bytes": 147156,
+      "sha256": "eaf09c9330c2b819e4456abe9ccbbc1853296d994f3018a420b9b4aa87512371"
     },
     {
-      "path": "plates/PLATE08_walls.stl",
-      "bytes": 870884,
-      "sha256": "00882f899bfa847751031291ab5815771d28994632dbf442ca323e162133a9d4"
+      "path": "plates/PLATE07_base_tech.stl",
+      "bytes": 713884,
+      "sha256": "96333e43ab2796486473e1123b8980a58db2cb98bfdb85335472a25318c32b60"
+    },
+    {
+      "path": "plates/PLATE08_walls_garden.3mf",
+      "bytes": 200033,
+      "sha256": "64225f0c1e5b3d5d8b01b645eb2b5a142cc97f9903d555bf5bd3f8ec482468b2"
+    },
+    {
+      "path": "plates/PLATE08_walls_garden.stl",
+      "bytes": 972384,
+      "sha256": "2f280ebed5bb93817e59324796883ce7ece02368ba9ae959c125e1ba3a9f27e6"
     },
     {
       "path": "plates/PLATE09_walls_base.3mf",
-      "bytes": 311496,
-      "sha256": "86a445e3c21cb395d4363c42a8b9de632b072f48e10c088337ebfd8a31fb9bf4"
+      "bytes": 260110,
+      "sha256": "cf9e38f29b44edda23378aad951d156e03662bf8a29ae210c0d3f0911f9366e9"
     },
     {
       "path": "plates/PLATE09_walls_base.stl",
-      "bytes": 1537484,
-      "sha256": "eb590d7875bfa2af042897ad33f5ca004361d88a501168bf547ba8685b9f4b49"
+      "bytes": 1277184,
+      "sha256": "05c92366aada493a37aa3aa0b05b3391da4fb2ade8d4566a0298a1d4eb87939e"
     },
     {
       "path": "plates/PLATE10_walls.3mf",
       "bytes": 67664,
-      "sha256": "648cf459084be7aca0e53117c0dc6bc2c735d8492e3e38c3b43a2ae747c4b349"
+      "sha256": "8c5013e2ee0be06b72d62d8f8b5a0da5b9f4150fdd989f78e2e69a927440c7b6"
     },
     {
       "path": "plates/PLATE10_walls.stl",
@@ -4724,7 +4899,7 @@
     {
       "path": "plates/PLATE11_walls.3mf",
       "bytes": 67570,
-      "sha256": "4019c13d89275e5945ed6817a8c8c8b3575eb60fc50143b3a01579d195e17504"
+      "sha256": "53eb98e3896ef33619b70f1c01905cb98923d6961ee99aa9bd4a6f8b4bf89b19"
     },
     {
       "path": "plates/PLATE11_walls.stl",
@@ -4733,28 +4908,28 @@
     },
     {
       "path": "plates/PLATE12_walls.3mf",
-      "bytes": 75659,
-      "sha256": "e2992d97ee93654ce916d3e6ceca39809744da088922b27c3a7025e1fe838e38"
+      "bytes": 76571,
+      "sha256": "638d08991594b165576c82f99999787e46ae2e062ac60dc1b0bfb2cd77058102"
     },
     {
       "path": "plates/PLATE12_walls.stl",
-      "bytes": 363384,
-      "sha256": "84359588cd2c23e0c3f6f3905802cef401318072b9db3f361d6c4c62f0d1877b"
+      "bytes": 367384,
+      "sha256": "8bae5f4458ce4265dc172427c073a5d887bdb52df7e8e3ae3c52e3f6d470dec8"
     },
     {
       "path": "plates/PLATE13_walls_garden.3mf",
-      "bytes": 173071,
-      "sha256": "381c6aebfc0d18faf377c5acfa6443167bbde61ef88df50d377639af2207ad37"
+      "bytes": 228699,
+      "sha256": "5bc90da1dc02940be19005000ad928e103fe7ccb7041f0bbe5d46edcd81b7f37"
     },
     {
       "path": "plates/PLATE13_walls_garden.stl",
-      "bytes": 857984,
-      "sha256": "cbaf639446d2c04b89acb73d086af4006b8d89d727e2dc63e07e5e5189189419"
+      "bytes": 1120484,
+      "sha256": "041caf7b14ee60f60deb71a1f065c752b86b479789d6defb76e5b5edf93e6f65"
     },
     {
       "path": "plates/PLATE14_walls.3mf",
       "bytes": 81268,
-      "sha256": "eb776ab86ff9f95e4c4863e2b77cc94e90e59fd2339582b5835a4dec16d709bb"
+      "sha256": "eddef3a4b5bc06ededb4b2406cb820c3a086000e1db24c4a3d081fbeec595ef9"
     },
     {
       "path": "plates/PLATE14_walls.stl",
@@ -4762,44 +4937,44 @@
       "sha256": "9a382b30548f214eeaad9999f4c9ddbfe4230da17f7a1770f7a8af7744855a24"
     },
     {
-      "path": "plates/PLATE15_walls_garden.3mf",
-      "bytes": 412205,
-      "sha256": "1dd4f408694124b4b28c753631ddacb79f60d6a9b8fe1976c11612241ddc8336"
+      "path": "plates/PLATE15_garden_walls.3mf",
+      "bytes": 244947,
+      "sha256": "2587e1a0c45e3a24c69c4273485dece6ffad8fd2f5ff92290b6492c1b29d7f0f"
     },
     {
-      "path": "plates/PLATE15_walls_garden.stl",
-      "bytes": 2049984,
-      "sha256": "d7c0112ff5f3907143293aa2b45b3de35aac45de02b272f2842d5a2b29edfe25"
+      "path": "plates/PLATE15_garden_walls.stl",
+      "bytes": 1183484,
+      "sha256": "afdd164f38cecb0e3f4dff16ca0c7b0fcf463bd0e1d664d647edf849e22035b3"
     },
     {
-      "path": "plates/PLATE16_garden_tech.3mf",
-      "bytes": 218902,
-      "sha256": "5875572210093452a637c8cfc7d6f28ecbaf7b5116033338c97588126d825cf9"
+      "path": "plates/PLATE16_tech_garden.3mf",
+      "bytes": 227574,
+      "sha256": "10ba1b71272c237fc7b027d9f1a85e43754db167b5b5458f24ca6cfb4517276d"
     },
     {
-      "path": "plates/PLATE16_garden_tech.stl",
-      "bytes": 1060184,
-      "sha256": "f3a9555dae93e9bd1449e78f57b2893b9670fc39f06112ba3eed9a64f564f9b7"
+      "path": "plates/PLATE16_tech_garden.stl",
+      "bytes": 1103884,
+      "sha256": "aba1bcd9d6437b2f1a591df95dc11559b66435432667e705e11007aaba3ab104"
     },
     {
       "path": "plates/PLATE17_mounts_furniture.3mf",
-      "bytes": 473541,
-      "sha256": "4137518fbed775c345e90186e37555055e0e3f881c4b6c100144d0986cbc7cd8"
+      "bytes": 582685,
+      "sha256": "2770427e0e544a7515155033580ac582a9e29b272a1cb2b6632fb4e75c62fffc"
     },
     {
       "path": "plates/PLATE17_mounts_furniture.stl",
-      "bytes": 2377984,
-      "sha256": "20f6edd5cb87d44a5787a8d44a5f61adeec1df9f1a02b933a0b888850a5c492d"
+      "bytes": 2952384,
+      "sha256": "497b0d0df604018c10686ad55e3befcddf629ec771a78193b18112932c4b49b3"
     },
     {
       "path": "previews/_assembled_house_furniture.png",
-      "bytes": 130080,
-      "sha256": "24beaebe0b729cde80276f0dd9393e7b250f475ac6e608c6e1c3b7a871a8df88"
+      "bytes": 141045,
+      "sha256": "9a9fd80486e60a18e81c97d19d9fdedaf5fadddb54c1d664f58778b0b513e092"
     },
     {
       "path": "previews/_exploded_house_v2.png",
-      "bytes": 112659,
-      "sha256": "00dba82977fb1a498ed45c9a934846d147da5333255028649af351c27a4ab47e"
+      "bytes": 116419,
+      "sha256": "3f3f9602b1238589e6c265a52d82170697eeaa977d8b0d22d816527297905577"
     },
     {
       "path": "previews/_furniture_showcase.png",
@@ -4813,18 +4988,18 @@
     },
     {
       "path": "previews/_plate01_layout.png",
-      "bytes": 210632,
-      "sha256": "ef96d114fd4729c7ae626ba196fc0f04659720f5a2152be8837acfa5a68e9e5b"
+      "bytes": 203116,
+      "sha256": "1ffcd44688f8655c8f2d23e4fd5ab9c5b2fede7959583a91d5659a56ac777ec1"
     },
     {
       "path": "previews/_plate02_layout.png",
-      "bytes": 197854,
-      "sha256": "29e1028935f920d1fb21fe8ee38aa0f07ce39c47f4776c2f469fd91d93fdfdab"
+      "bytes": 197672,
+      "sha256": "ffc760c3b5204db4695606b63c93154e6e3cc42ebf56f300609678ece04b0468"
     },
     {
       "path": "previews/_plate03_layout.png",
-      "bytes": 190199,
-      "sha256": "3c0fdde7772d24a323856d37e26d8a6862a8134679da2c6fe60f29fe2cb91f59"
+      "bytes": 217143,
+      "sha256": "2d87c49a946426252f6a237255873e3bbf075928b45d2f9acdd7951d32be1098"
     },
     {
       "path": "previews/_plate04_layout.png",
@@ -4833,28 +5008,28 @@
     },
     {
       "path": "previews/_plate05_layout.png",
-      "bytes": 199702,
-      "sha256": "4842c5d48a51ae0b1bb392e7d611fdbcfc16abf7a391de83cf1884cd2811ff96"
+      "bytes": 210751,
+      "sha256": "384238b9040ca6c09a5dcf77a451f9d30401ff1902d214b99a4f83586f26957a"
     },
     {
       "path": "previews/_plate06_layout.png",
-      "bytes": 172992,
-      "sha256": "bccf0e4ea483b29576ebaee5375fd0b58b2afec09e2ed134b6f9799513ba1cd3"
+      "bytes": 132262,
+      "sha256": "b9c958a9fdf7f3677cc1c2f7269246241687c3386c4bdf67ed0ddeaf85210d81"
     },
     {
       "path": "previews/_plate07_layout.png",
-      "bytes": 131389,
-      "sha256": "05afcdbfe6da6960ace97c652d26de169ef0d303ea600ffe59d1762f082e08ef"
+      "bytes": 164033,
+      "sha256": "d8aa038e9029e52a90fd4aa207a492070fa5cf483c3af638f79796261209e670"
     },
     {
       "path": "previews/_plate08_layout.png",
-      "bytes": 167826,
-      "sha256": "e6ae6e06465d183e5105b5378068cf50bfadf9ed84f75786192881540f1bd407"
+      "bytes": 171662,
+      "sha256": "8f594287656c1c540b53902326907a671e220b84df8cb328f4b1837d1e55c956"
     },
     {
       "path": "previews/_plate09_layout.png",
-      "bytes": 196852,
-      "sha256": "9e16489c9e00c6e652147aabf44a3eae6dda6de1d1f008cd05402e0721d2e944"
+      "bytes": 199498,
+      "sha256": "c9dc3304f33e8c5c8fcf26a81c7282ecbb6a72efeb98c706fd2a9f9886232ecf"
     },
     {
       "path": "previews/_plate10_layout.png",
@@ -4868,13 +5043,13 @@
     },
     {
       "path": "previews/_plate12_layout.png",
-      "bytes": 138292,
-      "sha256": "4b8df96a6ac418d2aeb71bfac325fb1a58adc025fab4151823fb189e73dabfa9"
+      "bytes": 140593,
+      "sha256": "cb9e05b4628432fdc1b0ea5d4497a43944d609750ec6a898ca7dc7c9d9f7241a"
     },
     {
       "path": "previews/_plate13_layout.png",
-      "bytes": 182020,
-      "sha256": "5572b7cd814cd0f33406571a3b930087fbb770918a6427f381da287a055fb57b"
+      "bytes": 192189,
+      "sha256": "96817d6c72dbba021ac33c5cd742154ed6db9143dbc8489fdf6fd9e2e7da911d"
     },
     {
       "path": "previews/_plate14_layout.png",
@@ -4883,33 +5058,43 @@
     },
     {
       "path": "previews/_plate15_layout.png",
-      "bytes": 216768,
-      "sha256": "f2d2f90b049fe5dd190ef41d397fad20ec6738735dcd7c73ea4befb1fc4d7b48"
+      "bytes": 199237,
+      "sha256": "543692b9ebc285b8fbf5ccad3c6cddc06089091bee3f597e0ccadaec141d6345"
     },
     {
       "path": "previews/_plate16_layout.png",
-      "bytes": 196796,
-      "sha256": "06255c92f8cf0f0f8d7b402ddf03e7a4f3c8ed880e0e6c0c6c70c6b98d5d2594"
+      "bytes": 187183,
+      "sha256": "e3589b21541e034dff283e5107b809ace5a363b281719a5a3053220032eb6c3f"
     },
     {
       "path": "previews/_plate17_layout.png",
-      "bytes": 200588,
-      "sha256": "63452b3053d209c3c2c22331578f7e0c94809ab3beb885fac5ef8a8c18423c0c"
+      "bytes": 235240,
+      "sha256": "82f6c8975dcaf6bdced29f578457ac59fd8b133b409edd575d050d4da4d2a226"
     },
     {
       "path": "previews/_plates_overview.png",
-      "bytes": 897039,
-      "sha256": "7d9978a2bfcca3ca852acca4e3820d85a44e3686bd97f70706c2ef7f2cd09c05"
+      "bytes": 918509,
+      "sha256": "80a63bd3a738a98db311066d9b7462b88a72976f0c735f7fc969d7af3dbaaf09"
+    },
+    {
+      "path": "previews/_servo_door_closeup.png",
+      "bytes": 83995,
+      "sha256": "b9fb6e4dae68a8d2c19cb6635a9dfa0d7580bafe7aee4c316382820125ee86ed"
     },
     {
       "path": "previews/_slicer_plate_preview.png",
-      "bytes": 338234,
-      "sha256": "ff00683753f1b9d25133db2d4dc494eb21d4ce9eed18f3e28234e21469685d91"
+      "bytes": 363755,
+      "sha256": "a22151b89bfd62f917ec5757fe6e1269bdf40f6a3db722f73e2fbd01a9b3ebcd"
+    },
+    {
+      "path": "previews/_slicer_servo_door_plates.png",
+      "bytes": 902547,
+      "sha256": "19ffcf8d03f18e5937c8b64983531afb2bc145524d14c1c738f820b9397146a1"
     },
     {
       "path": "README.md",
-      "bytes": 31274,
-      "sha256": "bec5ca9c50bf83957664b6fe105f7f027a85322ea46a82b1a9e0177e6fc6c4c1"
+      "bytes": 33787,
+      "sha256": "53ae30a7793c10feef68e4864c2bc389dbd15952d1d3524b90b928a59a8ced46"
     },
     {
       "path": "scripts/build_all_v2.py",
@@ -4923,13 +5108,13 @@
     },
     {
       "path": "scripts/build_mounts_v2.py",
-      "bytes": 38444,
-      "sha256": "df1217eb78335ec33582e8359e82f2ac0fce4709f3f99e73653f3ac2d9e4ef5a"
+      "bytes": 46116,
+      "sha256": "a0603da68f3874d1a47e10b2c225041d7a46ae249b21956320559a0dd4d0475e"
     },
     {
       "path": "scripts/build_panels_v2.py",
-      "bytes": 12848,
-      "sha256": "34069cd032a6a1ccee6646ae2e4d5bd19755232730fc71f034135d557496d924"
+      "bytes": 15200,
+      "sha256": "5aa7bd38be75e8f4464b503a3facab69ecf09b481fa09168297a7230bfb8f2d8"
     },
     {
       "path": "scripts/cad_common.py",
@@ -4938,13 +5123,13 @@
     },
     {
       "path": "scripts/export_drawings_v2.py",
-      "bytes": 74818,
-      "sha256": "e856854dc2caafac83896b01aa29694e67a7d3bc29742f24a2fa4a875891e21b"
+      "bytes": 74379,
+      "sha256": "fa49293962d54b004cea77406b647bb54099a1981776059557ec03a4486f55fe"
     },
     {
       "path": "scripts/generate_manifest_and_readme_v2.py",
-      "bytes": 35379,
-      "sha256": "cd72f3b64b997031120250f6e9a71641a3e6c5b2fee370f4e1223c92e8401736"
+      "bytes": 36697,
+      "sha256": "740404db1cf52350ab3bd5a8272ff075897cf5207d099adfd49a048eef0ba65c"
     },
     {
       "path": "scripts/kicad_pcb_ssot.py",
@@ -4958,33 +5143,33 @@
     },
     {
       "path": "scripts/print_domain.py",
-      "bytes": 80565,
-      "sha256": "8200f7dd5a170ee4d6831d3962cfc972f7773888bf39313f3abf66aab50d08bf"
+      "bytes": 86750,
+      "sha256": "7210be57b59ef6f7926da9f478220b66be7c32ac58244dedb9509005778563b5"
     },
     {
       "path": "scripts/render_previews_v2.py",
-      "bytes": 62003,
-      "sha256": "575606013805e8b4e1bcd2972b93ce81d4ac3273ab3e68d415c10b19c414c4fa"
+      "bytes": 73325,
+      "sha256": "b9d24058d5f7fd6857162d8719bdd60c6ae8be809df05644cfee2b66e60881b4"
     },
     {
       "path": "scripts/verify_assembly_fit.py",
-      "bytes": 37353,
-      "sha256": "0d7efabdd361b0b3aebd92e24881b581274c4fd37291b2a8a088844e882994c2"
+      "bytes": 47530,
+      "sha256": "ab70abb14ab2d92c7300f6200719bd09f6a7dfa6e4d7069a25d012d2a0cc0cc8"
     },
     {
       "path": "scripts/verify_plates_v2.py",
-      "bytes": 37348,
-      "sha256": "6cdfbdb78868e8491ceaa95bca07134a9683318335936f304d667eeb4ebd4235"
+      "bytes": 38267,
+      "sha256": "349cb2b88303c6916051a6adb4023c93c6a908f02527e803decd7a2f2229ed1b"
     },
     {
       "path": "scripts/world_assembly_v2.py",
-      "bytes": 16214,
-      "sha256": "7c412c61b390f2a108580e21eb47173c3d477c648214e6e8211f0e38139be4d5"
+      "bytes": 21251,
+      "sha256": "610875eb7222508e9134fe7f490643c3f257e9b700c5ccff97e33a5a01391d12"
     },
     {
       "path": "verification_report.json",
-      "bytes": 36559,
-      "sha256": "680ed647b8661279c147639bf0eaeb92155695688a8f0e4b6d38bd9e61acc375"
+      "bytes": 44009,
+      "sha256": "239b9fd948ff94d37c56315ee1dab540ef83bb4a01e093edc7e0e1b2d5090b79"
     }
   ]
 }

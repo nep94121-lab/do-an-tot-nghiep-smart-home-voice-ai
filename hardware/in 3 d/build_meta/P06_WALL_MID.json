@@ -30,19 +30,20 @@
     150.0,
     3.0
   ],
+  "print_flipped_x180": false,
   "print_bbox_mm": [
     190.0,
     150.0,
     3.0
   ],
   "print_z_min": 0.0,
-  "volume_mm3": 62560.865,
+  "volume_mm3": 62311.385,
   "solids": 1,
   "valid": true,
   "engraved_ok": true,
   "engrave_text": "P06_WALL_MID | 190x150x3mm",
   "dovetail_count": 0,
-  "mortise_count": 2,
+  "mortise_count": 6,
   "stripped_fastener_holes": [
     "DHT11_Mount_M3"
   ],
@@ -59,5 +60,5 @@
   ],
   "step_file": "parts/P06_WALL_MID.step",
   "stl_file": "parts/P06_WALL_MID.stl",
-  "stl_facets": 7266
+  "stl_facets": 7346
 }

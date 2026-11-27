@@ -1,8 +1,8 @@
 {
   "assembly_passed": true,
-  "elapsed_sec": 42.95,
+  "elapsed_sec": 56.61,
   "panel_instances_checked": 31,
-  "support_instances_checked": 47,
+  "support_instances_checked": 51,
   "furniture_instances_checked": 22,
   "hardware_bodies_checked": 17,
   "pcb_keepouts_checked": 13,
@@ -193,24 +193,24 @@
       "source_panel_id": "P07_SERVO_SHELF",
       "piece_count": 1,
       "ref_bbox_min": [
-        34.0,
+        47.0,
         192.0,
-        26.5
+        98.5
       ],
       "ref_bbox_max": [
-        68.0,
-        241.125,
-        29.5
+        96.0,
+        221.125,
+        111.5
       ],
       "actual_bbox_min": [
-        34.0,
+        47.0,
         192.0,
-        26.5
+        98.5
       ],
       "actual_bbox_max": [
-        68.0,
-        241.125,
-        29.5
+        96.0,
+        221.125,
+        111.5
       ],
       "max_err_mm": 0.0,
       "passed": true
@@ -485,6 +485,58 @@
   "max_furniture_intersection_mm3": 0.0,
   "hardware_collisions": [],
   "max_hardware_intersection_mm3": 0.0,
+  "door_swept_volume_check": {
+    "passed": true,
+    "pivot_xy_mm": [
+      77.0,
+      201.5
+    ],
+    "angle_range_deg": [
+      0,
+      90
+    ],
+    "step_deg": 5,
+    "angles_checked": 19,
+    "moving_parts": [
+      "SG90_WhiteHorn",
+      "P08_DOOR_LEAF",
+      "SUP10_DOOR_MORTISE_HINGE_LeafB#1",
+      "SUP10_DOOR_MORTISE_HINGE_LeafB#2",
+      "SUP10B_DOOR_HORN_COUPLER"
+    ],
+    "static_obstacles_checked": 117,
+    "max_intersection_mm3": 0.0,
+    "horn_coupler_intersection_mm3": 0.0,
+    "collisions": [],
+    "torque_margin": {
+      "mechanism": "coaxial_direct_drive_top_jamb",
+      "door_mass_g": 17.55,
+      "door_width_mm": 56.0,
+      "sg90_stall_torque_kg_cm": 1.8,
+      "dynamic_torque_kg_cm": 0.0094,
+      "friction_torque_kg_cm": 0.00355,
+      "external_disturbance_torque_kg_cm": 0.11417,
+      "nominal_required_torque_kg_cm": 0.01295,
+      "worst_case_required_torque_kg_cm": 0.1271,
+      "nominal_safety_margin_x": 139.0,
+      "worst_case_safety_margin_x": 14.16,
+      "passes_min_5x_margin": true
+    }
+  },
+  "torque_margin": {
+    "mechanism": "coaxial_direct_drive_top_jamb",
+    "door_mass_g": 17.55,
+    "door_width_mm": 56.0,
+    "sg90_stall_torque_kg_cm": 1.8,
+    "dynamic_torque_kg_cm": 0.0094,
+    "friction_torque_kg_cm": 0.00355,
+    "external_disturbance_torque_kg_cm": 0.11417,
+    "nominal_required_torque_kg_cm": 0.01295,
+    "worst_case_required_torque_kg_cm": 0.1271,
+    "nominal_safety_margin_x": 139.0,
+    "worst_case_safety_margin_x": 14.16,
+    "passes_min_5x_margin": true
+  },
   "r3_clearances": {
     "all_passed": true,
     "passed_count": 7,
@@ -518,11 +570,13 @@
         "passed": true,
         "cable_front_lr_clear": true,
         "cable_front_br_clear": true,
+        "cable_servo_d1_clear": true,
         "pump_wire_notch_clear": true,
         "p05_cutaway_clear": true,
         "obstructions": {
           "Cable_Front_LR": [],
           "Cable_Front_BR": [],
+          "Cable_Servo_D1": [],
           "Pump_Wire_Notch": [],
           "P05_Cutaway": []
         }

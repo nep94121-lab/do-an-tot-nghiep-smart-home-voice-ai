@@ -663,78 +663,103 @@ def _build_door_hinge(sup: pd_mod.SupportSpec) -> tuple[Any, dict[str, Any]]:
     }
 
 
-def _build_servo_link_clip(sup: pd_mod.SupportSpec) -> tuple[Any, dict[str, Any]]:
-    """Flat-printed linkage clip: tenon, base, and clevis arm all start on Z=0 for zero overhang."""
+def _build_door_horn_coupler(sup: pd_mod.SupportSpec) -> tuple[Any, dict[str, Any]]:
+    """Coaxial open-top U-channel fork engaging SG90 white horn (0 screws, 0 glue, 0 overhangs).
+
+    Print frame maps directly to world via translate(82.5, 192.0, 94.0):
+      - Tenon (4x6x3 mm): x=3.5..7.5 (world X=86..90), y=0..3.5 (world Y=192..195.5), z=0..6.0 (world Z=94..100)
+      - Backing flange on P08 rear: x=1.5..9.0, y=3.0..5.6, z=0..7.5 (world Z=94..101.5)
+      - Open-top U-fork: x=0.0..5.0 (world X=82.5..87.5, r=5.5..10.5 from pivot), y=5.0..13.55, z=0..7.5
+        with inner U-channel y=7.05..11.95 (width 4.90 mm for 4.50 mm white horn), floor z=4.5 (world Z=98.5)
+      - Integral -2 deg stop-post: x=7.0..9.0 (world X=89.5..91.5), y=5.55..7.0 (world Y=197.55..199.0),
+        z=0..11.5 (world Z=94..105.5, engages P07 closed-stop lug at Z=102.5..105.5 without hitting P08/horn).
+    """
     pr = sup.params
-    bx = float(pr["base_x"])  # 10.0
-    bt = float(pr["base_t"])  # 3.0
+    slot_w = float(pr["slot_w"])  # 4.90
+    fork_len = float(pr["fork_len_x"])  # 5.0
+    fork_wt = float(pr["fork_wall_t"])  # 1.6
+    floor_h = float(pr["floor_h"])  # 4.5 (world Z=98.5)
+    total_h = float(pr["total_h"])  # 7.5 (world Z=101.5)
     tx = float(pr["tenon_x"])  # 4.0
-    ty = float(pr["tenon_y"])  # 6.0 (Z height in print & world)
-    th = float(pr["tenon_h"])  # 3.0 (along -Y into P08)
-    hole_d = float(pr["link_hole_d"])  # 1.8 mm pushrod wire eye (not a screw)
-    base_h = 9.0
-    arm_t = 3.5
-    arm_w = 6.0
-    eye_cy = th + bt + 4.0  # 10.0
+    ty = float(pr["tenon_y"])  # 6.0
+    th = float(pr["tenon_h"])  # 3.0
 
-    base = Part.makeBox(bx, bt, base_h, FreeCAD.Vector(0.0, th, 0.0))
-    tenon = Part.makeBox(tx, th + 0.5, ty, FreeCAD.Vector((bx - tx) / 2.0, 0.0, 0.0))
-    arm_rect = Part.makeBox(arm_w, 4.5, arm_t, FreeCAD.Vector((bx - arm_w) / 2.0, th + bt - 0.5, 0.0))
-    arm_tip = Part.makeCylinder(arm_w / 2.0, arm_t, FreeCAD.Vector(bx / 2.0, eye_cy, 0.0))
-    eye_hole = Part.makeCylinder(hole_d / 2.0, arm_t + 2.0, FreeCAD.Vector(bx / 2.0, eye_cy, -1.0))
+    # Channel centered at y_p = 9.50 (world Y = 201.50 = coaxial pivot!)
+    ch_y0 = 9.50 - slot_w / 2.0  # 7.05
+    ch_y1 = 9.50 + slot_w / 2.0  # 11.95
+    fork_y1 = ch_y1 + fork_wt  # 13.55
 
-    shape = base.fuse(tenon).fuse(arm_rect).fuse(arm_tip).cut(eye_hole).removeSplitter()
+    tenon = Part.makeBox(tx, th + 0.5, ty, FreeCAD.Vector(3.5, 0.0, 0.0))
+    flange = Part.makeBox(7.5, 2.6, total_h, FreeCAD.Vector(1.5, th, 0.0))
+    fork_block = Part.makeBox(fork_len, fork_y1 - 5.0, total_h, FreeCAD.Vector(0.0, 5.0, 0.0))
+    stop_post = Part.makeBox(2.0, 1.5, 11.5, FreeCAD.Vector(7.0, 5.5, 0.0))
+    ch_cut = Part.makeBox(fork_len + 2.0, slot_w, total_h - floor_h + 2.0, FreeCAD.Vector(-1.0, ch_y0, floor_h))
 
-    eng_spec = pd_mod.EngraveSpec("10B", "", bx / 2.0, th + bt / 2.0, 1.6, False)
-    shape, eng_ok = cc.safe_engrave_top_face(shape, eng_spec, base_h, 0.35)
+    shape = tenon.fuse(flange).fuse(fork_block).fuse(stop_post).cut(ch_cut).removeSplitter()
+
+    eng_spec = pd_mod.EngraveSpec("10B", "", 2.5, 9.5, 1.4, False)
+    shape, eng_ok = cc.safe_engrave_top_face(shape, eng_spec, floor_h, 0.35)
 
     return shape, {
         "engraved_ok": eng_ok,
         "engrave_text": "10B",
-        "print_rotation_for_world": "identity",
+        "print_rotation_for_world": "translate_82.5_192.0_94.0",
+        "world_origin_offset": [82.5, 192.0, 94.0],
     }
 
 
 def _build_sg90_saddle(sup: pd_mod.SupportSpec) -> tuple[Any, dict[str, Any]]:
-    """Inverted SG90 retention saddle with center gearbox cutout & 2 integral mortise tenons."""
+    """Coaxial top-jamb SG90 retention saddle printed upside-down (0 overhangs, 0 screws).
+
+    Print frame maps to world via rot_x(180) then translate(48.5, 211.8, 117.1):
+      - X: x_p in [0, 45.0] -> world X = 48.5 .. 93.5 (SG90 center X=71.5 -> x_p=23.0)
+      - Y: y_p in [0, 16.6] -> world Y = 211.8 - y_p (rear spine y_p=0..4 -> Y=207.8..211.8;
+           front-open U-window y_p=4..16.6 -> Y=195.2..207.8 clearing SG90 body & P05!)
+      - Z: z_p in [0, 8.6] -> world Z = 117.1 - z_p (bridge Z=114.1..117.1, ear gap Z=111.5..114.1,
+           integral tenons Z=108.5..111.5 into P07 MORT_SG90_L @ u=3.5 & MORT_SG90_R @ u=43.5).
+    """
     pr = sup.params
-    # 18.0 mm width gives 2.6 mm side rails flanking the 12.8x23.6 mm SG90 gearbox cutout (fits 34mm P07 shelf)
-    wx = 18.0
-    ly = float(pr["length_y"])  # 42.0
-    bridge_t = 3.0
-    ear_t = float(pr["ear_t"])  # 2.6 mm matching 2.5 mm SG90 mounting ears + 0.1 mm clearance
+    lx = float(pr["length_x"])  # 45.0
+    wy = float(pr["width_y"])  # 16.6
+    win_x = float(pr["window_x"])  # 23.6
+    win_y = float(pr["window_y"])  # 12.6
+    bridge_t = float(pr["bridge_t"])  # 3.0
+    ear_t = float(pr["ear_t"])  # 2.6
     leg_top_z = bridge_t + ear_t  # 5.6
-    tx = float(pr["tenon_x"])  # 6.0
+    tx = float(pr["tenon_x"])  # 3.0
+    ty = float(pr["tenon_y"])  # 6.0
     th = float(pr["tenon_h"])  # 3.0
+    tl_x = float(pr["tenon_l_local_x"])  # 2.0
+    tr_x = float(pr["tenon_r_local_x"])  # 42.0
+    ten_y = float(pr["tenon_local_y"])  # 10.3 (world Y=211.8-10.3=201.5!)
 
-    # Top bridge on Z=0..3.0 with open center window clearing SG90 gearbox/horn (12.8 x 23.6 mm)
-    bridge = Part.makeBox(wx, ly, bridge_t, FreeCAD.Vector(0.0, 0.0, 0.0))
-    gb_x, gb_y = 12.8, 23.6
-    gb_cut = Part.makeBox(
-        gb_x, gb_y, bridge_t + 2.0,
-        FreeCAD.Vector((wx - gb_x) / 2.0, (ly - gb_y) / 2.0, -1.0),
-    )
+    # Wait: ten_y in world is Y=201.5 -> y_p = 211.8 - 201.5 = 10.3!
+    ten_yp = round(wy - ten_y, 3)  # 16.6 - 6.3 = 10.3
 
-    # End legs clear the 32.2 mm SG90 ear span (inner span 32.5 mm: Y=0..4.75 and Y=37.25..42.0)
-    leg_y_len = 4.75
-    leg_f = Part.makeBox(wx, leg_y_len, leg_top_z, FreeCAD.Vector(0.0, 0.0, 0.0))
-    leg_r = Part.makeBox(wx, leg_y_len, leg_top_z, FreeCAD.Vector(0.0, ly - leg_y_len, 0.0))
+    bridge = Part.makeBox(lx, wy, bridge_t, FreeCAD.Vector(0.0, 0.0, 0.0))
+    # Front-open U-window centered at x_p = 23.0 (world X=71.5), y_p = (wy - win_y)..wy+1 = 4.0..17.6
+    win_x0 = 23.0 - win_x / 2.0  # 11.2
+    win_y0 = wy - win_y  # 4.0
+    gb_cut = Part.makeBox(win_x, win_y + 1.5, bridge_t + 2.0, FreeCAD.Vector(win_x0, win_y0, -1.0))
 
-    # Integral tenons (6.0 x 2.4 x 3.0 mm) sit squarely atop end legs (zero overhang) and fit P07 3.30 mm mortises
-    ten_y = 2.40
-    t_f = _make_chamfered_tenon_up(wx / 2.0, leg_y_len - ten_y / 2.0, tx, ten_y, leg_top_z, th)
-    t_r = _make_chamfered_tenon_up(wx / 2.0, ly - leg_y_len + ten_y / 2.0, tx, ten_y, leg_top_z, th)
+    # End legs clear 32.2 mm SG90 ear span centered at x_p=23.0 (ears at 6.9..39.1 -> legs at 0..6.4 & 39.6..45.0)
+    leg_l = Part.makeBox(6.4, wy, leg_top_z, FreeCAD.Vector(0.0, 0.0, 0.0))
+    leg_r = Part.makeBox(lx - 39.6, wy, leg_top_z, FreeCAD.Vector(39.6, 0.0, 0.0))
 
-    shape = bridge.cut(gb_cut).fuse(leg_f).fuse(leg_r).fuse(t_f).fuse(t_r).removeSplitter()
+    t_l = _make_chamfered_tenon_up(tl_x, ten_yp, tx, ty, leg_top_z, th)
+    t_r = _make_chamfered_tenon_up(tr_x, ten_yp, tx, ty, leg_top_z, th)
 
-    # Engrave on flat ear-clamping deck between leg_f (Y=4.75) and gearbox cutout (Y=9.2)
-    eng_spec = pd_mod.EngraveSpec("SUP11", "", wx / 2.0, 7.0, 1.8, False)
+    shape = bridge.cut(gb_cut).fuse(leg_l).fuse(leg_r).fuse(t_l).fuse(t_r).removeSplitter()
+
+    # Engrave on rear spine bar deck at Z=bridge_t (y_p=0..4, x_p=6.4..39.6)
+    eng_spec = pd_mod.EngraveSpec("SUP11", "", 23.0, 2.0, 1.8, False)
     shape, eng_ok = cc.safe_engrave_top_face(shape, eng_spec, bridge_t, 0.40)
 
     return shape, {
         "engraved_ok": eng_ok,
         "engrave_text": "SUP11",
-        "print_rotation_for_world": "rot_x_180",
+        "print_rotation_for_world": "rot_x_180_at_48.5_211.8_117.1",
+        "world_origin_anchor": [48.5, 211.8, 117.1],
     }
 
 
@@ -815,6 +840,120 @@ def _build_water_liner(sup: pd_mod.SupportSpec) -> tuple[Any, dict[str, Any]]:
     }
 
 
+def _build_dc022_strain_relief(sup: pd_mod.SupportSpec) -> tuple[Any, dict[str, Any]]:
+    """Rear mortise snap-collar & wire strain-relief guide for DC-022 behind P15 (0 overhangs, 0 screws)."""
+    pr = sup.params
+    L = float(pr["length"])  # 32.0
+    W = float(pr["width"])  # 16.4
+    depth_h = float(pr["depth_h"])  # 13.5
+    flange_t = float(pr["flange_t"])  # 3.0
+    barrel_id = float(pr["barrel_id"])  # 12.4
+    collar_od = float(pr["collar_od"])  # 16.4
+    wire_slot_w = float(pr["wire_slot_w"])  # 4.2
+    span = float(pr["tenon_span"])  # 24.0
+    tx = float(pr["tenon_x"])  # 4.0
+    ty = float(pr["tenon_y"])  # 6.0
+    th = float(pr["tenon_h"])  # 3.0
+
+    cx, cy = L / 2.0, W / 2.0
+    rear_bar = Part.makeBox(L, W, flange_t, FreeCAD.Vector(0.0, 0.0, 0.0))
+    leg_w = 7.4
+    leg_l = Part.makeBox(leg_w, W, depth_h, FreeCAD.Vector(0.0, 0.0, 0.0))
+    leg_r = Part.makeBox(leg_w, W, depth_h, FreeCAD.Vector(L - leg_w, 0.0, 0.0))
+    collar = Part.makeCylinder(collar_od / 2.0, depth_h, FreeCAD.Vector(cx, cy, 0.0))
+
+    bore = Part.makeCylinder(barrel_id / 2.0, depth_h + 2.0, FreeCAD.Vector(cx, cy, -1.0))
+    wire_notch = Part.makeBox(wire_slot_w, cy + 1.0, flange_t + 1.0, FreeCAD.Vector(cx - wire_slot_w / 2.0, -1.0, -0.5))
+
+    t_l = _make_chamfered_tenon_up(cx - span / 2.0, cy, tx, ty, depth_h, th)
+    t_r = _make_chamfered_tenon_up(cx + span / 2.0, cy, tx, ty, depth_h, th)
+
+    shape = rear_bar.fuse(leg_l).fuse(leg_r).fuse(collar).cut(Part.makeCompound([bore, wire_notch])).fuse(t_l).fuse(t_r).removeSplitter()
+
+    eng_spec = pd_mod.EngraveSpec("S16", "", 3.7, 2.6, 1.5, False)
+    shape, eng_ok = cc.safe_engrave_top_face(shape, eng_spec, depth_h, 0.35)
+
+    return shape, {
+        "engraved_ok": eng_ok,
+        "engrave_text": "S16",
+        "print_rotation_for_world": "rot_x_90_center_xz",
+    }
+
+
+def _build_led5mm_collar(sup: pd_mod.SupportSpec) -> tuple[Any, dict[str, Any]]:
+    """Flat-printed press-fit bezel collar for 5mm T-1 3/4 LED on P06_WALL_MID (0 overhangs, 0 screws)."""
+    pr = sup.params
+    L = float(pr["length"])  # 22.0
+    W = float(pr["width"])  # 11.0
+    collar_h = float(pr["collar_h"])  # 5.0
+    dome_id = float(pr["dome_id"])  # 5.1
+    dome_h = float(pr["dome_h"])  # 2.0
+    flange_id = float(pr["flange_id"])  # 6.0
+    span = float(pr["tenon_span"])  # 16.0
+    tx = float(pr["tenon_x"])  # 3.0
+    ty = float(pr["tenon_y"])  # 6.0
+    th = float(pr["tenon_h"])  # 3.0
+
+    cx, cy = L / 2.0, W / 2.0
+    body = Part.makeBox(L, W, collar_h, FreeCAD.Vector(0.0, 0.0, 0.0))
+    # Stepped upward-opening bore: smaller 5.1 mm dome bore on bottom (Z=0..2), larger 6.0 mm flange seat on top (Z=2..5) -> 0 overhang!
+    dome_cut = Part.makeCylinder(dome_id / 2.0, collar_h + 2.0, FreeCAD.Vector(cx, cy, -1.0))
+    flange_cut = Part.makeCylinder(flange_id / 2.0, collar_h - dome_h + 1.5, FreeCAD.Vector(cx, cy, dome_h))
+
+    t_l = _make_chamfered_tenon_up(cx - span / 2.0, cy, tx, ty, collar_h, th)
+    t_r = _make_chamfered_tenon_up(cx + span / 2.0, cy, tx, ty, collar_h, th)
+
+    shape = body.cut(Part.makeCompound([dome_cut, flange_cut])).fuse(t_l).fuse(t_r).removeSplitter()
+
+    eng_spec = pd_mod.EngraveSpec("S17", "", 6.2, cy, 1.5, True)
+    shape, eng_ok = cc.safe_engrave_top_face(shape, eng_spec, collar_h, 0.35)
+
+    return shape, {
+        "engraved_ok": eng_ok,
+        "engrave_text": "S17",
+        "print_rotation_for_world": "rot_x_90_then_rot_z",
+    }
+
+
+def _build_buzzer_collar(sup: pd_mod.SupportSpec) -> tuple[Any, dict[str, Any]]:
+    """Rear mortise snap cup for TMB12A05 5V buzzer behind P05 CenterPillar (0 overhangs, 0 glue/screws)."""
+    pr = sup.params
+    W = float(pr["width_x"])  # 17.0
+    H = float(pr["height_y"])  # 26.0
+    depth_h = float(pr["depth_h"])  # 9.5
+    back_t = float(pr["back_t"])  # 2.5
+    cup_id = float(pr["cup_id"])  # 12.4
+    cup_od = float(pr["cup_od"])  # 16.4
+    pin_hole_d = float(pr["pin_hole_d"])  # 9.2
+    span = float(pr["tenon_span"])  # 22.0
+    tx = float(pr["tenon_x"])  # 6.0
+    ty = float(pr["tenon_y"])  # 3.0
+    th = float(pr["tenon_h"])  # 3.0
+
+    cx, cy = W / 2.0, H / 2.0
+    back_plate = Part.makeBox(W, H, back_t, FreeCAD.Vector(0.0, 0.0, 0.0))
+    cup = Part.makeCylinder(cup_od / 2.0, depth_h, FreeCAD.Vector(cx, cy, 0.0))
+    tab_bot = Part.makeBox(10.0, 4.0, depth_h, FreeCAD.Vector(cx - 5.0, 0.0, 0.0))
+    tab_top = Part.makeBox(10.0, 4.0, depth_h, FreeCAD.Vector(cx - 5.0, H - 4.0, 0.0))
+
+    cup_cav = Part.makeCylinder(cup_id / 2.0, depth_h - back_t + 1.5, FreeCAD.Vector(cx, cy, back_t))
+    pin_exit = Part.makeCylinder(pin_hole_d / 2.0, back_t + 2.0, FreeCAD.Vector(cx, cy, -1.0))
+
+    t_bot = _make_chamfered_tenon_up(cx, cy - span / 2.0, tx, ty, depth_h, th)
+    t_top = _make_chamfered_tenon_up(cx, cy + span / 2.0, tx, ty, depth_h, th)
+
+    shape = back_plate.fuse(cup).fuse(tab_bot).fuse(tab_top).cut(Part.makeCompound([cup_cav, pin_exit])).fuse(t_bot).fuse(t_top).removeSplitter()
+
+    eng_spec = pd_mod.EngraveSpec("S18", "", 2.0, 2.0, 1.4, False)
+    shape, eng_ok = cc.safe_engrave_top_face(shape, eng_spec, back_t, 0.35)
+
+    return shape, {
+        "engraved_ok": eng_ok,
+        "engrave_text": "S18",
+        "print_rotation_for_world": "rot_x_90_center_xz",
+    }
+
+
 def build_mount_solid(sup: pd_mod.SupportSpec, cfg: pd_mod.PrintConfig) -> tuple[Any, dict[str, Any]]:
     """Build exact BRep solid for one screwless support/mount, normalized flat on X=Y=Z=0."""
     cat = sup.category
@@ -840,14 +979,20 @@ def build_mount_solid(sup: pd_mod.SupportSpec, cfg: pd_mod.PrintConfig) -> tuple
         shape, extra = _build_speaker_retainer(sup)
     elif cat == "door_hinge":
         shape, extra = _build_door_hinge(sup)
-    elif cat == "servo_link_clip":
-        shape, extra = _build_servo_link_clip(sup)
+    elif cat == "door_horn_coupler":
+        shape, extra = _build_door_horn_coupler(sup)
     elif cat == "sg90_saddle":
         shape, extra = _build_sg90_saddle(sup)
     elif cat == "wall_cradle":
         shape, extra = _build_wall_cradle(sup)
     elif cat == "water_liner":
         shape, extra = _build_water_liner(sup)
+    elif cat == "dc022_strain_relief":
+        shape, extra = _build_dc022_strain_relief(sup)
+    elif cat == "led5mm_collar":
+        shape, extra = _build_led5mm_collar(sup)
+    elif cat == "buzzer_collar":
+        shape, extra = _build_buzzer_collar(sup)
     else:
         raise ValueError(f"Unsupported support category: {cat}")
 
@@ -895,6 +1040,19 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
+def _cleanup_stale_mount_outputs(expected_ids: set[str]) -> None:
+    """Remove obsolete mount outputs (SUP*) not in the current v2 support set."""
+    for folder, exts in (
+        (cc.PARTS_DIR, (".stl", ".step")),
+        (cc.META_DIR, (".json",)),
+    ):
+        if not folder.exists():
+            continue
+        for fpath in folder.glob("SUP*"):
+            if fpath.suffix.lower() in exts and fpath.stem not in expected_ids:
+                fpath.unlink()
+
+
 def main() -> int:
     t0 = time.time()
     args = parse_args()
@@ -905,6 +1063,8 @@ def main() -> int:
     target_ids: set[str] | None = None
     if args.parts:
         target_ids = {s.strip() for s in args.parts.split(",") if s.strip()}
+    else:
+        _cleanup_stale_mount_outputs({sup.part_id for sup in supports})
 
     built = 0
     failures: list[str] = []
