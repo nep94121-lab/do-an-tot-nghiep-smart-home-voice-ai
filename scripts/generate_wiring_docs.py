@@ -37,6 +37,7 @@ from hardware.wiring_contract import (  # noqa: E402
     HUB_CONNECTOR_MAP,
     HUB_CONNECTORS,
     MODULE_DIMENSIONS_MM,
+    PROTECTION_COMPONENTS,
     WIRE_COLORS,
     WIRING_TABLE,
 )
@@ -228,6 +229,28 @@ def generate_wiring_table_md(out_path: Path, stats: dict[str, object]) -> None:
         lines.append(f"| `{ref}` | **{val}** | {pkg} | `{nets}` | {role} |")
     lines.append("")
 
+    # Subsection 3.1: Complete Capacitor & Flyback Diode Protection Audit (C1..C9 & D1..D2)
+    lines.append("### 3.1 Complete Capacitor & Flyback Diode Protection Audit (`C1`–`C9` & `D1`–`D2`)")
+    lines.append("")
+    lines.append(
+        "Audited against component datasheets (`Nichicon UVR/UHE`, `Murata RDE`, `Vishay 1N4007`, "
+        "`Espressif ESP8266 Hardware Design Guidelines Sec. 2.1`, `AMS1117-3.3`, and `Diodes Inc. PAM8403`). "
+        "`C1`–`C7` and `D1`–`D2` are soldered on the 1-layer Hub PCB (`0 ERC / 0 DRC`, `49 footprints`), while "
+        "`C8` (`+3V3` 100nF HF bypass) and `C9` (`AMP_5V` 100µF 16V bulk electrolytic) are mounted off-board on "
+        "header pins / breadboard so the home-etchable single-layer PCB preserves `>= 0.60 mm` copper clearance and 0 DRC violations."
+    )
+    lines.append("")
+    lines.append("| Ref | Kind | Value | Voltage / Rating | Polarity | Placement / Exact Pins | Nets (`+ ↔ -`) | Location | Role & Datasheet Reference |")
+    lines.append("|---|---|---|---|---|---|---|---|---|")
+    for comp in PROTECTION_COMPONENTS:
+        kind_lbl = "Flyback Diode" if comp.kind == "flyback_diode" else "Capacitor"
+        loc_lbl = "On-Board PCB" if comp.pcb_status == "onboard_pcb" else "Off-Board (Header / Breadboard)"
+        lines.append(
+            f"| `{comp.ref}` | {kind_lbl} | **{comp.value}** | `{comp.voltage_rating}` | {comp.polarity} "
+            f"| {comp.placement_pins} | `{comp.net_pos} ↔ {comp.net_neg}` | {loc_lbl} | {comp.role_vi} *({comp.datasheet_ref})* |"
+        )
+    lines.append("")
+
     # Section 4: Wire Color Legend
     lines.append("## 4. Standard Wire Color Legend (Consistent Across 2D Diagram, 3D Blender & Docs)")
     lines.append("")
@@ -246,7 +269,7 @@ def generate_wiring_table_md(out_path: Path, stats: dict[str, object]) -> None:
     lines.append("- [x] **`D8` (`GPIO15`) Alarm Buzzer (`J6`):** Driven low-side via on-board `R10` (`1 kΩ` base resistor) → `Q1` (`S8050` NPN, `E=GND`, `Buzzer(+)=+5V`, `Buzzer(-)=Q1 Collector`), with `R9` (`10 kΩ` pull-down from `D8` to `GND`) and `D2` (`1N4007` flyback diode across `J6.1–J6.2`). Firmware pre-writes `LOW` before `pinMode(OUTPUT)` (`esp8266_smarthome.ino:63, 399-400`), ensuring boot success and zero startup chirp.")
     lines.append("- [x] **Strictly 3.3V-Only Sensor Modules (`LM393` on `J14`, `KY-037/038` on `J15`):** Both sensor boards are fed exclusively from the NodeMCU `+3V3` rail (NEVER `+5V`), guaranteeing `LM393 AO` stays safely within the ESP8266 `ADC0` input window and `KY-037 DO` outputs 3.3V-safe logic levels into `D5 (GPIO14)`.")
     lines.append("- [x] **PAM8403 Bridge-Tied Load (BTL) Speaker Warning (`W28`, `W29`):** The Mini Speaker (`28 mm, 8 Ω, 0.5 W`) connects differentially across `PAM8403 L_OUT+` (Yellow) and `L_OUT-` (Brown). **NEVER tie `L_OUT-` to system `GND`** — doing so shorts the Class-D H-bridge output stage and damages the PAM8403 IC.")
-    lines.append("- [x] **Inductive Flyback & Power Rail Decoupling (`D1`, `D2`, `C1`, `C2`, `C3`, `C6`, `C7`):** `D1` (`1N4007`) clamps back-EMF across the 3–6V submersible pump (`J2`, `PUMP_5V ↔ GND`), `D2` (`1N4007`) clamps the active buzzer (`J6`), `C1` & `C2` (`470 µF 16V` each) absorb SG90 servo and pump startup current surges on `+5V`, and `C3`/`C6`/`C7` (`100 nF`) suppress high-frequency noise on `+5V`, `AMP_5V`, and `A0_SOIL`.")
+    lines.append("- [x] **Inductive Flyback & Power Rail Decoupling (`D1`, `D2`, `C1`–`C9`):** `D1` (`1N4007`, K=`PUMP_5V`, A=`GND`) clamps back-EMF across the 3–6V submersible pump (`J2`); `D2` (`1N4007`, K=`+5V`, A=`BUZZ_K`) clamps the active buzzer (`J6`); `C1` & `C2` (`470 µF 16V` each) absorb SG90 servo and pump startup current surges on `+5V`; `C3`/`C6`/`C7` (`100 nF 50V`) suppress HF noise on `+5V`, `AMP_5V`, and `A0_SOIL`; `C4` (`10 µF 16V`) & `C5` (`10 nF 50V`) perform DC-block + RC smoothing on `D3` audio; off-board `C8` (`100 nF 50V` across `+3V3 ↔ GND` at NodeMCU `U1.11/U2.6` & `J13`–`J15`, paired with NodeMCU v2 Amica onboard AMS1117-3.3 `10 µF` tantalum bulk cap) decouples `+3V3`; and off-board `C9` (`100 µF 16V` electrolytic across `AMP_5V ↔ GND` at `J11` / PAM8403 `5V+/5V-` parallel to `C6`) supplies Class-D audio current peaks.")
     lines.append("- [x] **Relay 2 Trigger Jumper (`J9`):** Red opto-isolated 1-channel relay module jumper MUST be set to **`H` (High-Level Trigger)** to match `SPEAKER_RELAY_ACTIVE_LOW = false` (`esp8266_smarthome.ino:71`).")
     lines.append("- [x] **Strict Scope Confirmation — Zero Legacy Hardware:** **NO fan**, **NO AC (220V mains)**, and **NO IR (`VS1838B` / `940nm LED`)** exist anywhere in the system. The entire system runs safely on low-voltage **5V DC / 3.3V DC**.")
     lines.append("")
@@ -891,25 +914,91 @@ def build_clean_wiring_diagram() -> VectorScene:
         s.text(MCU_X + MCU_W - 10.5, py, f"{plab}:{pnum}", size=5.0, color=col, bold=True, mono=True, align="right")
 
     # ------------------------------------------------------------------
-    # 1B. On-Board Protective Passives Callout Badges (Inside Hub PCB)
+    # 1B. On-Board & Header-Pin Protective Passives Callout Badges (C1..C9, D1..D2)
     # ------------------------------------------------------------------
-    def draw_passive_badge(bx: float, by: float, bw: float, bh: float, bg: str, bd: str, l1: str, l2: str) -> None:
-        s.rect(bx, by, bw, bh, fill=bg, stroke=bd, stroke_width=0.85, rx=3.0)
-        s.text(bx + bw / 2.0, by + bh * 0.34, l1, size=5.15, color="#0F172A", bold=True, mono=True, align="center")
-        s.text(bx + bw / 2.0, by + bh * 0.72, l2, size=4.75, color="#334155", align="center")
+    def draw_cap_symbol(cx: float, cy: float, *, polarized: bool = False, stroke: str = "#0F172A") -> None:
+        s.line(cx - 5.5, cy, cx - 1.4, cy, stroke=stroke, stroke_width=0.8)
+        s.line(cx + 1.4, cy, cx + 5.5, cy, stroke=stroke, stroke_width=0.8)
+        s.line(cx - 1.4, cy - 3.0, cx - 1.4, cy + 3.0, stroke=stroke, stroke_width=1.05)
+        s.line(cx + 1.4, cy - 3.0, cx + 1.4, cy + 3.0, stroke=stroke, stroke_width=1.05)
+        if polarized:
+            s.text(cx - 3.6, cy - 3.4, "+", size=4.6, color="#DC2626", bold=True, align="center")
 
-    # Left-Inside Passives (x = 414..474, cleanly right of J8 vertical wire lane x=402..409!)
-    draw_passive_badge(415, 366, 60, 30, "#FEF3C7", "#D97706", "C1/C2 470µF", "+5V · C3 100n")
-    draw_passive_badge(415, 402, 60, 28, "#FEE2E2", "#DC2626", "D1 1N4007", "Pump Flyback")
+    def draw_diode_symbol(cx: float, cy: float, *, stroke: str = "#B91C1C") -> None:
+        s.line(cx - 5.5, cy, cx + 5.5, cy, stroke=stroke, stroke_width=0.8)
+        s.rect(cx - 2.6, cy - 2.4, 5.2, 4.8, fill="#1E293B", stroke=stroke, stroke_width=0.7, rx=0.6)
+        s.line(cx + 1.5, cy - 2.4, cx + 1.5, cy + 2.4, stroke="#F8FAFC", stroke_width=1.2)
+        s.text(cx + 4.3, cy - 3.6, "K", size=4.0, color=stroke, bold=True, align="center")
+
+    def draw_passive_badge(
+        bx: float,
+        by: float,
+        bw: float,
+        bh: float,
+        bg: str,
+        bd: str,
+        l1: str,
+        l2: str,
+        *,
+        l3: str | None = None,
+        dash: tuple[float, ...] | None = None,
+        sym: str | None = None,
+    ) -> None:
+        s.rect(bx, by, bw, bh, fill=bg, stroke=bd, stroke_width=0.85, rx=3.0, dash=dash)
+        tx = bx + bw / 2.0
+        if sym == "cap_pol":
+            draw_cap_symbol(bx + 8.5, by + bh * 0.5, polarized=True)
+            tx = bx + 15.0 + (bw - 15.0) / 2.0
+        elif sym == "cap_cer":
+            draw_cap_symbol(bx + 8.5, by + bh * 0.5, polarized=False)
+            tx = bx + 15.0 + (bw - 15.0) / 2.0
+        elif sym == "diode":
+            draw_diode_symbol(bx + 8.5, by + bh * 0.5)
+            tx = bx + 15.0 + (bw - 15.0) / 2.0
+        if l3:
+            s.text(tx, by + bh * 0.24, l1, size=4.65, color="#0F172A", bold=True, mono=True, align="center")
+            s.text(tx, by + bh * 0.53, l2, size=4.35, color="#1E293B", mono=True, align="center")
+            s.text(tx, by + bh * 0.81, l3, size=4.15, color="#475569", align="center")
+        else:
+            s.text(tx, by + bh * 0.34, l1, size=4.95, color="#0F172A", bold=True, mono=True, align="center")
+            s.text(tx, by + bh * 0.72, l2, size=4.45, color="#334155", align="center")
+
+    # Left-Inside Passives (x = 415..475, cleanly right of J8 vertical wire lane x=401..407!)
+    draw_passive_badge(
+        415, 362, 60, 34, "#FEF3C7", "#D97706",
+        "C1,C2 470µ 16V", "+5V(+) GND(-)", l3="C3 100nF 50V",
+    )
+    draw_passive_badge(
+        415, 400, 60, 32, "#FEE2E2", "#DC2626",
+        "D1 1N4007", "K:PUMP5 A:GND", l3="J2 Flyback",
+    )
     draw_passive_badge(415, 436, 60, 28, "#DCFCE7", "#16A34A", "D3 + R8 1k", "+5V PWR LED")
-    draw_passive_badge(415, 470, 60, 28, "#E0F2FE", "#0284C7", "C7 100nF", "A0 ADC Filter")
+    draw_passive_badge(415, 468, 60, 30, "#E0F2FE", "#0284C7", "C7 100nF 50V", "A0_SOIL↔GND")
 
     # Right-Inside Passives (x = 678..744)
-    draw_passive_badge(678, 308, 66, 28, "#F3E8FF", "#9333EA", "R1/R2 220Ω", "LR & BR LED")
-    draw_passive_badge(678, 342, 66, 32, "#E0E7FF", "#4F46E5", "R3/R4/R7/R9", "10k Pull-Up/Dn")
-    draw_passive_badge(678, 380, 66, 38, "#FEF3C7", "#B45309", "C4 10µ·C5 10n", "R5/R6 2.2k RC")
-    draw_passive_badge(678, 424, 66, 28, "#FEE2E2", "#DC2626", "Q1/R10+D2", "S8050+1N4007")
-    draw_passive_badge(678, 458, 66, 28, "#E0F2FE", "#0284C7", "C6 100nF", "AMP_5V Decpl")
+    draw_passive_badge(678, 306, 66, 28, "#F3E8FF", "#9333EA", "R1/R2 220Ω", "LR & BR LED")
+    draw_passive_badge(678, 338, 66, 30, "#E0E7FF", "#4F46E5", "R3/R4/R7/R9", "10k Pull-Up/Dn")
+    draw_passive_badge(
+        678, 372, 66, 38, "#FEF3C7", "#B45309",
+        "C4 10µF 16V(+)", "C5 10nF 50V", l3="D3→R5/R6 2.2k",
+    )
+    draw_passive_badge(
+        678, 414, 66, 36, "#FEE2E2", "#DC2626",
+        "Q1 S8050 + D2", "D2 1N4007 J6", l3="K:+5V A:BUZZ_K",
+    )
+    draw_passive_badge(678, 454, 66, 30, "#E0F2FE", "#0284C7", "C6 100nF 50V", "AMP_5V↔GND")
+
+    # Off-Board / Header-Pin Datasheet Decoupling Strip (open lane y=513..535 inside Hub PCB, above J9..J12!)
+    draw_passive_badge(
+        416, 513, 160, 23, "#EFF6FF", "#2563EB",
+        "C8 100nF 50V [Header/BB]", "+3V3(U1.11/U2.6/J13-15)↔GND (+AMS1117 10µF)",
+        dash=(3, 2), sym="cap_cer",
+    )
+    draw_passive_badge(
+        584, 513, 160, 23, "#FEFCE8", "#CA8A04",
+        "C9 100µF 16V (+) [At J11/PAM8403]", "AMP_5V(+) ↔ GND(-) · Parallel C6 100nF",
+        dash=(3, 2), sym="cap_pol",
+    )
 
     # ------------------------------------------------------------------
     # 1C. All 15 Hub PCB Connectors (J1..J15) on Their REAL Physical Edges
@@ -1142,11 +1231,12 @@ def build_clean_wiring_diagram() -> VectorScene:
         "• LM393 (J14) & KY-037 (J15): 3.3V ONLY!",
         "• PAM8403 BTL: NEVER tie L_OUT- to GND!",
         "• Pump/Buzz: D1/D2 1N4007 + C1/C2 470µF",
+        "• Decoupling: C8 100nF(+3V3), C9 100µF(AMP)",
         "• Scope Lock: NO Fan · NO AC · NO IR",
     ]
     for i, note in enumerate(safety_notes):
         is_warn = ("3.3V ONLY" in note) or ("NEVER" in note) or ("NO Fan" in note)
-        s.text(963, 91.5 + i * 11.2, note, size=5.45, color="#B91C1C" if is_warn else "#1E293B", bold=is_warn, align="left")
+        s.text(963, 90.0 + i * 10.2, note, size=5.25, color="#B91C1C" if is_warn else "#1E293B", bold=is_warn, align="left")
 
     # === LEFT COLUMN (x = 24..252) ===
     # L1. Mini Submersible Pump (3-6V)
@@ -1359,7 +1449,7 @@ def build_clean_wiring_diagram() -> VectorScene:
     s.line(744, 690, 744, 750, stroke="#CBD5E1", stroke_width=0.8, dash=(3, 2))
     s.text(697, 738, "Power (J11)", size=5.3, color="#0F766E", bold=True, align="center")
     s.text(798, 738, "Audio In (J12)", size=5.3, color="#334155", bold=True, align="center")
-    s.text(658, 756, "D3 RC-filtered PWM → L In", size=5.35, color="#475569")
+    s.text(658, 756, "D3 RC→L · C6 100nF + C9 100µF 16V", size=5.2, color="#475569")
 
     for px, pname, wid, col, is_nc in [
         (676.0, "5V+", "W24", "Red", False),

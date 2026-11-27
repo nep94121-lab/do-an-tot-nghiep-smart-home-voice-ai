@@ -396,3 +396,171 @@ FIRMWARE_PIN_CONTRACT: dict[str, tuple[str, int, str]] = {
     "PIN_ALARM_SIREN":     ("D8", 15, "BUZZ_D8 / J6"),
     "PIN_SOIL_MOISTURE":   ("A0", -1, "SOIL_A0 / J14"),
 }
+
+
+@dataclass(frozen=True)
+class ProtectionComponent:
+    """Capacitor or flyback diode audited against component datasheets."""
+
+    ref: str
+    kind: str  # "capacitor" or "flyback_diode"
+    value: str
+    voltage_rating: str
+    polarity: str
+    placement_pins: str
+    net_pos: str
+    net_neg: str
+    role_vi: str
+    datasheet_ref: str
+    pcb_status: str = "onboard_pcb"  # "onboard_pcb" or "offboard_header_breadboard"
+
+
+# Complete audited protection & decoupling inventory (C1..C9 capacitors + D1..D2 flyback diodes).
+# C1..C7 and D1..D2 are soldered on the 1-layer 100x80mm Hub PCB (49 footprints, 0 ERC / 0 DRC).
+# C8 (+3V3 HF bypass) and C9 (AMP_5V PAM8403 bulk electrolytic) are documented as off-board
+# header-pin / breadboard decoupling so the single-layer DIY PCB preserves >=0.60mm clearance & 0 DRC.
+PROTECTION_COMPONENTS: tuple[ProtectionComponent, ...] = (
+    ProtectionComponent(
+        ref="C1",
+        kind="capacitor",
+        value="470µF",
+        voltage_rating="16V",
+        polarity="Có cực (+/-): chân (+) nối +5V, chân (-) vạch trắng nối GND",
+        placement_pins="Hàn trên PCB Hub cạnh J1/J3 Servo (+5V ↔ GND, CP_Radial D8.0×P3.5mm)",
+        net_pos="+5V",
+        net_neg="GND",
+        role_vi="Tụ hóa lọc nguồn chính +5V, cấp dòng xung đỉnh khi Servo SG90 quay để chống sụt áp reset ESP8266.",
+        datasheet_ref="Nichicon UVR/UHE 470µF 16V; TowerPro SG90 stall surge ~500–650mA",
+        pcb_status="onboard_pcb",
+    ),
+    ProtectionComponent(
+        ref="C2",
+        kind="capacitor",
+        value="470µF",
+        voltage_rating="16V",
+        polarity="Có cực (+/-): chân (+) nối +5V, chân (-) vạch trắng nối GND",
+        placement_pins="Hàn trên PCB Hub cạnh J1/J2 Bơm (+5V ↔ GND, CP_Radial D8.0×P3.5mm)",
+        net_pos="+5V",
+        net_neg="GND",
+        role_vi="Tụ hóa lọc nguồn +5V gần ngõ máy bơm/rơ-le, ổn áp khi máy bơm mini 3–6V khởi động.",
+        datasheet_ref="Nichicon UVR/UHE 470µF 16V; Songle SRD-05VDC + DC pump inrush",
+        pcb_status="onboard_pcb",
+    ),
+    ProtectionComponent(
+        ref="C3",
+        kind="capacitor",
+        value="100nF (104)",
+        voltage_rating="50V",
+        polarity="Không phân cực (tụ gốm)",
+        placement_pins="Hàn trên PCB Hub cạnh U1.15 VIN (+5V ↔ GND, C_Disc D5.0×P5.0mm)",
+        net_pos="+5V",
+        net_neg="GND",
+        role_vi="Tụ gốm lọc nhiễu cao tần trên đường nguồn +5V trước chân VIN NodeMCU.",
+        datasheet_ref="Murata RDE / Vishay K-series 100nF 50V Ceramic",
+        pcb_status="onboard_pcb",
+    ),
+    ProtectionComponent(
+        ref="C4",
+        kind="capacitor",
+        value="10µF",
+        voltage_rating="16V",
+        polarity="Có cực (+/-): chân (+) về D3 (GPIO0), chân (-) về R5 (AUD_AC)",
+        placement_pins="Hàn trên PCB Hub nối tiếp U2.4 (D3_AUDIO_PWM) → R5 (AUD_AC, CP_Radial D5.0×P3.5mm)",
+        net_pos="D3_AUDIO_PWM",
+        net_neg="AUD_AC",
+        role_vi="Tụ hóa chặn thành phần một chiều (DC-block), cô lập chân boot-strap D3 (GPIO0) khỏi ngõ vào PAM8403.",
+        datasheet_ref="Diodes Inc. PAM8403 Datasheet (AC input coupling); ESP8266 GPIO0 boot-strap",
+        pcb_status="onboard_pcb",
+    ),
+    ProtectionComponent(
+        ref="C5",
+        kind="capacitor",
+        value="10nF (103)",
+        voltage_rating="50V",
+        polarity="Không phân cực (tụ gốm)",
+        placement_pins="Hàn trên PCB Hub tại nút J12.1 (AUD_OUT) ↔ GND (C_Disc D5.0×P5.0mm)",
+        net_pos="AUD_OUT",
+        net_neg="GND",
+        role_vi="Tụ gốm lọc thông thấp RC (cùng R5/R6 2.2kΩ, fc ≈ 14.5 kHz) làm mịn tín hiệu PWM vào PAM8403.",
+        datasheet_ref="Murata RDE 10nF 50V; RC Low-Pass fc = 1/(2π·1.1kΩ·10nF)",
+        pcb_status="onboard_pcb",
+    ),
+    ProtectionComponent(
+        ref="C6",
+        kind="capacitor",
+        value="100nF (104)",
+        voltage_rating="50V",
+        polarity="Không phân cực (tụ gốm)",
+        placement_pins="Hàn trên PCB Hub sát J11.1 (AMP_5V) ↔ J11.2 (GND) (C_Disc D5.0×P5.0mm)",
+        net_pos="AMP_5V",
+        net_neg="GND",
+        role_vi="Tụ gốm lọc nhiễu cao tần trên nhánh nguồn +5V đóng cắt qua Rơ-le 2 cấp cho PAM8403.",
+        datasheet_ref="Diodes Inc. PAM8403 Datasheet (Power Supply Decoupling: 0.1µF HF bypass)",
+        pcb_status="onboard_pcb",
+    ),
+    ProtectionComponent(
+        ref="C7",
+        kind="capacitor",
+        value="100nF (104)",
+        voltage_rating="50V",
+        polarity="Không phân cực (tụ gốm)",
+        placement_pins="Hàn trên PCB Hub sát J14.3 (A0_SOIL) ↔ GND (C_Disc D5.0×P5.0mm)",
+        net_pos="A0_SOIL",
+        net_neg="GND",
+        role_vi="Tụ gốm lọc nhiễu tương tự cho chân ADC0 (A0) đọc cảm biến độ ẩm đất LM393.",
+        datasheet_ref="Espressif ESP8266 Technical Reference (ADC0 filtering); Murata 100nF 50V",
+        pcb_status="onboard_pcb",
+    ),
+    ProtectionComponent(
+        ref="C8",
+        kind="capacitor",
+        value="100nF (104)",
+        voltage_rating="50V",
+        polarity="Không phân cực (tụ gốm)",
+        placement_pins="Gắn ngoài bo trên Breadboard / chân header +3V3 ↔ GND sát NodeMCU 3V3 (U1.11/U2.6) và cảm biến J13/J14/J15 (kết hợp tụ Tantalum 10µF của AMS1117-3.3 có sẵn trên NodeMCU v2 Amica)",
+        net_pos="+3V3",
+        net_neg="GND",
+        role_vi="Tụ gốm tách nhiễu cao tần cho đường nguồn +3.3V nuôi ESP8266 và 3 cảm biến 3.3V (DHT11, LM393, KY-037).",
+        datasheet_ref="Espressif ESP8266 Hardware Design Guidelines Sec. 2.1; AMS1117-3.3 Datasheet (onboard 10µF tantalum on NodeMCU v2 Amica)",
+        pcb_status="offboard_header_breadboard",
+    ),
+    ProtectionComponent(
+        ref="C9",
+        kind="capacitor",
+        value="100µF",
+        voltage_rating="16V",
+        polarity="Có cực (+/-): chân (+) nối AMP_5V (5V+), chân (-) vạch trắng nối GND (5V-)",
+        placement_pins="Gắn ngoài bo tại chân header J11 (AMP_5V ↔ GND) hoặc trực tiếp trên pad 5V+/5V- của module PAM8403 (song song C6 100nF)",
+        net_pos="AMP_5V",
+        net_neg="GND",
+        role_vi="Tụ hóa dự trữ năng lượng cho tầng khuếch đại Class-D PAM8403, giảm méo tiếng và sụt áp xung khi phát chuông loa 8Ω.",
+        datasheet_ref="Diodes Inc. PAM8403 Datasheet (Power Supply Decoupling: 100µF–470µF bulk + 0.1µF ceramic)",
+        pcb_status="offboard_header_breadboard",
+    ),
+    ProtectionComponent(
+        ref="D1",
+        kind="flyback_diode",
+        value="1N4007",
+        voltage_rating="1000V / 1A",
+        polarity="Có cực (K/A): vạch bạc Cathode (K) nối PUMP_5V (+), Anode (A) nối GND (-)",
+        placement_pins="Hàn trên PCB Hub mắc ngược song song ngõ ra bơm J2 (J2.1 PUMP_5V ↔ J2.2 GND, DO-41)",
+        net_pos="PUMP_5V",
+        net_neg="GND",
+        role_vi="Diode dập xung ngược (Flyback) triệt xung cảm ứng khi Rơ-le 1 ngắt động cơ bơm 3–6V, bảo vệ tiếp điểm và ESP8266.",
+        datasheet_ref="Vishay 1N4007 Datasheet (VRRM=1000V, IF=1A, DO-41 inductive flyback clamp)",
+        pcb_status="onboard_pcb",
+    ),
+    ProtectionComponent(
+        ref="D2",
+        kind="flyback_diode",
+        value="1N4007",
+        voltage_rating="1000V / 1A",
+        polarity="Có cực (K/A): vạch bạc Cathode (K) nối +5V (J6.1), Anode (A) nối BUZZ_K / Q1.C (J6.2)",
+        placement_pins="Hàn trên PCB Hub mắc ngược song song còi 5V tại J6 (J6.1 +5V ↔ J6.2 BUZZ_K / Q1 Collector, DO-41)",
+        net_pos="+5V",
+        net_neg="BUZZ_K",
+        role_vi="Diode dập xung ngược (Flyback) bảo vệ transistor lái NPN Q1 (S8050) trước xung điện áp ngược từ cuộn dây còi TMB12A05.",
+        datasheet_ref="Vishay 1N4007 Datasheet; Unisonic S8050 VCEO=20V inductive load protection",
+        pcb_status="onboard_pcb",
+    ),
+)

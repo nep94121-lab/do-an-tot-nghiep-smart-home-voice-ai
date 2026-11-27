@@ -61,6 +61,29 @@ const int   MQTT_PORT     = 1883;
 const char* HARDWARE_API_KEY = SMARTHOME_HARDWARE_API_KEY;
 const char* NODE_ID          = "esp8266_node_01";
 
+static constexpr const char* WIFI_CONFIG_PATH = "/wifi_config.json";
+
+struct RuntimeNetworkConfig {
+  String ssid;
+  String password;
+  String serverIp;
+  int serverPort;
+  String mqttServer;
+  int mqttPort;
+  String hardwareApiKey;
+};
+
+RuntimeNetworkConfig runtimeCfg = {
+  WIFI_SSID,
+  WIFI_PASSWORD,
+  SERVER_IP,
+  SERVER_PORT,
+  MQTT_SERVER,
+  MQTT_PORT,
+  HARDWARE_API_KEY
+};
+bool littleFsReady = false;
+
 // ---------------- SƠ ĐỒ 10 CHÂN CHUẨN TRÊN NODEMCU ESP8266 -----------
 #define PIN_LIVING_LIGHT     16  // D0 (GPIO 16) - LED phòng khách + nháy enroll_blink
 #define PIN_MAIN_DOOR_SERVO  5   // D1 (GPIO 5)  - Servo SG90 Cửa chính
@@ -250,9 +273,269 @@ void applyDeviceHardwareByIndex(uint8_t devIdx, bool stateOn) {
 }
 
 void addHardwareAuthHeaders(HTTPClient& http) {
-  if (HARDWARE_API_KEY[0] != '\0') {
-    http.addHeader("X-Hardware-Key", HARDWARE_API_KEY);
+  if (runtimeCfg.hardwareApiKey.length() > 0) {
+    http.addHeader("X-Hardware-Key", runtimeCfg.hardwareApiKey);
   }
+}
+
+bool isValidConfigString(const char* value, size_t maxLen, bool allowEmpty, bool allowSpaces) {
+  if (!value) return false;
+  size_t len = strlen(value);
+  if (!allowEmpty && len == 0) return false;
+  if (len > maxLen) return false;
+  for (size_t i = 0; i < len; ++i) {
+    unsigned char ch = static_cast<unsigned char>(value[i]);
+    if (ch < 0x20 || ch == 0x7F) return false;
+    if (!allowSpaces && ch == ' ') return false;
+  }
+  return true;
+}
+
+bool loadRuntimeConfigFromFlash() {
+  if (!littleFsReady) {
+    littleFsReady = LittleFS.begin();
+  }
+  if (!littleFsReady || !LittleFS.exists(WIFI_CONFIG_PATH)) {
+    return false;
+  }
+  File f = LittleFS.open(WIFI_CONFIG_PATH, "r");
+  if (!f) {
+    return false;
+  }
+  StaticJsonDocument<768> doc;
+  DeserializationError err = deserializeJson(doc, f);
+  f.close();
+  if (err || !doc.is<JsonObject>()) {
+    Serial.println("[CONFIG] LittleFS /wifi_config.json invalid, using defaults.");
+    return false;
+  }
+
+  const char* ssid = doc["ssid"] | "";
+  const char* password = doc["password"].is<const char*>() ? doc["password"].as<const char*>() : nullptr;
+  const char* serverIp = doc["server_ip"] | "";
+  if (!isValidConfigString(ssid, 64, false, true) ||
+      !isValidConfigString(password, 128, true, true) ||
+      !isValidConfigString(serverIp, 64, false, false)) {
+    Serial.println("[CONFIG] LittleFS /wifi_config.json missing required fields, using defaults.");
+    return false;
+  }
+
+  int serverPort = doc["server_port"] | SERVER_PORT;
+  if (serverPort < 1 || serverPort > 65535) serverPort = SERVER_PORT;
+
+  const char* mqttServer = doc["mqtt_server"] | serverIp;
+  if (!isValidConfigString(mqttServer, 64, false, false)) mqttServer = serverIp;
+
+  int mqttPort = doc["mqtt_port"] | MQTT_PORT;
+  if (mqttPort < 1 || mqttPort > 65535) mqttPort = MQTT_PORT;
+
+  const char* apiKey = doc["hardware_api_key"].is<const char*>() ? doc["hardware_api_key"].as<const char*>() : "";
+  if (!isValidConfigString(apiKey, 128, true, false)) apiKey = "";
+
+  runtimeCfg.ssid = ssid;
+  runtimeCfg.password = password;
+  runtimeCfg.serverIp = serverIp;
+  runtimeCfg.serverPort = serverPort;
+  runtimeCfg.mqttServer = mqttServer;
+  runtimeCfg.mqttPort = mqttPort;
+  runtimeCfg.hardwareApiKey = apiKey;
+
+  Serial.print("[CONFIG] Loaded /wifi_config.json ssid=");
+  Serial.print(runtimeCfg.ssid);
+  Serial.print(" server=");
+  Serial.print(runtimeCfg.serverIp);
+  Serial.print(":");
+  Serial.println(runtimeCfg.serverPort);
+  return true;
+}
+
+bool saveRuntimeConfigToFlash() {
+  if (!littleFsReady) {
+    littleFsReady = LittleFS.begin();
+  }
+  if (!littleFsReady) {
+    return false;
+  }
+  File f = LittleFS.open(WIFI_CONFIG_PATH, "w");
+  if (!f) {
+    return false;
+  }
+  StaticJsonDocument<768> doc;
+  doc["ssid"] = runtimeCfg.ssid;
+  doc["password"] = runtimeCfg.password;
+  doc["server_ip"] = runtimeCfg.serverIp;
+  doc["server_port"] = runtimeCfg.serverPort;
+  doc["mqtt_server"] = runtimeCfg.mqttServer;
+  doc["mqtt_port"] = runtimeCfg.mqttPort;
+  doc["hardware_api_key"] = runtimeCfg.hardwareApiKey;
+  size_t written = serializeJson(doc, f);
+  f.close();
+  return written > 0;
+}
+
+void printWifiStatusLine() {
+  bool connected = (WiFi.status() == WL_CONNECTED);
+  String ipStr = connected ? WiFi.localIP().toString() : String("0.0.0.0");
+  long rssi = connected ? WiFi.RSSI() : 0L;
+  Serial.print("WIFI_STATUS_OK connected=");
+  Serial.print(connected ? 1 : 0);
+  Serial.print(" ip=");
+  Serial.print(ipStr);
+  Serial.print(" rssi=");
+  Serial.print(rssi);
+  Serial.print(" ssid=");
+  Serial.print(runtimeCfg.ssid);
+  Serial.print(" server=");
+  Serial.print(runtimeCfg.serverIp);
+  Serial.print(":");
+  Serial.print(runtimeCfg.serverPort);
+  Serial.print(" online=");
+  Serial.print(isServerOnline() ? 1 : 0);
+  Serial.print(" heap=");
+  Serial.println(ESP.getFreeHeap());
+}
+
+void printSelfTestLine() {
+  bool connected = (WiFi.status() == WL_CONNECTED);
+  Serial.print("SELF_TEST_PASS node=");
+  Serial.print(NODE_ID);
+  Serial.print(" fw_pins=10 offline_http=");
+  Serial.print(OFFLINE_HTTP_PORT);
+  Serial.print(" heap=");
+  Serial.print(ESP.getFreeHeap());
+  Serial.print(" wifi=");
+  Serial.print(connected ? 1 : 0);
+  Serial.print(" online=");
+  Serial.println(isServerOnline() ? 1 : 0);
+}
+
+bool handleSerialProvisioningCommand(const String& rawCmd, unsigned long nowMs) {
+  if (rawCmd == "WIFI_STATUS") {
+    printWifiStatusLine();
+    return true;
+  }
+  if (rawCmd == "SELF_TEST") {
+    printSelfTestLine();
+    return true;
+  }
+  if (rawCmd == "WIFI_CONFIG" || rawCmd.startsWith("WIFI_CONFIG ")) {
+    String jsonPart = (rawCmd.length() > 11) ? rawCmd.substring(11) : String("");
+    jsonPart.trim();
+    if (jsonPart.length() == 0) {
+      Serial.println("WIFI_CONFIG_ERR missing_json");
+      return true;
+    }
+
+    StaticJsonDocument<768> doc;
+    DeserializationError err = deserializeJson(doc, jsonPart);
+    if (err || !doc.is<JsonObject>()) {
+      Serial.println("WIFI_CONFIG_ERR invalid_json");
+      return true;
+    }
+
+    const char* ssid = doc["ssid"].is<const char*>() ? doc["ssid"].as<const char*>() : nullptr;
+    const char* password = doc["password"].is<const char*>() ? doc["password"].as<const char*>() : nullptr;
+    const char* serverIp = doc["server_ip"].is<const char*>() ? doc["server_ip"].as<const char*>() : nullptr;
+
+    if (!isValidConfigString(ssid, 64, false, true)) {
+      Serial.println("WIFI_CONFIG_ERR invalid_ssid");
+      return true;
+    }
+    if (!isValidConfigString(password, 128, true, true)) {
+      Serial.println("WIFI_CONFIG_ERR invalid_password");
+      return true;
+    }
+    if (!isValidConfigString(serverIp, 64, false, false)) {
+      Serial.println("WIFI_CONFIG_ERR invalid_server_ip");
+      return true;
+    }
+
+    int serverPort = SERVER_PORT;
+    if (doc.containsKey("server_port")) {
+      if (!doc["server_port"].is<int>()) {
+        Serial.println("WIFI_CONFIG_ERR invalid_server_port");
+        return true;
+      }
+      serverPort = doc["server_port"].as<int>();
+      if (serverPort < 1 || serverPort > 65535) {
+        Serial.println("WIFI_CONFIG_ERR invalid_server_port");
+        return true;
+      }
+    }
+
+    const char* mqttServer = serverIp;
+    if (doc.containsKey("mqtt_server") && doc["mqtt_server"].is<const char*>()) {
+      const char* candidate = doc["mqtt_server"].as<const char*>();
+      if (candidate[0] != '\0') {
+        if (!isValidConfigString(candidate, 64, false, false)) {
+          Serial.println("WIFI_CONFIG_ERR invalid_mqtt_server");
+          return true;
+        }
+        mqttServer = candidate;
+      }
+    }
+
+    int mqttPort = MQTT_PORT;
+    if (doc.containsKey("mqtt_port")) {
+      if (!doc["mqtt_port"].is<int>()) {
+        Serial.println("WIFI_CONFIG_ERR invalid_mqtt_port");
+        return true;
+      }
+      mqttPort = doc["mqtt_port"].as<int>();
+      if (mqttPort < 1 || mqttPort > 65535) {
+        Serial.println("WIFI_CONFIG_ERR invalid_mqtt_port");
+        return true;
+      }
+    }
+
+    const char* apiKey = "";
+    if (doc.containsKey("hardware_api_key")) {
+      if (!doc["hardware_api_key"].is<const char*>()) {
+        Serial.println("WIFI_CONFIG_ERR invalid_hardware_api_key");
+        return true;
+      }
+      apiKey = doc["hardware_api_key"].as<const char*>();
+      if (!isValidConfigString(apiKey, 128, true, false)) {
+        Serial.println("WIFI_CONFIG_ERR invalid_hardware_api_key");
+        return true;
+      }
+    }
+
+    runtimeCfg.ssid = ssid;
+    runtimeCfg.password = password;
+    runtimeCfg.serverIp = serverIp;
+    runtimeCfg.serverPort = serverPort;
+    runtimeCfg.mqttServer = mqttServer;
+    runtimeCfg.mqttPort = mqttPort;
+    runtimeCfg.hardwareApiKey = apiKey;
+
+    if (!saveRuntimeConfigToFlash()) {
+      Serial.println("WIFI_CONFIG_ERR flash_write_failed");
+      return true;
+    }
+
+    if (mqtt.connected()) {
+      mqtt.disconnect();
+    }
+    httpServerReachable = false;
+    mqttBackoff.reset();
+    httpBackoff.reset();
+    wifiBackoff.reset();
+
+    mqtt.setServer(runtimeCfg.mqttServer.c_str(), runtimeCfg.mqttPort);
+    WiFi.disconnect(false);
+    WiFi.begin(runtimeCfg.ssid.c_str(), runtimeCfg.password.c_str());
+    wifiBackoff.recordFailure(nowMs);
+
+    Serial.print("WIFI_CONFIG_OK ssid=");
+    Serial.print(runtimeCfg.ssid);
+    Serial.print(" server=");
+    Serial.print(runtimeCfg.serverIp);
+    Serial.print(":");
+    Serial.println(runtimeCfg.serverPort);
+    return true;
+  }
+  return false;
 }
 
 // Phát âm thanh phản hồi không chặn qua Relay 2 PAM8403 (D7) & PWM (D3 - GPIO0)
@@ -450,7 +733,7 @@ void publishKy037SoundEvent() {
     mqtt.publish("smarthome/telemetry/sound", out.c_str(), false);
   } else if (httpServerReachable && WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
-    String url = String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/sound_sensor";
+    String url = String("http://") + runtimeCfg.serverIp + ":" + String(runtimeCfg.serverPort) + "/api/sound_sensor";
     http.setTimeout(HTTP_REQUEST_TIMEOUT_MS);
     if (http.begin(httpWifiClient, url)) {
       http.addHeader("Content-Type", "application/json");
@@ -593,7 +876,7 @@ bool sendHardwareHeartbeat(unsigned long nowMs) {
   }
 
   HTTPClient http;
-  String url = String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/hardware/heartbeat";
+  String url = String("http://") + runtimeCfg.serverIp + ":" + String(runtimeCfg.serverPort) + "/api/hardware/heartbeat";
   http.setTimeout(HTTP_REQUEST_TIMEOUT_MS);
   bool ok = false;
   if (http.begin(httpWifiClient, url)) {
@@ -658,7 +941,7 @@ bool performOfflineResync(unsigned long nowMs) {
   bool httpOk = false;
   if (httpBackoff.shouldAttempt(nowMs)) {
     HTTPClient http;
-    String url = String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/hardware/resync";
+    String url = String("http://") + runtimeCfg.serverIp + ":" + String(runtimeCfg.serverPort) + "/api/hardware/resync";
     http.setTimeout(HTTP_REQUEST_TIMEOUT_MS);
     if (http.begin(httpWifiClient, url)) {
       http.addHeader("Content-Type", "application/json");
@@ -701,7 +984,7 @@ void pollLaptopHttpState(unsigned long nowMs) {
   if (!httpBackoff.shouldAttempt(nowMs)) return;
 
   HTTPClient http;
-  String url = String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/state";
+  String url = String("http://") + runtimeCfg.serverIp + ":" + String(runtimeCfg.serverPort) + "/api/state";
   http.setTimeout(HTTP_REQUEST_TIMEOUT_MS);
   if (http.begin(httpWifiClient, url)) {
     addHardwareAuthHeaders(http);
@@ -778,7 +1061,7 @@ void manageWifiAndSoftAp(unsigned long nowMs) {
 
   // Thử kết nối lại Wi-Fi STA theo hàm mũ không chặn (tuyệt đối không lặp khởi động lại mạch)
   if (wifiBackoff.shouldAttempt(nowMs)) {
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    WiFi.begin(runtimeCfg.ssid.c_str(), runtimeCfg.password.c_str());
     unsigned long waitMs = wifiBackoff.recordFailure(nowMs);
     Serial.print("[WiFi] Dang ket noi lai STA, lan thu tiep theo sau ");
     Serial.print(waitMs);
@@ -815,21 +1098,23 @@ void setup() {
   setMainDoorState(false);
 
   Serial.begin(115200);
-  LittleFS.begin();
+  Serial.setTimeout(50);
+  littleFsReady = LittleFS.begin();
+  loadRuntimeConfigFromFlash();
   dht.begin();
 
   offlineFsm.begin(millis());
 
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(false);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.begin(runtimeCfg.ssid.c_str(), runtimeCfg.password.c_str());
   wifiBackoff.recordFailure(millis());
   configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
   if (!mqtt.setBufferSize(4096)) {
     Serial.println("[MQTT] Canh bao: khong cap phat duoc buffer 4096B!");
   }
-  mqtt.setServer(MQTT_SERVER, MQTT_PORT);
+  mqtt.setServer(runtimeCfg.mqttServer.c_str(), runtimeCfg.mqttPort);
   mqtt.setCallback(onMqttMessage);
 
   // Addendum A1: Khởi động HTTP Server ngoại tuyến cổng 80 ngay khi boot
@@ -939,14 +1224,16 @@ void loop() {
     }
   }
 
-  // 11. Nhận lệnh kiểm thử qua cổng Serial (115200 baud)
+  // 11. Nhận lệnh cấu hình Wi-Fi/tự kiểm tra hoặc kiểm thử qua cổng Serial (115200 baud)
   if (Serial.available() > 0) {
     String localCmd = Serial.readStringUntil('\n');
     localCmd.trim();
     if (localCmd.length() > 0) {
-      if (onlineNow && httpServerReachable) {
+      if (handleSerialProvisioningCommand(localCmd, now)) {
+        // Already handled locally; never forward WIFI_CONFIG/WIFI_STATUS/SELF_TEST to server or offline grammar.
+      } else if (onlineNow && httpServerReachable) {
         HTTPClient http;
-        String url = String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/text_command";
+        String url = String("http://") + runtimeCfg.serverIp + ":" + String(runtimeCfg.serverPort) + "/api/text_command";
         http.setTimeout(HTTP_REQUEST_TIMEOUT_MS);
         if (http.begin(httpWifiClient, url)) {
           http.addHeader("Content-Type", "application/json");
@@ -989,7 +1276,7 @@ void loop() {
       } else if (httpServerReachable) {
         HTTPClient http;
         http.setTimeout(HTTP_REQUEST_TIMEOUT_MS);
-        if (http.begin(httpWifiClient, String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/dht11")) {
+        if (http.begin(httpWifiClient, String("http://") + runtimeCfg.serverIp + ":" + String(runtimeCfg.serverPort) + "/api/dht11")) {
           http.addHeader("Content-Type", "application/json");
           addHardwareAuthHeaders(http);
           http.POST(out);
@@ -1030,7 +1317,7 @@ void loop() {
     } else if (httpServerReachable) {
       HTTPClient http;
       http.setTimeout(HTTP_REQUEST_TIMEOUT_MS);
-      if (http.begin(httpWifiClient, String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/soil_moisture")) {
+      if (http.begin(httpWifiClient, String("http://") + runtimeCfg.serverIp + ":" + String(runtimeCfg.serverPort) + "/api/soil_moisture")) {
         http.addHeader("Content-Type", "application/json");
         addHardwareAuthHeaders(http);
         http.POST(soilOut);

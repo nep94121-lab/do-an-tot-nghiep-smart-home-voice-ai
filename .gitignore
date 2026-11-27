@@ -48,3 +48,7 @@ login_rate_limit.json
 # PlatformIO build artifacts
 **/.pio/
 
+# Local Wi-Fi & ESP8266 flash credentials (NEVER commit!)
+hardware/wifi_local.json
+*.wifi.local.json
+

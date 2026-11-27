@@ -23,6 +23,7 @@ from hardware.wiring_contract import (  # noqa: E402
     FIRMWARE_PIN_CONTRACT,
     HUB_CONNECTORS,
     MODULE_DIMENSIONS_MM,
+    PROTECTION_COMPONENTS,
     WIRE_COLORS,
     WIRING_TABLE,
     WireEntry,
@@ -126,18 +127,18 @@ def _build_power_gnd_note_vi(w: WireEntry) -> str:
 
     if net == "+3V3" or "3.3v" in notes_low or "3v3" in w.nodemcu_pin.lower():
         if "strictly 3.3v" in notes_low:
-            parts.append("Nguồn +3.3V BẮT BUỘC (tuyệt đối không cấp +5V để bảo vệ chân ESP8266).")
+            parts.append("Nguồn +3.3V BẮT BUỘC (tuyệt đối không cấp +5V để bảo vệ chân ESP8266; lọc nhiễu bằng tụ C8 100nF ngoài bo + tụ 10µF của AMS1117 trên NodeMCU).")
         elif w.module_id == "led_bedroom":
             parts.append("Nguồn +3.3V qua trở hạn dòng R2 220Ω trên PCB Hub (đấu Active-LOW an toàn khởi động).")
         else:
-            parts.append("Nguồn cảm biến +3.3V lấy từ nhánh 3V3 trên PCB Hub.")
+            parts.append("Nguồn cảm biến +3.3V lấy từ nhánh 3V3 trên PCB Hub (khuyến nghị gắn thêm tụ gốm C8 100nF lọc nhiễu cao tần).")
     elif net == "+5V":
         parts.append("Nguồn chính +5V (đã có tụ lọc C1/C2 470µF 16V và C3 100nF trên PCB Hub).")
     elif net in ("PUMP_5V", "AMP_5V"):
         if net == "PUMP_5V":
             parts.append("Nguồn +5V đóng cắt qua tiếp điểm Rơ-le 1 (có diode dập xung D1 1N4007 trên Hub).")
         else:
-            parts.append("Nguồn +5V đóng cắt qua Rơ-le 2 cấp cho PAM8403 (lọc nhiễu bởi tụ C6 100nF).")
+            parts.append("Nguồn +5V đóng cắt qua Rơ-le 2 cấp cho PAM8403 (lọc nhiễu bởi tụ C6 100nF trên Hub + tụ hóa C9 100µF 16V ngoài bo tại J11/PAM8403).")
     elif net == "GND":
         parts.append("Dây Mass chung (GND) nối về thanh GND chung của PCB Hub và NodeMCU.")
     elif "btl" in notes_low:
@@ -287,12 +288,37 @@ def build_web_contract_payload() -> dict[str, Any]:
             }
         )
 
+    protection_out: list[dict[str, Any]] = []
+    for comp in PROTECTION_COMPONENTS:
+        protection_out.append(
+            {
+                "ref": comp.ref,
+                "kind": comp.kind,
+                "kind_vi": "Diode dập xung" if comp.kind == "flyback_diode" else "Tụ điện",
+                "value": comp.value,
+                "voltage_rating": comp.voltage_rating,
+                "polarity": comp.polarity,
+                "placement_pins": comp.placement_pins,
+                "net_pos": comp.net_pos,
+                "net_neg": comp.net_neg,
+                "role_vi": comp.role_vi,
+                "datasheet_ref": comp.datasheet_ref,
+                "pcb_status": comp.pcb_status,
+                "pcb_status_vi": (
+                    "Hàn trên PCB Hub"
+                    if comp.pcb_status == "onboard_pcb"
+                    else "Gắn ngoài bo (Header/Breadboard)"
+                ),
+            }
+        )
+
     body = {
         "wire_colors": wire_colors,
         "modules": modules_out,
         "wires": wires_out,
         "connectors": connectors_out,
         "firmware_pins": firmware_pins_out,
+        "protection_components": protection_out,
     }
     canonical_bytes = json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     digest = hashlib.sha256(canonical_bytes).hexdigest()
@@ -309,6 +335,7 @@ def build_web_contract_payload() -> dict[str, Any]:
             "connectors": len(connectors_out),
             "modules": len(modules_out),
             "firmware_pins": len(firmware_pins_out),
+            "protection_components": len(protection_out),
         },
         **body,
     }
