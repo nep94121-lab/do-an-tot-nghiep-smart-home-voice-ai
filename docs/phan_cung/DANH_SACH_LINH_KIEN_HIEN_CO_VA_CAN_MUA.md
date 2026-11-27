@@ -23,7 +23,7 @@
 | **11** | **Túi bóng đèn `LED 5mm`** *(cùng 1 LED đỏ rời cạnh bó dây loa)* | **01 túi + 1 lẻ** | Dùng 2 bóng làm **`living_room_light` (`D0 / GPIO16`)** và **`bedroom_light` (`D4 / GPIO2`, đấu Active-LOW)**. |
 | **12** | **Còi `Buzzer 5V` trụ đen nhỏ** *(trong túi zip góc trên trái)* | **01 cái** | Làm **`alarm_siren` (Còi báo động)** tại chân **`D8 (GPIO15)`**, đấu Active-HIGH (im lặng khi boot). |
 | **13** | **Máy bơm nước chìm mini màu trắng `3V–6V DC`** *(góc dưới trái, kèm dây đen tách đầu đỏ/đen)* | **01 cái** | Chạy nguồn `5V` ngoài qua tiếp điểm **`COM–NO`** của Relay 1 (`D6`). |
-| **14** | **Dải `3× Diode 1N4007`** + **Túi tụ `WEIDILY 470µF 16V 8×12`** | **3 diode + 1 túi tụ** | `1N4007` mắc ngược song song cực bơm (Flyback Diode); tụ `470µF 16V` lọc nguồn `5V` cho bơm/servo/relay. |
+| **14** | **Dải `3× Diode 1N4007`** + **Túi tụ `WEIDILY 470µF 16V 8×12`** | **3 diode + 1 túi tụ** | `D1 1N4007` mắc ngược song song cực bơm (`K→PUMP_5V`, `A→GND`) & `D2 1N4007` song song còi 5V (`K→+5V`, `A→Q1.C`); tụ `C1/C2 470µF 16V` lọc nguồn `5V` cho bơm/servo/relay. |
 | **15** | **Túi điện trở `WEIDILY 1/4W 2.2kΩ 1%`** + **2 dải điện trở cắm 1/4W** + **Dây Dupont** | **Đầy đủ** | Hạn dòng LED (`220Ω–1kΩ` hoặc `2.2kΩ`) và làm cầu phân áp RC bảo vệ ngõ vào `PAM8403` từ `D3`. |
 
 > **Ghi chú linh kiện phụ:** Trên ảnh `components_overview.png` có 1 linh kiện 3 chân vỏ đen kiểu TO-220 nằm ngay dưới mạch `PAM8403` — linh kiện này **không bắt buộc dùng trong mạch chính** của hợp đồng 6 thiết bị + 3 cảm biến. Toàn bộ hệ thống chỉ sử dụng đúng 6 thiết bị chấp hành và 3 cảm biến nêu trên.
@@ -50,8 +50,8 @@
 
 **0 linh kiện chấp hành hay cảm biến cốt lõi nào phải mua thêm** để chạy đủ 6 thiết bị + 3 cảm biến trên Breadboard. Dưới đây chỉ là các món **tùy chọn / mua bổ sung về sau** (khi lắp sa bàn hoặc chuyển sang hàn PCB):
 
-1. **Tụ hóa `C4 10µF 16V`, tụ gốm `C5 10nF` / `100nF (104)` + rào cắm `Header 2.54mm`:**
-   - Dùng `C4 10µF 16V` làm tụ chặn DC nối tiếp + `C5 10nF` làm tụ lọc RC trên đường tín hiệu âm thanh `D3 -> PAM8403` đúng mạch PCB Hub, và hàn chân cắm lên 2 hàng lỗ trống của mạch `PAM8403` (`pam8403_ky037_closeup.png`).
+1. **Tụ hóa `C4 10µF 16V`, `C9 100µF 16V`, tụ gốm `C5 10nF` / `C3, C6, C7, C8 100nF (104) 50V` + rào cắm `Header 2.54mm`:**
+   - Dùng `C4 10µF 16V` làm tụ chặn DC nối tiếp + `C5 10nF` làm tụ lọc RC trên đường tín hiệu âm thanh `D3 -> PAM8403`; dùng `C8 100nF 50V` lọc nhiễu cao tần trên rail `+3.3V` (`U1.11/U2.6` & `J13/J14/J15`, bổ sung cho tụ tantalum `10µF` của AMS1117-3.3 trên NodeMCU v2 Amica) và `C9 100µF 16V` gắn sát `J11` / pad `5V+/5V-` của `PAM8403` (song song `C6 100nF`) đúng khuyến nghị datasheet; đồng thời hàn chân cắm lên 2 hàng lỗ trống của mạch `PAM8403` (`pam8403_ky037_closeup.png`).
 2. **Ống nhựa silicon mềm đường kính trong `6mm–8mm` (`~1m`):**
    - Nối đầu xả của máy bơm nước mini trắng vào chậu cây trên sa bàn (nếu chưa cắt sẵn).
 3. **Dây cắm Dupont `20cm` (`M-M`, `M-F`, `F-F`) dự phòng:**
@@ -60,7 +60,7 @@
    - Rất nên dùng khi demo thực tế để tránh sụt áp cổng USB Laptop khi `Servo SG90`, `Máy bơm` và `PAM8403` chạy đồng thời (nối chung `GND` với NodeMCU).
 5. **Vật tư cho giai đoạn tự làm mạch PCB 1 lớp tại nhà (Toner Transfer + Khoan tay — `SmartHome Hub DIY v3.0`, `100 × 80 × 1.6 mm`):**
    - Xem bảng BOM mua sắm đầy đủ và kích thước mũi khoan tại [`diy_pcb/BOM_DIY_SHOPPING.md`](diy_pcb/BOM_DIY_SHOPPING.md), hướng dẫn ủi/ăn mòn/khoan/hàn tại [`diy_pcb/DIY_GUIDE.md`](diy_pcb/DIY_GUIDE.md), danh sách 7 dây nhảy mặt trên tại [`diy_pcb/jumper_list.md`](diy_pcb/jumper_list.md) và bản in 1:1 lật gương tại [`diy_pcb/toner_B.Cu_MIRRORED_1to1.pdf`](diy_pcb/toner_B.Cu_MIRRORED_1to1.pdf).
-   - Danh mục cần chuẩn bị thêm: 1 tấm phíp đồng 1 mặt `FR-4` `1.6 mm` (`>= 100 × 80 mm`), 2 thanh rào cái `1×15P 2.54 mm` (đế NodeMCU), rào đực `1×40P 2.54 mm` (cắt cho `J3..J15`), 2 domino vít `Phoenix MKDS / KF301 2P 5.08 mm` (`J1, J2`), 1 transistor NPN `S8050` (hoặc `2N2222A`, vỏ `TO-92` chân `E-B-C` cho `Q1` lái còi 5V), tụ hóa `10 µF 16V` (`C4`) + `470 µF 16V` (`C1, C2`), tụ gốm `100 nF` (`C3, C6, C7`) + `10 nF` (`C5`), LED xanh 3 mm (`D3`), trở 1/4W (`220 Ω`, `1 kΩ` gồm `R8` & `R10`, `2.2 kΩ`, `10 kΩ`), dây lõi đặc `22 AWG` (làm 7 dây nhảy `JP1..JP7`), 4 bộ ốc trụ `M3`, và đúng 4 mũi khoan `0.9 / 1.1 / 1.3 / 3.2 mm`.
+   - Danh mục cần chuẩn bị thêm: 1 tấm phíp đồng 1 mặt `FR-4` `1.6 mm` (`>= 100 × 80 mm`), 2 thanh rào cái `1×15P 2.54 mm` (đế NodeMCU), rào đực `1×40P 2.54 mm` (cắt cho `J3..J15`), 2 domino vít `Phoenix MKDS / KF301 2P 5.08 mm` (`J1, J2`), 1 transistor NPN `S8050` (hoặc `2N2222A`, vỏ `TO-92` chân `E-B-C` cho `Q1` lái còi 5V), tụ hóa `10 µF 16V` (`C4`) + `100 µF 16V` (`C9` gắn ngoài tại `J11`/PAM8403) + `470 µF 16V` (`C1, C2`), tụ gốm `100 nF 50V` (`C3, C6, C7` trên bo + `C8` ngoài bo trên `+3V3`) + `10 nF 50V` (`C5`), LED xanh 3 mm (`D3`), trở 1/4W (`220 Ω`, `1 kΩ` gồm `R8` & `R10`, `2.2 kΩ`, `10 kΩ`), dây lõi đặc `22 AWG` (làm 7 dây nhảy `JP1..JP7`), 4 bộ ốc trụ `M3`, và đúng 4 mũi khoan `0.9 / 1.1 / 1.3 / 3.2 mm`.
 
 ---
 
@@ -89,5 +89,5 @@ Sơ đồ chân dưới đây đồng bộ 100% với Firmware [`esp8266_smartho
 - [ ] **`D4 (GPIO2)` đấu Active-LOW khớp Firmware:** Dây `3.3V -> Trở -> LED(+) -> LED(-) -> D4` giúp `GPIO2` luôn được kéo lên `HIGH` khi boot và đèn ngủ tắt hoàn toàn khi mới bật nguồn (`BEDROOM_LED_ACTIVE_LOW = true`).
 - [ ] **`D8 (GPIO15)` giữ mức `LOW` khi boot:** Chỉ đấu tải xuống `GND` (Active-HIGH), không mắc bất kỳ điện trở kéo lên `3.3V` nào trên chân `D8`.
 - [ ] **`A0` & `D5` chỉ cấp `3.3V` cho `LM393` và `KY-037`:** Không cấp `5V` vào `LM393` hay `KY-037` vì ngõ ra `AO` / `DO` vượt `3.3V` sẽ gây sai số hoặc hỏng chân `A0` / `GPIO14` của ESP8266.
-- [ ] **Bảo vệ tải cảm ứng (Bơm & Servo):** Gắn đúng chiều **Diode `1N4007`** (vạch bạc nối về cực dương `+` của máy bơm) và đặt tụ **`470µF 16V`** sát đường nguồn `5V` cấp cho bơm và servo.
+- [ ] **Bảo vệ tải cảm ứng & Lọc nguồn đầy đủ (`D1, D2`, `C1`–`C9`):** Gắn đúng chiều **Diode `D1 1N4007`** (vạch bạc `K` nối `PUMP_5V`, `A` nối `GND`) và **`D2 1N4007`** (vạch bạc `K` nối `+5V`, `A` nối `Q1.C`/`BUZZ_K`); đặt tụ hóa **`C1/C2 470µF 16V`** + tụ gốm **`C3 100nF 50V`** trên rail `+5V`, tụ **`C8 100nF 50V`** trên rail `+3.3V` (bổ sung cho tụ `10µF` AMS1117 trên NodeMCU), tụ **`C6 100nF 50V` + `C9 100µF 16V`** trên `AMP_5V` (PAM8403), và **`C7 100nF 50V`** lọc chân `A0` cảm biến đất.
 - [ ] **Kiểm tra cực tính Relay 1 (`D6`) & Relay 2 (`D7`):** Trên Relay 2 đỏ opto, gạt jumper vàng sang **`H`** (kích mức `HIGH`). Với Relay 1 xanh dương (không có jumper lộ ngoài), test nhanh `5V/GND/IN` trước khi lắp tải; nếu module kích mức `LOW`, đổi `#define PUMP_RELAY_ACTIVE_LOW true` trong `esp8266_smarthome.ino`.

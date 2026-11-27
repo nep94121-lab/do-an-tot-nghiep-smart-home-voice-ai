@@ -43,6 +43,15 @@
 | 33 | JP6 | `JUMPER_20.32mm` | **1** | `WireJumper_P20.32mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
 | 34 | JP7 | `JUMPER_25.40mm` | **1** | `WireJumper_P25.40mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
 
+## 1.1. Tụ tách nhiễu bổ sung theo Datasheet (gắn ngoài bo tại chân Header / Breadboard)
+
+> Để giữ nguyên bo PCB DIY 1 lớp `100.0 × 80.0 mm` ở trạng thái **0 ERC / 0 DRC** (`49 footprints`, khe hở đồng `>= 0.60 mm` an toàn ủi tay), hai tụ lọc nguồn khuyến nghị bổ sung theo datasheet (`C8` và `C9`) được gắn trực tiếp tại chân header / breadboard hoặc pad nguồn module mà không làm chật pad trên bo 1 lớp:
+
+| STT | Ký hiệu | Giá trị & Điện áp | SL | Phân cực | Vị trí gắn & Chân nối | Nguồn Datasheet |
+| ---: | :--- | :--- | :---: | :--- | :--- | :--- |
+| 1 | **C8** | `100nF (104) 50V` gốm | **1** | Không phân cực | Gắn giữa `+3V3` ↔ `GND` trên Breadboard hoặc sát chân `U1.11`/`U2.6` và cảm biến `J13/J14/J15` *(kết hợp tụ Tantalum 10µF của AMS1117-3.3 đã hàn sẵn trên bo NodeMCU v2 Amica)* | Espressif ESP8266 Hardware Design Guidelines Sec. 2.1 + AMS1117-3.3 Datasheet |
+| 2 | **C9** | `100µF 16V` tụ hóa đứng | **1** | Có cực: `(+)` vào `AMP_5V` (`5V+`), `(-)` vạch trắng vào `GND` (`5V-`) | Gắn sát chân header `J11` (`AMP_5V` ↔ `GND`) hoặc trực tiếp lên pad `5V+ / 5V-` của module `PAM8403` *(mắc song song `C6 100nF`)* | Diodes Inc. PAM8403 Datasheet (Power Supply Decoupling: `100µF` bulk + `0.1µF` HF) |
+
 ## 2. 14 Module / Ngoại vi cắm ngoài (kết nối vào các header trên bo, giữ nguyên pin map)
 
 | Module | Header trên bo | Chân NodeMCU | Ghi chú dây cắm |
@@ -56,7 +65,23 @@
 | Module Relay 1 (Xanh 5V SRD-05VDC — Bơm) | `J7` (điều khiển) + `J8` (tiếp điểm) | `D6 / GPIO12` | `J7`: 5V/GND/D6; `J8`: COM=`+5V`, NO=`PUMP_5V` |
 | Bơm chìm mini DC 5V | `J2` (`PUMP_OUT`) | Qua Relay 1 | Vặn vít domino 5.08 mm, có `D1` 1N4007 dập xung |
 | Module Relay 2 (Đỏ Opto 5V — Cấp nguồn Amp) | `J9` (điều khiển) + `J10` (tiếp điểm) | `D7 / GPIO13` | `J9`: 5V/GND/D7; `J10`: COM=`+5V`, NO=`AMP_5V` |
-| Module khuếch đại PAM8403 + Loa 28 mm 8 Ω | `J11` (nguồn) + `J12` (tín hiệu) | `D3 / GPIO0` | `J11`: AMP_5V/GND; `J12`: AUD_OUT/GND (qua `C4,R5,R6,C5`) |
-| Cảm biến nhiệt độ & độ ẩm DHT11 | `J13` (`DHT11_D2`) | `D2 / GPIO4` | 3.3V / D2 (có `R3` 10k pull-up) / GND |
-| Cảm biến độ ẩm đất YL-69 + mạch LM393 | `J14` (`SOIL_A0`) | `A0` | 3.3V / GND / AO→A0 (có `C7` 100nF lọc nhiễu) |
-| Cảm biến âm thanh KY-037 / KY-038 | `J15` (`KY037_D5`) | `D5 / GPIO14` | 3.3V / GND / DO→D5 |
+| Module khuếch đại PAM8403 + Loa 28 mm 8 Ω | `J11` (nguồn) + `J12` (tín hiệu) | `D3 / GPIO0` | `J11`: AMP_5V/GND (có `C6` 100nF trên bo + `C9` 100µF 16V ngoài bo); `J12`: AUD_OUT/GND (qua `C4,R5,R6,C5`) |
+| Cảm biến nhiệt độ & độ ẩm DHT11 | `J13` (`DHT11_D2`) | `D2 / GPIO4` | 3.3V (lọc `C8` 100nF) / D2 (có `R3` 10k pull-up) / GND |
+| Cảm biến độ ẩm đất YL-69 + mạch LM393 | `J14` (`SOIL_A0`) | `A0` | 3.3V (lọc `C8` 100nF) / GND / AO→A0 (có `C7` 100nF lọc nhiễu) |
+| Cảm biến âm thanh KY-037 / KY-038 | `J15` (`KY037_D5`) | `D5 / GPIO14` | 3.3V (lọc `C8` 100nF) / GND / DO→D5 |
+
+## 3. Bảng kiểm toán đầy đủ Tụ điện (`C1`–`C9`) & Diode dập xung (`D1`–`D2`) theo Datasheet
+
+| Ký hiệu | Loại | Giá trị | Điện áp / Dòng | Phân cực | Vị trí & Chân nối | Vai trò & Datasheet |
+| :--- | :--- | :---: | :---: | :--- | :--- | :--- |
+| `C1` | Tụ hóa | `470µF` | `16V` | Có cực (`+` → `+5V`, `−` → `GND`) | Trên PCB Hub cạnh `J1/J3` (Servo) | Gánh dòng đỉnh Servo SG90 (`Nichicon UVR/UHE`) |
+| `C2` | Tụ hóa | `470µF` | `16V` | Có cực (`+` → `+5V`, `−` → `GND`) | Trên PCB Hub cạnh `J1/J2` (Bơm) | Ổn áp dòng khởi động máy bơm mini (`Nichicon UVR/UHE`) |
+| `C3` | Tụ gốm | `100nF` | `50V` | Không phân cực | Trên PCB Hub sát `U1.15` (`+5V ↔ GND`) | Lọc nhiễu cao tần nguồn `+5V` (`Murata RDE`) |
+| `C4` | Tụ hóa | `10µF` | `16V` | Có cực (`+` → `D3`, `−` → `R5`) | Trên PCB Hub nối tiếp `D3_AUDIO_PWM → AUD_AC` | Tụ chặn DC cô lập chân boot `GPIO0` (`PAM8403 Datasheet`) |
+| `C5` | Tụ gốm | `10nF` | `50V` | Không phân cực | Trên PCB Hub tại `J12.1` (`AUD_OUT ↔ GND`) | Lọc thông thấp RC cùng `R5/R6 2.2kΩ` (`fc ≈ 14.5 kHz`) |
+| `C6` | Tụ gốm | `100nF` | `50V` | Không phân cực | Trên PCB Hub sát `J11` (`AMP_5V ↔ GND`) | Lọc nhiễu cao tần cho nguồn `PAM8403` (`PAM8403 Datasheet`) |
+| `C7` | Tụ gốm | `100nF` | `50V` | Không phân cực | Trên PCB Hub sát `J14.3` (`A0_SOIL ↔ GND`) | Lọc nhiễu tương tự `ADC0` cảm biến đất (`ESP8266 TRM`) |
+| `C8` | Tụ gốm | `100nF` | `50V` | Không phân cực | Ngoài bo trên Breadboard/Header `+3V3 ↔ GND` (`U1.11/U2.6`, `J13–J15`) | Tách nhiễu cao tần `+3.3V` + tụ `10µF` AMS1117 trên NodeMCU (`ESP8266 HDG Sec. 2.1`) |
+| `C9` | Tụ hóa | `100µF` | `16V` | Có cực (`+` → `AMP_5V`, `−` → `GND`) | Ngoài bo tại chân `J11` / pad `5V+/5V-` `PAM8403` (song song `C6`) | Dự trữ dòng tầng công suất Class-D `PAM8403` (`Diodes Inc. PAM8403`) |
+| `D1` | Diode dập xung | `1N4007` | `1000V / 1A` | Vạch bạc `K` → `PUMP_5V`, `A` → `GND` | Trên PCB Hub song song `J2.1 ↔ J2.2` (Bơm) | Triệt xung cảm ứng ngược máy bơm 3–6V (`Vishay 1N4007`) |
+| `D2` | Diode dập xung | `1N4007` | `1000V / 1A` | Vạch bạc `K` → `+5V`, `A` → `BUZZ_K` (`Q1.C`) | Trên PCB Hub song song `J6.1 ↔ J6.2` (Còi 5V) | Bảo vệ transistor NPN `Q1 S8050` khỏi xung ngược cuộn còi (`Vishay 1N4007`) |

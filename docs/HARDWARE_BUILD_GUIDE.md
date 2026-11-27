@@ -17,7 +17,7 @@ Tài liệu này là **chỉ mục trung tâm** dẫn tới toàn bộ hồ sơ 
 | **Bản lắp ghép 3D KiCad & Blender** | [`hardware/kicad/smarthome_assembly/`](../hardware/kicad/smarthome_assembly/) · [`hardware/blender/`](../hardware/blender/) | [`ASM_REPORT.md`](phan_cung/assembly/ASM_REPORT.md) |
 | **Vỏ nhà Mica 3mm cắt Laser (FreeCAD)** | [`hardware/mica/`](../hardware/mica/) ([`smarthome_mica_house.FCStd`](../hardware/mica/smarthome_mica_house.FCStd)) | [`ASSEMBLY_GUIDE.md`](phan_cung/mica/ASSEMBLY_GUIDE.md) · [`MICA_PANELS.md`](phan_cung/mica/MICA_PANELS.md) · [`sheet_layout_A3_1to1.pdf`](phan_cung/mica/sheet_layout_A3_1to1.pdf) · [`sheet_layout_A4_1to1.pdf`](phan_cung/mica/sheet_layout_A4_1to1.pdf) · [`sheet_layout_A3.dxf`](phan_cung/mica/sheet_layout_A3.dxf) · [`sheet_layout_A4.dxf`](phan_cung/mica/sheet_layout_A4.dxf) · [`holes_table.csv`](phan_cung/mica/holes_table.csv) |
 | **Vỏ nhà In 3D có khắc kích thước + Phụ kiện Supot (`220×220×250 mm`)** | [`hardware/in 3 d/`](../hardware/in%203%20d/) ([`scripts/build_print_parts.py`](../hardware/in%203%20d/scripts/build_print_parts.py)) | [`README.md`](../hardware/in%203%20d/README.md) · [`STL/`](../hardware/in%203%20d/STL/) · [`3MF/`](../hardware/in%203%20d/3MF/) · [`STEP/`](../hardware/in%203%20d/STEP/) · [`drawings/`](../hardware/in%203%20d/drawings/) · [`previews/`](../hardware/in%203%20d/previews/) · [`manifest.json`](../hardware/in%203%20d/manifest.json) |
-| **Firmware & Sơ đồ Wokwi** | [`firmware/esp8266_smarthome/esp8266_smarthome.ino`](../firmware/esp8266_smarthome/esp8266_smarthome.ino) | [`firmware/wokwi/diagram.json`](../firmware/wokwi/diagram.json) |
+| **Firmware & Sơ đồ Wokwi** | [`firmware/esp8266_smarthome/esp8266_smarthome.ino`](../firmware/esp8266_smarthome/esp8266_smarthome.ino) · [`hardware/flash_and_setup.ps1`](../hardware/flash_and_setup.ps1) | [`HUONG_DAN_NAP_FIRMWARE_USB.md`](phan_cung/HUONG_DAN_NAP_FIRMWARE_USB.md) · [`firmware/wokwi/diagram.json`](../firmware/wokwi/diagram.json) |
 
 ---
 
@@ -51,9 +51,9 @@ Tài liệu này là **chỉ mục trung tâm** dẫn tới toàn bộ hồ sơ 
 
 ### Bước 3 — Đấu Dây & Nạp Firmware ESP8266
 1. Cắm hoàn chỉnh 40 dây nối theo [`WIRING_TABLE.md`](phan_cung/WIRING_TABLE.md) và kiểm tra lại danh mục an toàn nguồn/boot trong [`DANH_SACH_LINH_KIEN_HIEN_CO_VA_CAN_MUA.md`](phan_cung/DANH_SACH_LINH_KIEN_HIEN_CO_VA_CAN_MUA.md).
-2. Cấu hình Wi-Fi & địa chỉ MQTT/Server trong [`firmware/esp8266_smarthome/esp8266_smarthome.ino`](../firmware/esp8266_smarthome/esp8266_smarthome.ino), sau đó biên dịch và nạp:
-   ```bash
-   arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 firmware/esp8266_smarthome/esp8266_smarthome.ino
-   arduino-cli upload -p COM3 --fqbn esp8266:esp8266:nodemcuv2 firmware/esp8266_smarthome/esp8266_smarthome.ino
+2. Thực hiện nạp firmware và cấu hình Wi-Fi runtime an toàn qua USB bằng 1 script duy nhất theo [`HUONG_DAN_NAP_FIRMWARE_USB.md`](phan_cung/HUONG_DAN_NAP_FIRMWARE_USB.md) (không lưu mật khẩu Wi-Fi vào mã nguồn):
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File hardware\flash_and_setup.ps1 -DryRun
+   powershell -NoProfile -ExecutionPolicy Bypass -File hardware\flash_and_setup.ps1
    ```
 3. Mở trang `/wokwi` hoặc `/` trên máy chủ để xác nhận telemetry `DHT11`, `soil_moisture`, `ky037` và điều khiển 6 thiết bị hoạt động đồng bộ.

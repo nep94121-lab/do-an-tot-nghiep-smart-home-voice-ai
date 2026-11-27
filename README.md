@@ -96,10 +96,15 @@ python -m pytest -q --timeout=90 \
   tests/test_m2_vietnamese_live_rag.py
 ```
 
-### Biên dịch Firmware ESP8266
-```bash
-arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 firmware/esp8266_smarthome/esp8266_smarthome.ino
+### Biên dịch & Nạp Firmware ESP8266 qua USB
+```powershell
+# Kiểm tra toolchain, driver CP210x/CH340, cổng COM và biên dịch khô (không nạp)
+powershell -NoProfile -ExecutionPolicy Bypass -File hardware\flash_and_setup.ps1 -DryRun
+
+# Nạp firmware qua USB + cấu hình Wi-Fi runtime an toàn (ẩn mật khẩu) + tự kiểm tra
+powershell -NoProfile -ExecutionPolicy Bypass -File hardware\flash_and_setup.ps1
 ```
+Xem hướng dẫn chi tiết từng bước và bảng xử lý sự cố tại [Hướng dẫn nạp Firmware & cài Wi-Fi ESP8266 qua USB](docs/phan_cung/HUONG_DAN_NAP_FIRMWARE_USB.md).
 
 ### Biên dịch Ứng dụng Android (`app/`)
 ```bash
@@ -118,6 +123,7 @@ docker compose up --build -d
 
 - [Hướng dẫn sử dụng (Tiếng Việt)](USER_GUIDE.md) — Tài khoản 3 cấp, mời QR, Web 3D, Tự động hóa, lệnh giọng nói, Android & Wokwi.
 - [Hướng dẫn chế tạo & đấu nối phần cứng](docs/HARDWARE_BUILD_GUIDE.md) — Chỉ mục KiCad PCB, cắt laser Mica, BOM linh kiện & sơ đồ 40 dây nối.
+- [Hướng dẫn nạp Firmware & cấu hình Wi-Fi ESP8266 qua USB](docs/phan_cung/HUONG_DAN_NAP_FIRMWARE_USB.md) — Nạp 1 lệnh bằng `hardware/flash_and_setup.ps1`, kiểm tra driver CP2102/CH340, cấu hình Wi-Fi runtime không lộ mật khẩu & xử lý sự cố.
 - [Bộ tệp In 3D Vỏ Nhà & Phụ Kiện Supot (`hardware/in 3 d/`)](hardware/in%203%20d/README.md) — Toàn bộ 25 mảnh vỏ nhà khắc kích thước + 12 phụ kiện supot (`STL`/`3MF`/`STEP`, bản vẽ kỹ thuật, thông số in & thứ tự lắp ráp).
 - [Các vấn đề đã biết (`KNOWN_ISSUES.md`)](KNOWN_ISSUES.md) — Danh mục giới hạn nhỏ không ảnh hưởng vận hành lõi, hoãn sang sau `v1.0`.
 - [Nhật ký phát hành (`CHANGELOG.md`)](CHANGELOG.md) — Tổng hợp các nhánh tích hợp, bản vá và tái cấu trúc `v1.0`.

@@ -89,33 +89,52 @@
 <text x="661.50" y="478.70" class="mono" font-size="5.00" font-weight="700" fill="#FB923C" text-anchor="end">D8·G15*:11</text>
 <circle cx="666.00" cy="491.80" r="2.10" fill="#94A3B8" stroke="#E2E8F0" stroke-width="0.5"/>
 <text x="661.50" y="493.50" class="mono" font-size="5.00" font-weight="700" fill="#94A3B8" text-anchor="end">GND/3V3:14-15</text>
-<rect x="415.00" y="366.00" width="60.00" height="30.00" rx="3.0" ry="3.0" fill="#FEF3C7" stroke="#D97706" stroke-width="0.85"/>
-<text x="445.00" y="377.95" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">C1/C2 470µF</text>
-<text x="445.00" y="389.22" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">+5V · C3 100n</text>
-<rect x="415.00" y="402.00" width="60.00" height="28.00" rx="3.0" ry="3.0" fill="#FEE2E2" stroke="#DC2626" stroke-width="0.85"/>
-<text x="445.00" y="413.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">D1 1N4007</text>
-<text x="445.00" y="423.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">Pump Flyback</text>
+<rect x="415.00" y="362.00" width="60.00" height="34.00" rx="3.0" ry="3.0" fill="#FEF3C7" stroke="#D97706" stroke-width="0.85"/>
+<text x="445.00" y="371.74" class="mono" font-size="4.65" font-weight="700" fill="#0F172A" text-anchor="middle">C1,C2 470µ 16V</text>
+<text x="445.00" y="381.50" class="mono" font-size="4.35" font-weight="400" fill="#1E293B" text-anchor="middle">+5V(+) GND(-)</text>
+<text x="445.00" y="390.95" class="sans" font-size="4.15" font-weight="400" fill="#475569" text-anchor="middle">C3 100nF 50V</text>
+<rect x="415.00" y="400.00" width="60.00" height="32.00" rx="3.0" ry="3.0" fill="#FEE2E2" stroke="#DC2626" stroke-width="0.85"/>
+<text x="445.00" y="409.26" class="mono" font-size="4.65" font-weight="700" fill="#0F172A" text-anchor="middle">D1 1N4007</text>
+<text x="445.00" y="418.44" class="mono" font-size="4.35" font-weight="400" fill="#1E293B" text-anchor="middle">K:PUMP5 A:GND</text>
+<text x="445.00" y="427.33" class="sans" font-size="4.15" font-weight="400" fill="#475569" text-anchor="middle">J2 Flyback</text>
 <rect x="415.00" y="436.00" width="60.00" height="28.00" rx="3.0" ry="3.0" fill="#DCFCE7" stroke="#16A34A" stroke-width="0.85"/>
-<text x="445.00" y="447.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">D3 + R8 1k</text>
-<text x="445.00" y="457.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">+5V PWR LED</text>
-<rect x="415.00" y="470.00" width="60.00" height="28.00" rx="3.0" ry="3.0" fill="#E0F2FE" stroke="#0284C7" stroke-width="0.85"/>
-<text x="445.00" y="481.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">C7 100nF</text>
-<text x="445.00" y="491.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">A0 ADC Filter</text>
-<rect x="678.00" y="308.00" width="66.00" height="28.00" rx="3.0" ry="3.0" fill="#F3E8FF" stroke="#9333EA" stroke-width="0.85"/>
-<text x="711.00" y="319.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">R1/R2 220Ω</text>
-<text x="711.00" y="329.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">LR &amp; BR LED</text>
-<rect x="678.00" y="342.00" width="66.00" height="32.00" rx="3.0" ry="3.0" fill="#E0E7FF" stroke="#4F46E5" stroke-width="0.85"/>
-<text x="711.00" y="354.63" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">R3/R4/R7/R9</text>
-<text x="711.00" y="366.66" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">10k Pull-Up/Dn</text>
-<rect x="678.00" y="380.00" width="66.00" height="38.00" rx="3.0" ry="3.0" fill="#FEF3C7" stroke="#B45309" stroke-width="0.85"/>
-<text x="711.00" y="394.67" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">C4 10µ·C5 10n</text>
-<text x="711.00" y="408.98" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">R5/R6 2.2k RC</text>
-<rect x="678.00" y="424.00" width="66.00" height="28.00" rx="3.0" ry="3.0" fill="#FEE2E2" stroke="#DC2626" stroke-width="0.85"/>
-<text x="711.00" y="435.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">Q1/R10+D2</text>
-<text x="711.00" y="445.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">S8050+1N4007</text>
-<rect x="678.00" y="458.00" width="66.00" height="28.00" rx="3.0" ry="3.0" fill="#E0F2FE" stroke="#0284C7" stroke-width="0.85"/>
-<text x="711.00" y="469.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">C6 100nF</text>
-<text x="711.00" y="479.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">AMP_5V Decpl</text>
+<text x="445.00" y="447.20" class="mono" font-size="4.95" font-weight="700" fill="#0F172A" text-anchor="middle">D3 + R8 1k</text>
+<text x="445.00" y="457.67" class="sans" font-size="4.45" font-weight="400" fill="#334155" text-anchor="middle">+5V PWR LED</text>
+<rect x="415.00" y="468.00" width="60.00" height="30.00" rx="3.0" ry="3.0" fill="#E0F2FE" stroke="#0284C7" stroke-width="0.85"/>
+<text x="445.00" y="479.88" class="mono" font-size="4.95" font-weight="700" fill="#0F172A" text-anchor="middle">C7 100nF 50V</text>
+<text x="445.00" y="491.11" class="sans" font-size="4.45" font-weight="400" fill="#334155" text-anchor="middle">A0_SOIL↔GND</text>
+<rect x="678.00" y="306.00" width="66.00" height="28.00" rx="3.0" ry="3.0" fill="#F3E8FF" stroke="#9333EA" stroke-width="0.85"/>
+<text x="711.00" y="317.20" class="mono" font-size="4.95" font-weight="700" fill="#0F172A" text-anchor="middle">R1/R2 220Ω</text>
+<text x="711.00" y="327.67" class="sans" font-size="4.45" font-weight="400" fill="#334155" text-anchor="middle">LR &amp; BR LED</text>
+<rect x="678.00" y="338.00" width="66.00" height="30.00" rx="3.0" ry="3.0" fill="#E0E7FF" stroke="#4F46E5" stroke-width="0.85"/>
+<text x="711.00" y="349.88" class="mono" font-size="4.95" font-weight="700" fill="#0F172A" text-anchor="middle">R3/R4/R7/R9</text>
+<text x="711.00" y="361.11" class="sans" font-size="4.45" font-weight="400" fill="#334155" text-anchor="middle">10k Pull-Up/Dn</text>
+<rect x="678.00" y="372.00" width="66.00" height="38.00" rx="3.0" ry="3.0" fill="#FEF3C7" stroke="#B45309" stroke-width="0.85"/>
+<text x="711.00" y="382.70" class="mono" font-size="4.65" font-weight="700" fill="#0F172A" text-anchor="middle">C4 10µF 16V(+)</text>
+<text x="711.00" y="393.62" class="mono" font-size="4.35" font-weight="400" fill="#1E293B" text-anchor="middle">C5 10nF 50V</text>
+<text x="711.00" y="404.19" class="sans" font-size="4.15" font-weight="400" fill="#475569" text-anchor="middle">D3→R5/R6 2.2k</text>
+<rect x="678.00" y="414.00" width="66.00" height="36.00" rx="3.0" ry="3.0" fill="#FEE2E2" stroke="#DC2626" stroke-width="0.85"/>
+<text x="711.00" y="424.22" class="mono" font-size="4.65" font-weight="700" fill="#0F172A" text-anchor="middle">Q1 S8050 + D2</text>
+<text x="711.00" y="434.56" class="mono" font-size="4.35" font-weight="400" fill="#1E293B" text-anchor="middle">D2 1N4007 J6</text>
+<text x="711.00" y="444.57" class="sans" font-size="4.15" font-weight="400" fill="#475569" text-anchor="middle">K:+5V A:BUZZ_K</text>
+<rect x="678.00" y="454.00" width="66.00" height="30.00" rx="3.0" ry="3.0" fill="#E0F2FE" stroke="#0284C7" stroke-width="0.85"/>
+<text x="711.00" y="465.88" class="mono" font-size="4.95" font-weight="700" fill="#0F172A" text-anchor="middle">C6 100nF 50V</text>
+<text x="711.00" y="477.11" class="sans" font-size="4.45" font-weight="400" fill="#334155" text-anchor="middle">AMP_5V↔GND</text>
+<rect x="416.00" y="513.00" width="160.00" height="23.00" rx="3.0" ry="3.0" fill="#EFF6FF" stroke="#2563EB" stroke-width="0.85" stroke-dasharray="3,2"/>
+<line x1="419.00" y1="524.50" x2="423.10" y2="524.50" stroke="#0F172A" stroke-width="0.8" stroke-linecap="round"/>
+<line x1="425.90" y1="524.50" x2="430.00" y2="524.50" stroke="#0F172A" stroke-width="0.8" stroke-linecap="round"/>
+<line x1="423.10" y1="521.50" x2="423.10" y2="527.50" stroke="#0F172A" stroke-width="1.05" stroke-linecap="round"/>
+<line x1="425.90" y1="521.50" x2="425.90" y2="527.50" stroke="#0F172A" stroke-width="1.05" stroke-linecap="round"/>
+<text x="503.50" y="522.50" class="mono" font-size="4.95" font-weight="700" fill="#0F172A" text-anchor="middle">C8 100nF 50V [Header/BB]</text>
+<text x="503.50" y="531.07" class="sans" font-size="4.45" font-weight="400" fill="#334155" text-anchor="middle">+3V3(U1.11/U2.6/J13-15)↔GND (+AMS1117 10µF)</text>
+<rect x="584.00" y="513.00" width="160.00" height="23.00" rx="3.0" ry="3.0" fill="#FEFCE8" stroke="#CA8A04" stroke-width="0.85" stroke-dasharray="3,2"/>
+<line x1="587.00" y1="524.50" x2="591.10" y2="524.50" stroke="#0F172A" stroke-width="0.8" stroke-linecap="round"/>
+<line x1="593.90" y1="524.50" x2="598.00" y2="524.50" stroke="#0F172A" stroke-width="0.8" stroke-linecap="round"/>
+<line x1="591.10" y1="521.50" x2="591.10" y2="527.50" stroke="#0F172A" stroke-width="1.05" stroke-linecap="round"/>
+<line x1="593.90" y1="521.50" x2="593.90" y2="527.50" stroke="#0F172A" stroke-width="1.05" stroke-linecap="round"/>
+<text x="588.90" y="522.66" class="sans" font-size="4.60" font-weight="700" fill="#DC2626" text-anchor="middle">+</text>
+<text x="671.50" y="522.50" class="mono" font-size="4.95" font-weight="700" fill="#0F172A" text-anchor="middle">C9 100µF 16V (+) [At J11/PAM8403]</text>
+<text x="671.50" y="531.07" class="sans" font-size="4.45" font-weight="400" fill="#334155" text-anchor="middle">AMP_5V(+) ↔ GND(-) · Parallel C6 100nF</text>
 <rect x="369.00" y="234.00" width="78.00" height="37.00" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.1"/>
 <text x="408.00" y="257.27" class="mono" font-size="5.20" font-weight="700" fill="#065F46" text-anchor="middle">J14 SOIL_A0</text>
 <circle cx="388.00" cy="241.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
@@ -337,14 +356,15 @@
 <rect x="957.00" y="76.00" width="218.00" height="6.00" fill="#FEF3C7" stroke="none" stroke-width="1.0"/>
 <line x1="956.00" y1="82.00" x2="1176.00" y2="82.00" stroke="#D97706" stroke-width="0.9" stroke-linecap="round"/>
 <text x="1066.00" y="74.24" class="sans" font-size="6.60" font-weight="700" fill="#92400E" text-anchor="middle">BOOT-SAFETY &amp; PROTECTION NOTES</text>
-<text x="963.00" y="93.35" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">• D3 (GPIO0): C4 10µF + R5/R6 2.2k + C5 10nF;</text>
-<text x="963.00" y="104.55" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">  R4 10k pull-up; firmware IDLE = INPUT (high-Z)</text>
-<text x="963.00" y="115.75" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">• D4 (GPIO2): Active-LOW + R7 10k pull-up</text>
-<text x="963.00" y="126.95" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">• D8 (GPIO15): R10 1k→Q1 S8050 + R9 10k PD</text>
-<text x="963.00" y="138.15" class="sans" font-size="5.45" font-weight="700" fill="#B91C1C" text-anchor="start">• LM393 (J14) &amp; KY-037 (J15): 3.3V ONLY!</text>
-<text x="963.00" y="149.35" class="sans" font-size="5.45" font-weight="700" fill="#B91C1C" text-anchor="start">• PAM8403 BTL: NEVER tie L_OUT- to GND!</text>
-<text x="963.00" y="160.55" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">• Pump/Buzz: D1/D2 1N4007 + C1/C2 470µF</text>
-<text x="963.00" y="171.75" class="sans" font-size="5.45" font-weight="700" fill="#B91C1C" text-anchor="start">• Scope Lock: NO Fan · NO AC · NO IR</text>
+<text x="963.00" y="91.78" class="sans" font-size="5.25" font-weight="400" fill="#1E293B" text-anchor="start">• D3 (GPIO0): C4 10µF + R5/R6 2.2k + C5 10nF;</text>
+<text x="963.00" y="101.98" class="sans" font-size="5.25" font-weight="400" fill="#1E293B" text-anchor="start">  R4 10k pull-up; firmware IDLE = INPUT (high-Z)</text>
+<text x="963.00" y="112.19" class="sans" font-size="5.25" font-weight="400" fill="#1E293B" text-anchor="start">• D4 (GPIO2): Active-LOW + R7 10k pull-up</text>
+<text x="963.00" y="122.38" class="sans" font-size="5.25" font-weight="400" fill="#1E293B" text-anchor="start">• D8 (GPIO15): R10 1k→Q1 S8050 + R9 10k PD</text>
+<text x="963.00" y="132.59" class="sans" font-size="5.25" font-weight="700" fill="#B91C1C" text-anchor="start">• LM393 (J14) &amp; KY-037 (J15): 3.3V ONLY!</text>
+<text x="963.00" y="142.78" class="sans" font-size="5.25" font-weight="700" fill="#B91C1C" text-anchor="start">• PAM8403 BTL: NEVER tie L_OUT- to GND!</text>
+<text x="963.00" y="152.98" class="sans" font-size="5.25" font-weight="400" fill="#1E293B" text-anchor="start">• Pump/Buzz: D1/D2 1N4007 + C1/C2 470µF</text>
+<text x="963.00" y="163.18" class="sans" font-size="5.25" font-weight="400" fill="#1E293B" text-anchor="start">• Decoupling: C8 100nF(+3V3), C9 100µF(AMP)</text>
+<text x="963.00" y="173.38" class="sans" font-size="5.25" font-weight="700" fill="#B91C1C" text-anchor="start">• Scope Lock: NO Fan · NO AC · NO IR</text>
 <rect x="26.00" y="216.20" width="228.00" height="122.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
 <rect x="24.00" y="214.00" width="228.00" height="122.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#0284C7" stroke-width="1.4"/>
 <rect x="24.00" y="214.00" width="228.00" height="24.00" rx="6.0" ry="6.0" fill="#E0F2FE" stroke="#0284C7" stroke-width="1.2"/>
@@ -539,7 +559,7 @@
 <line x1="744.00" y1="690.00" x2="744.00" y2="750.00" stroke="#CBD5E1" stroke-width="0.8" stroke-linecap="round" stroke-dasharray="3,2"/>
 <text x="697.00" y="739.80" class="sans" font-size="5.30" font-weight="700" fill="#0F766E" text-anchor="middle">Power (J11)</text>
 <text x="798.00" y="739.80" class="sans" font-size="5.30" font-weight="700" fill="#334155" text-anchor="middle">Audio In (J12)</text>
-<text x="658.00" y="757.82" class="sans" font-size="5.35" font-weight="400" fill="#475569" text-anchor="start">D3 RC-filtered PWM → L In</text>
+<text x="658.00" y="757.77" class="sans" font-size="5.20" font-weight="400" fill="#475569" text-anchor="start">D3 RC→L · C6 100nF + C9 100µF 16V</text>
 <circle cx="676.00" cy="682.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
 <text x="676.00" y="695.77" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">5V+</text>
 <text x="676.00" y="704.63" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W24</text>
