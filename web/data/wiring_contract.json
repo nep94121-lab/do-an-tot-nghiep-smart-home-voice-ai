@@ -1,13 +1,15 @@
 {
   "schema_version": 2,
   "source": "hardware/wiring_contract.py",
-  "contract_sha256": "66e3d4a58fde0d6feb5d292841a6786bd8cfb6e59e308f8bef9e4c683b5bab16",
+  "contract_sha256": "3d880a811c018df8ad241c0fb50123b4720292b6b1b76a9e354ae3cf15e04a23",
   "counts": {
     "wires": 40,
     "hub_wires": 36,
     "offboard_wires": 4,
     "connectors": 15,
     "modules": 14,
+    "authoritative_14_modules": 14,
+    "authoritative_core_boards": 2,
     "firmware_pins": 10,
     "protection_components": 11,
     "onboard_passives": 23,
@@ -26,7 +28,7 @@
     "total_wires": 40,
     "min_length_cm": 3.84,
     "max_length_cm": 27.48,
-    "total_length_cm": 646.5,
+    "total_length_cm": 654.99,
     "total_standard_cm": 820,
     "all_within_30cm": true,
     "flagged_over_30cm": [],
@@ -159,7 +161,7 @@
     {
       "module_id": "psu_5v",
       "module_name": "5V 2A External Supply",
-      "label_vi": "Nguồn ngoài 5V 2A",
+      "label_vi": "Nguồn 5V 2A / Giắc DC-022 → J1",
       "wokwi_group": "power",
       "house3d_wire_key": "power",
       "dims_mm": [
@@ -171,12 +173,21 @@
         "W01",
         "W02"
       ],
-      "wire_count": 2
+      "wire_count": 2,
+      "hub_refs": [
+        "J1"
+      ],
+      "mount_parts": [
+        "P15_TECH_FASCIA",
+        "SUP16_DC022_STRAIN_RELIEF"
+      ],
+      "blender_node": "psu_5v_dc_jack",
+      "web3d_pin_id": "mod_psu_5v"
     },
     {
       "module_id": "sg90_servo",
       "module_name": "SG90 Micro Servo",
-      "label_vi": "Động cơ Servo SG90 (Cửa chính)",
+      "label_vi": "Động cơ Servo SG90 (Cửa chính D1 · Đồng tâm)",
       "wokwi_group": "d1_servo",
       "house3d_wire_key": "d1_door",
       "dims_mm": [
@@ -189,12 +200,23 @@
         "W04",
         "W05"
       ],
-      "wire_count": 3
+      "wire_count": 3,
+      "hub_refs": [
+        "J3"
+      ],
+      "mount_parts": [
+        "P07_SERVO_SHELF",
+        "SUP11_SG90_SNAP_SADDLE",
+        "SUP10_DOOR_MORTISE_HINGE",
+        "SUP10B_DOOR_HORN_COUPLER"
+      ],
+      "blender_node": "SG90_DoorServo",
+      "web3d_pin_id": "mod_sg90_servo"
     },
     {
       "module_id": "led_living",
       "module_name": "5mm LED (Living Room)",
-      "label_vi": "Đèn LED 5mm Phòng khách (D0)",
+      "label_vi": "Đèn LED 5mm Phòng khách (D0 · J4)",
       "wokwi_group": "d0_living",
       "house3d_wire_key": "d0_living",
       "dims_mm": [
@@ -206,12 +228,21 @@
         "W06",
         "W07"
       ],
-      "wire_count": 2
+      "wire_count": 2,
+      "hub_refs": [
+        "J4"
+      ],
+      "mount_parts": [
+        "P06_WALL_MID",
+        "SUP17_LED5MM_RETAINING_COLLAR"
+      ],
+      "blender_node": "led_living_room",
+      "web3d_pin_id": "living_room_light"
     },
     {
       "module_id": "led_bedroom",
       "module_name": "5mm LED (Bedroom)",
-      "label_vi": "Đèn LED 5mm Phòng ngủ (D4)",
+      "label_vi": "Đèn LED 5mm Phòng ngủ (D4 · J5)",
       "wokwi_group": "d4_bedroom",
       "house3d_wire_key": "d4_bedroom",
       "dims_mm": [
@@ -223,12 +254,21 @@
         "W08",
         "W09"
       ],
-      "wire_count": 2
+      "wire_count": 2,
+      "hub_refs": [
+        "J5"
+      ],
+      "mount_parts": [
+        "P06_WALL_MID",
+        "SUP17_LED5MM_RETAINING_COLLAR"
+      ],
+      "blender_node": "led_bedroom",
+      "web3d_pin_id": "bedroom_light"
     },
     {
       "module_id": "relay1_pump",
       "module_name": "Relay 1 (Blue 5V 1-ch)",
-      "label_vi": "Rơ-le 1 Xanh 5V (Máy bơm, D6)",
+      "label_vi": "Rơ-le 1 Xanh 5V (Máy bơm, D6 · J7/J8)",
       "wokwi_group": "d6_pump",
       "house3d_wire_key": "d6_pump",
       "dims_mm": [
@@ -243,12 +283,22 @@
         "W13",
         "W14"
       ],
-      "wire_count": 5
+      "wire_count": 5,
+      "hub_refs": [
+        "J7",
+        "J8"
+      ],
+      "mount_parts": [
+        "SUP07_RELAY_SNAP_CADDY",
+        "P01A_BASE_TECH"
+      ],
+      "blender_node": "relay1_pump",
+      "web3d_pin_id": "mod_relay1_pump"
     },
     {
       "module_id": "pump_unit",
       "module_name": "Mini Submersible Pump (3-6V)",
-      "label_vi": "Máy bơm chìm mini 3–6V",
+      "label_vi": "Máy bơm chìm mini 3–6V (J2)",
       "wokwi_group": "d6_pump",
       "house3d_wire_key": "d6_pump",
       "dims_mm": [
@@ -260,12 +310,21 @@
         "W15",
         "W16"
       ],
-      "wire_count": 2
+      "wire_count": 2,
+      "hub_refs": [
+        "J2"
+      ],
+      "mount_parts": [
+        "SUP15_WATER_TANK_LINER",
+        "P10_WATER_DIVIDER"
+      ],
+      "blender_node": "pump_unit",
+      "web3d_pin_id": "garden_pump"
     },
     {
       "module_id": "buzzer_alarm",
       "module_name": "Active 5V Buzzer (TMB12A05)",
-      "label_vi": "Còi báo động 5V TMB12A05 (D8)",
+      "label_vi": "Còi báo động 5V TMB12A05 (D8 · J6)",
       "wokwi_group": "d8_buzzer",
       "house3d_wire_key": "d8_siren",
       "dims_mm": [
@@ -277,12 +336,21 @@
         "W17",
         "W18"
       ],
-      "wire_count": 2
+      "wire_count": 2,
+      "hub_refs": [
+        "J6"
+      ],
+      "mount_parts": [
+        "P05_WALL_FRONT",
+        "SUP18_BUZZER_SNAP_COLLAR"
+      ],
+      "blender_node": "buzzer_alarm",
+      "web3d_pin_id": "alarm_siren"
     },
     {
       "module_id": "relay2_speaker",
       "module_name": "Relay 2 (Red Opto 5V, Jmp=H)",
-      "label_vi": "Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7)",
+      "label_vi": "Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7 · J9/J10)",
       "wokwi_group": "d3_d7_speaker",
       "house3d_wire_key": "d7_d3_speaker",
       "dims_mm": [
@@ -297,12 +365,22 @@
         "W22",
         "W23"
       ],
-      "wire_count": 5
+      "wire_count": 5,
+      "hub_refs": [
+        "J9",
+        "J10"
+      ],
+      "mount_parts": [
+        "SUP07_RELAY_SNAP_CADDY",
+        "P01A_BASE_TECH"
+      ],
+      "blender_node": "relay2_speaker",
+      "web3d_pin_id": "mod_relay2_speaker"
     },
     {
       "module_id": "pam8403_amp",
       "module_name": "PAM8403 Audio Amplifier",
-      "label_vi": "Mạch khuếch đại loa PAM8403",
+      "label_vi": "Mạch khuếch đại loa PAM8403 (J11/J12)",
       "wokwi_group": "d3_d7_speaker",
       "house3d_wire_key": "d7_d3_speaker",
       "dims_mm": [
@@ -316,12 +394,22 @@
         "W26",
         "W27"
       ],
-      "wire_count": 4
+      "wire_count": 4,
+      "hub_refs": [
+        "J11",
+        "J12"
+      ],
+      "mount_parts": [
+        "SUP08_PAM8403_SNAP_TRAY",
+        "P01A_BASE_TECH"
+      ],
+      "blender_node": "pam8403_module",
+      "web3d_pin_id": "speaker_amp"
     },
     {
       "module_id": "speaker_mini",
       "module_name": "Mini Speaker (28mm 8Ω 0.5W)",
-      "label_vi": "Loa tròn mini 28mm 8Ω 0.5W",
+      "label_vi": "Loa tròn mini 28mm 8Ω 0.5W (BTL)",
       "wokwi_group": "d3_d7_speaker",
       "house3d_wire_key": "d7_d3_speaker",
       "dims_mm": [
@@ -333,12 +421,21 @@
         "W28",
         "W29"
       ],
-      "wire_count": 2
+      "wire_count": 2,
+      "hub_refs": [
+        "PAM8403"
+      ],
+      "mount_parts": [
+        "SUP09_SPEAKER_SNAP_RETAINER",
+        "P15_TECH_FASCIA"
+      ],
+      "blender_node": "speaker_mini",
+      "web3d_pin_id": "mod_speaker_mini"
     },
     {
       "module_id": "dht11_sensor",
       "module_name": "DHT11 3-Pin Breakout",
-      "label_vi": "Cảm biến nhiệt độ & độ ẩm DHT11 (D2)",
+      "label_vi": "Cảm biến nhiệt độ & độ ẩm DHT11 (D2 · J13)",
       "wokwi_group": "d2_dht11",
       "house3d_wire_key": "d2_dht11",
       "dims_mm": [
@@ -351,12 +448,21 @@
         "W31",
         "W32"
       ],
-      "wire_count": 3
+      "wire_count": 3,
+      "hub_refs": [
+        "J13"
+      ],
+      "mount_parts": [
+        "SUP12_DHT11_SNAP_CRADLE",
+        "P06_WALL_MID"
+      ],
+      "blender_node": "sensor_dht11",
+      "web3d_pin_id": "sensor_dht11_d2"
     },
     {
       "module_id": "soil_lm393",
       "module_name": "Soil LM393 Comparator Module",
-      "label_vi": "Mạch so sánh độ ẩm đất LM393 (A0)",
+      "label_vi": "Mạch so sánh độ ẩm đất LM393 (A0 · J14)",
       "wokwi_group": "a0_soil",
       "house3d_wire_key": "a0_soil",
       "dims_mm": [
@@ -369,7 +475,16 @@
         "W34",
         "W35"
       ],
-      "wire_count": 3
+      "wire_count": 3,
+      "hub_refs": [
+        "J14"
+      ],
+      "mount_parts": [
+        "SUP14_LM393_SNAP_CRADLE",
+        "P13_GARDEN_BACK"
+      ],
+      "blender_node": "soil_lm393_board",
+      "web3d_pin_id": "mod_soil_lm393"
     },
     {
       "module_id": "soil_probe",
@@ -386,12 +501,20 @@
         "W36",
         "W37"
       ],
-      "wire_count": 2
+      "wire_count": 2,
+      "hub_refs": [
+        "LM393"
+      ],
+      "mount_parts": [
+        "P14_SOIL_BRIDGE"
+      ],
+      "blender_node": "sensor_soil",
+      "web3d_pin_id": "sensor_soil_a0"
     },
     {
       "module_id": "ky037_sound",
       "module_name": "KY-037 / KY-038 Sound Module",
-      "label_vi": "Cảm biến âm thanh KY-037/KY-038 (D5)",
+      "label_vi": "Cảm biến âm thanh KY-037/KY-038 (D5 · J15)",
       "wokwi_group": "d5_ky037",
       "house3d_wire_key": "d5_ky037",
       "dims_mm": [
@@ -404,9 +527,346 @@
         "W39",
         "W40"
       ],
-      "wire_count": 3
+      "wire_count": 3,
+      "hub_refs": [
+        "J15"
+      ],
+      "mount_parts": [
+        "SUP13_KY037_SNAP_CRADLE",
+        "P05_WALL_FRONT"
+      ],
+      "blender_node": "sensor_mic_ky037",
+      "web3d_pin_id": "sensor_ky037_d5"
     }
   ],
+  "authoritative_14_modules": [
+    {
+      "module_id": "sg90_servo",
+      "hw_part_id": "HW_SG90",
+      "label_vi": "Servo SG90 (Cửa chính D1)",
+      "mount_parts": [
+        "P07_SERVO_SHELF",
+        "SUP11_SG90_SNAP_SADDLE",
+        "SUP10_DOOR_MORTISE_HINGE",
+        "SUP10B_DOOR_HORN_COUPLER"
+      ],
+      "blender_node": "SG90_DoorServo",
+      "web3d_pin_id": "mod_sg90_servo",
+      "hub_refs": [
+        "J3"
+      ]
+    },
+    {
+      "module_id": "psu_5v",
+      "hw_part_id": "HW_DC_JACK",
+      "label_vi": "Nguồn 5V 2A / DC-022 → J1",
+      "mount_parts": [
+        "P15_TECH_FASCIA",
+        "SUP16_DC022_STRAIN_RELIEF"
+      ],
+      "blender_node": "psu_5v_dc_jack",
+      "web3d_pin_id": "mod_psu_5v",
+      "hub_refs": [
+        "J1"
+      ]
+    },
+    {
+      "module_id": "led_living",
+      "hw_part_id": "HW_LED_LR",
+      "label_vi": "Đèn LED 5mm Phòng khách (D0)",
+      "mount_parts": [
+        "P06_WALL_MID",
+        "SUP17_LED5MM_RETAINING_COLLAR"
+      ],
+      "blender_node": "led_living_room",
+      "web3d_pin_id": "living_room_light",
+      "hub_refs": [
+        "J4"
+      ]
+    },
+    {
+      "module_id": "led_bedroom",
+      "hw_part_id": "HW_LED_BR",
+      "label_vi": "Đèn LED 5mm Phòng ngủ (D4)",
+      "mount_parts": [
+        "P06_WALL_MID",
+        "SUP17_LED5MM_RETAINING_COLLAR"
+      ],
+      "blender_node": "led_bedroom",
+      "web3d_pin_id": "bedroom_light",
+      "hub_refs": [
+        "J5"
+      ]
+    },
+    {
+      "module_id": "buzzer_alarm",
+      "hw_part_id": "HW_BUZZER",
+      "label_vi": "Còi báo động 5V TMB12A05 (D8)",
+      "mount_parts": [
+        "P05_WALL_FRONT",
+        "SUP18_BUZZER_SNAP_COLLAR"
+      ],
+      "blender_node": "buzzer_alarm",
+      "web3d_pin_id": "alarm_siren",
+      "hub_refs": [
+        "J6"
+      ]
+    },
+    {
+      "module_id": "ky037_sound",
+      "hw_part_id": "HW_KY037",
+      "label_vi": "Cảm biến âm thanh KY-037 (D5)",
+      "mount_parts": [
+        "SUP13_KY037_SNAP_CRADLE",
+        "P05_WALL_FRONT"
+      ],
+      "blender_node": "sensor_mic_ky037",
+      "web3d_pin_id": "sensor_ky037_d5",
+      "hub_refs": [
+        "J15"
+      ]
+    },
+    {
+      "module_id": "dht11_sensor",
+      "hw_part_id": "HW_DHT11",
+      "label_vi": "Cảm biến nhiệt/ẩm DHT11 (D2)",
+      "mount_parts": [
+        "SUP12_DHT11_SNAP_CRADLE",
+        "P06_WALL_MID"
+      ],
+      "blender_node": "sensor_dht11",
+      "web3d_pin_id": "sensor_dht11_d2",
+      "hub_refs": [
+        "J13"
+      ]
+    },
+    {
+      "module_id": "soil_lm393",
+      "hw_part_id": "HW_LM393",
+      "label_vi": "Mạch so sánh đất LM393 (A0)",
+      "mount_parts": [
+        "SUP14_LM393_SNAP_CRADLE",
+        "P13_GARDEN_BACK"
+      ],
+      "blender_node": "soil_lm393_board",
+      "web3d_pin_id": "mod_soil_lm393",
+      "hub_refs": [
+        "J14"
+      ]
+    },
+    {
+      "module_id": "soil_probe",
+      "hw_part_id": "HW_SOIL_PROBE",
+      "label_vi": "Đầu dò độ ẩm đất YL-69",
+      "mount_parts": [
+        "P14_SOIL_BRIDGE"
+      ],
+      "blender_node": "sensor_soil",
+      "web3d_pin_id": "sensor_soil_a0",
+      "hub_refs": [
+        "LM393"
+      ]
+    },
+    {
+      "module_id": "pump_unit",
+      "hw_part_id": "HW_PUMP",
+      "label_vi": "Máy bơm 5V + Ống nước (J2)",
+      "mount_parts": [
+        "SUP15_WATER_TANK_LINER",
+        "P10_WATER_DIVIDER"
+      ],
+      "blender_node": "pump_unit",
+      "web3d_pin_id": "garden_pump",
+      "hub_refs": [
+        "J2"
+      ]
+    },
+    {
+      "module_id": "speaker_mini",
+      "hw_part_id": "HW_SPEAKER",
+      "label_vi": "Loa tròn mini 28mm (8Ω)",
+      "mount_parts": [
+        "SUP09_SPEAKER_SNAP_RETAINER",
+        "P15_TECH_FASCIA"
+      ],
+      "blender_node": "speaker_mini",
+      "web3d_pin_id": "mod_speaker_mini",
+      "hub_refs": [
+        "PAM8403"
+      ]
+    },
+    {
+      "module_id": "pam8403_amp",
+      "hw_part_id": "HW_PAM8403",
+      "label_vi": "Mạch khuếch đại PAM8403 (J11/J12)",
+      "mount_parts": [
+        "SUP08_PAM8403_SNAP_TRAY",
+        "P01A_BASE_TECH"
+      ],
+      "blender_node": "pam8403_module",
+      "web3d_pin_id": "speaker_amp",
+      "hub_refs": [
+        "J11",
+        "J12"
+      ]
+    },
+    {
+      "module_id": "relay1_pump",
+      "hw_part_id": "HW_RELAY1",
+      "label_vi": "Rơ-le 1 Bơm (D6 · Ngõ ra J2/J8)",
+      "mount_parts": [
+        "SUP07_RELAY_SNAP_CADDY",
+        "P01A_BASE_TECH"
+      ],
+      "blender_node": "relay1_pump",
+      "web3d_pin_id": "mod_relay1_pump",
+      "hub_refs": [
+        "J7",
+        "J8"
+      ]
+    },
+    {
+      "module_id": "relay2_speaker",
+      "hw_part_id": "HW_RELAY2",
+      "label_vi": "Rơ-le 2 Loa (D7 · Ngõ ra J10/J11)",
+      "mount_parts": [
+        "SUP07_RELAY_SNAP_CADDY",
+        "P01A_BASE_TECH"
+      ],
+      "blender_node": "relay2_speaker",
+      "web3d_pin_id": "mod_relay2_speaker",
+      "hub_refs": [
+        "J9",
+        "J10"
+      ]
+    }
+  ],
+  "authoritative_core_boards": [
+    {
+      "module_id": "nodemcu",
+      "hw_part_id": "HW_NODEMCU",
+      "label_vi": "NodeMCU ESP8266 v2 Amica",
+      "mount_parts": [
+        "SUP06_HUB_PCB_SNAP_CARRIER",
+        "P15_TECH_FASCIA"
+      ],
+      "blender_node": "nodemcu_esp8266",
+      "web3d_pin_id": "board_esp8266",
+      "hub_refs": [
+        "U1",
+        "U2"
+      ]
+    },
+    {
+      "module_id": "hub_pcb",
+      "hw_part_id": "HW_PCB",
+      "label_vi": "PCB Hub DIY v3 (J1 vào · J2/J8/J10/J11 ra)",
+      "mount_parts": [
+        "SUP06_HUB_PCB_SNAP_CARRIER",
+        "P16_PCB_PLATE",
+        "SUP05_P16_TENON_RISER"
+      ],
+      "blender_node": "kicad_pcb_hub",
+      "web3d_pin_id": "mod_hub_pcb",
+      "hub_refs": [
+        "J1",
+        "J2",
+        "J3",
+        "J4",
+        "J5",
+        "J6",
+        "J7",
+        "J8",
+        "J9",
+        "J10",
+        "J11",
+        "J12",
+        "J13",
+        "J14",
+        "J15"
+      ]
+    }
+  ],
+  "sg90_mechanical_specs": {
+    "source_name": "TowerPro SG90 9g Micro Servo Datasheet (HandsOnTech)",
+    "source_url": "https://www.handsontec.com/dataspecs/SG90-Servo.pdf",
+    "body_l_mm": 22.8,
+    "body_w_mm": 12.2,
+    "body_h_mm": 22.5,
+    "ear_span_mm": 32.2,
+    "ear_w_mm": 12.2,
+    "ear_thickness_mm": 2.5,
+    "ear_bottom_from_body_bottom_mm": 15.9,
+    "ear_top_to_gearbox_deck_mm": 4.1,
+    "ear_hole_pitch_mm": 27.8,
+    "ear_hole_dia_mm": 2.0,
+    "shaft_offset_from_front_mm": 5.9,
+    "shaft_offset_from_center_mm": 5.5,
+    "gear_hub_dia_mm": 11.8,
+    "gear_hub_h_mm": 4.2,
+    "spline_dia_mm": 4.8,
+    "spline_exposed_h_mm": 2.3,
+    "overall_h_with_horn_mm": 31.0,
+    "horn_single_arm_len_mm": 14.5,
+    "horn_center_to_tip_mm": 17.5,
+    "horn_width_mm": 4.5,
+    "horn_thickness_mm": 1.6,
+    "horn_hub_dia_mm": 6.0,
+    "horn_hole_pitches_mm": [
+      6.5,
+      9.0,
+      11.5,
+      14.0
+    ],
+    "pigtail_len_cm": 25.0,
+    "stall_torque_kg_cm_4v8": 1.8,
+    "stall_torque_nm_4v8": 0.1765,
+    "speed_sec_per_60deg_4v8": 0.12,
+    "drive_mechanism": "coaxial_direct_drive_top_jamb",
+    "hinge_pivot_xy_mm": [
+      77.0,
+      201.5
+    ],
+    "servo_body_center_xyz_mm": [
+      71.5,
+      201.5,
+      118.65
+    ],
+    "shelf_z_range_mm": [
+      108.5,
+      111.5
+    ],
+    "horn_z_center_mm": 100.1,
+    "door_leaf_w_h_t_mm": [
+      56.0,
+      100.0,
+      3.0
+    ],
+    "door_swing_deg_range": [
+      0.0,
+      90.0
+    ],
+    "endstop_deg_range": [
+      -2.0,
+      92.0
+    ],
+    "coupler_slot_w_mm": 4.9,
+    "coupler_slot_len_mm": 14.5
+  },
+  "door_torque_margin": {
+    "mechanism": "coaxial_direct_drive_top_jamb",
+    "door_mass_g": 17.6,
+    "door_width_mm": 56.0,
+    "sg90_stall_torque_kg_cm": 1.8,
+    "dynamic_torque_kg_cm": 0.00943,
+    "friction_torque_kg_cm": 0.00356,
+    "external_disturbance_torque_kg_cm": 0.11417,
+    "nominal_required_torque_kg_cm": 0.01299,
+    "worst_case_required_torque_kg_cm": 0.1272,
+    "nominal_safety_margin_x": 138.6,
+    "worst_case_safety_margin_x": 14.16,
+    "passes_min_5x_margin": true
+  },
   "wires": [
     {
       "step_number": 1,
@@ -422,7 +882,7 @@
       "is_hub_wire": true,
       "module_id": "psu_5v",
       "module_name": "5V 2A External Supply",
-      "module_label_vi": "Nguồn ngoài 5V 2A",
+      "module_label_vi": "Nguồn 5V 2A / Giắc DC-022 → J1",
       "module_pin": "+5V",
       "nodemcu_pin": "VIN (U1.15)",
       "gpio": "Power (+5V)",
@@ -434,8 +894,8 @@
       "wire_type_vi": "Cầu đấu vít 22AWG",
       "fw_ref": "esp8266_smarthome.ino:15-16",
       "notes": "Main +5V rail; on-board C1/C2 (470uF 16V) + C3 (100nF) bulk decoupling + D3 power LED",
-      "power_gnd_note_vi": "Nguồn chính +5V (đã có tụ lọc C1/C2 470µF 16V và C3 100nF hàn trực tiếp trên PCB Hub).",
-      "instruction_vi": "Cắm trực tiếp từ chân J1.1 (PWR_5V_IN) trên PCB Hub tới chân +5V của Nguồn ngoài 5V 2A (nối về VIN (U1.15), Power (+5V)) bằng dây màu Đỏ (chiều dài thực tế ~9.58 cm, dùng dây chuẩn 10 cm).",
+      "power_gnd_note_vi": "Ngõ vào nguồn chính +5V 2A từ giắc DC-022 (mặt nạ P15 + khóa giữ dây SUP16) vào cầu đấu vít J1 trên PCB Hub (lọc bằng C1/C2 470µF 16V, C3 100nF), cấp cho VIN NodeMCU, Servo J3, Còi J6 và hai nhánh ngõ ra đóng cắt qua rơ-le (J8→J2 Bơm, J10→J11 Loa PAM8403).",
+      "instruction_vi": "Cắm trực tiếp từ chân J1.1 (PWR_5V_IN) trên PCB Hub tới chân +5V của Nguồn 5V 2A / Giắc DC-022 → J1 (nối về VIN (U1.15), Power (+5V)) bằng dây màu Đỏ (chiều dài thực tế ~9.58 cm, dùng dây chuẩn 10 cm).",
       "wokwi_group": "power",
       "house3d_wire_key": "power",
       "length_cm": 9.58,
@@ -534,7 +994,7 @@
       "is_hub_wire": true,
       "module_id": "psu_5v",
       "module_name": "5V 2A External Supply",
-      "module_label_vi": "Nguồn ngoài 5V 2A",
+      "module_label_vi": "Nguồn 5V 2A / Giắc DC-022 → J1",
       "module_pin": "GND",
       "nodemcu_pin": "GND (U1.10/14, U2.7/14)",
       "gpio": "Ground",
@@ -546,8 +1006,8 @@
       "wire_type_vi": "Cầu đấu vít 22AWG",
       "fw_ref": "esp8266_smarthome.ino:15-16",
       "notes": "Common system ground reference shared with NodeMCU and all modules",
-      "power_gnd_note_vi": "Dây Mass chung (GND) nối về thanh GND chung của PCB Hub và NodeMCU v2 Amica.",
-      "instruction_vi": "Cắm trực tiếp từ chân J1.2 (PWR_5V_IN) trên PCB Hub tới chân GND của Nguồn ngoài 5V 2A (nối về GND (U1.10/14, U2.7/14), Ground) bằng dây màu Đen (chiều dài thực tế ~9.10 cm, dùng dây chuẩn 10 cm).",
+      "power_gnd_note_vi": "Dây Mass chung (GND) từ giắc nguồn DC-022 vào J1.2 trên PCB Hub, làm chuẩn Mass chung cho NodeMCU v2 Amica và toàn bộ 14 mô-đun (kể cả ngõ ra đóng cắt J2/J11).",
+      "instruction_vi": "Cắm trực tiếp từ chân J1.2 (PWR_5V_IN) trên PCB Hub tới chân GND của Nguồn 5V 2A / Giắc DC-022 → J1 (nối về GND (U1.10/14, U2.7/14), Ground) bằng dây màu Đen (chiều dài thực tế ~9.10 cm, dùng dây chuẩn 10 cm).",
       "wokwi_group": "power",
       "house3d_wire_key": "power",
       "length_cm": 9.1,
@@ -646,7 +1106,7 @@
       "is_hub_wire": true,
       "module_id": "sg90_servo",
       "module_name": "SG90 Micro Servo",
-      "module_label_vi": "Động cơ Servo SG90 (Cửa chính)",
+      "module_label_vi": "Động cơ Servo SG90 (Cửa chính D1 · Đồng tâm)",
       "module_pin": "PWM (Orange)",
       "nodemcu_pin": "D1 (U2.2)",
       "gpio": "GPIO5",
@@ -658,17 +1118,17 @@
       "wire_type_vi": "Dây Dupont 1x3 Cái–Đực",
       "fw_ref": "esp8266_smarthome.ino:56",
       "notes": "50Hz PWM control: 0 deg closed / 90 deg open (main_door)",
-      "power_gnd_note_vi": "Tín hiệu PWM 50Hz điều khiển Servo SG90 (0° đóng cửa / 90° mở cửa).",
-      "instruction_vi": "Cắm trực tiếp từ chân J3.1 (SERVO_D1) trên PCB Hub tới chân PWM (Orange) của Động cơ Servo SG90 (Cửa chính) (nối về D1 (U2.2), GPIO5) bằng dây màu Cam (chiều dài thực tế ~15.46 cm, dùng dây chuẩn 20 cm).",
+      "power_gnd_note_vi": "Tín hiệu PWM 50Hz điều khiển Servo SG90 lắp đồng tâm trên đỉnh bản lề cửa chính (kệ P07 + đai gài SUP11 + khớp ngàm tay đòn SUP10B + bản lề mộng SUP10, 0° đóng / 90° mở vào phòng khách, dây đi qua lỗ Cable_Servo_D1).",
+      "instruction_vi": "Cắm trực tiếp từ chân J3.1 (SERVO_D1) trên PCB Hub tới chân PWM (Orange) của Động cơ Servo SG90 (Cửa chính D1 · Đồng tâm) (nối về D1 (U2.2), GPIO5) bằng dây màu Cam (chiều dài thực tế ~18.24 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d1_servo",
       "house3d_wire_key": "d1_door",
-      "length_cm": 15.46,
-      "straight_cm": 11.01,
-      "routed_cm": 13.11,
+      "length_cm": 18.24,
+      "straight_cm": 13.12,
+      "routed_cm": 15.45,
       "recommended_std_cm": 20,
       "recommended_note_vi": "Dây đuôi SG90 sẵn 25 cm (nối thẳng J3, không cần nối dài)",
       "within_30cm": true,
-      "route_channel": "Tech Bay -> P05 front cable slot -> P07 SG90 shelf",
+      "route_channel": "Tech Bay -> P05 Cable_Servo_D1 (X=48, Z=110) -> Coaxial top-jamb SG90",
       "waypoints_house_mm": [
         [
           130.0,
@@ -676,24 +1136,24 @@
           34.6
         ],
         [
-          130.0,
+          90.73,
           168.0,
-          28.0
+          56.0
         ],
         [
-          58.46,
-          184.0,
-          20.0
+          45.93,
+          188.0,
+          112.5
         ],
         [
-          48.46,
-          196.0,
-          18.0
+          45.93,
+          196.5,
+          113.0
         ],
         [
-          48.46,
-          207.1,
-          18.0
+          59.5,
+          200.23,
+          124.0
         ]
       ],
       "waypoints_threejs": [
@@ -703,69 +1163,69 @@
           2.5
         ],
         [
-          -1.825,
-          0.7393,
-          1.871
+          -2.6655,
+          1.323,
+          1.7938
         ],
         [
-          -1.8465,
-          0.715,
-          1.7573
+          -2.7573,
+          1.3825,
+          1.7218
         ],
         [
-          -1.9113,
-          0.6947,
-          1.6775
+          -2.8443,
+          1.4585,
+          1.6645
         ],
         [
-          -2.019,
-          0.6783,
-          1.6315
+          -2.9265,
+          1.551,
+          1.6215
         ],
         [
-          -3.4608,
-          0.517,
-          1.3093
+          -3.8758,
+          2.7483,
+          1.1977
         ],
         [
-          -3.5568,
-          0.5053,
-          1.2768
+          -3.904,
+          2.7845,
+          1.1758
         ],
         [
-          -3.641,
-          0.493,
-          1.2255
+          -3.921,
+          2.8075,
+          1.1398
         ],
         [
-          -3.7135,
-          0.48,
-          1.155
+          -3.9268,
+          2.8175,
+          1.09
         ],
         [
-          -3.793,
-          0.464,
-          1.0595
+          -3.9268,
+          2.82,
+          1.0475
         ],
         [
-          -3.8323,
-          0.4563,
-          1.0003
+          -3.9195,
+          2.8285,
+          0.9983
         ],
         [
-          -3.8558,
-          0.4515,
-          0.935
+          -3.898,
+          2.8478,
+          0.964
         ],
         [
-          -3.8635,
-          0.45,
-          0.864
+          -3.862,
+          2.8775,
+          0.9447
         ],
         [
-          -3.8635,
-          0.45,
-          0.6975
+          -3.5875,
+          3.1,
+          0.8693
         ]
       ]
     },
@@ -783,7 +1243,7 @@
       "is_hub_wire": true,
       "module_id": "sg90_servo",
       "module_name": "SG90 Micro Servo",
-      "module_label_vi": "Động cơ Servo SG90 (Cửa chính)",
+      "module_label_vi": "Động cơ Servo SG90 (Cửa chính D1 · Đồng tâm)",
       "module_pin": "VCC (Red)",
       "nodemcu_pin": "VIN (U1.15)",
       "gpio": "Power (+5V)",
@@ -796,16 +1256,16 @@
       "fw_ref": "esp8266_smarthome.ino:56",
       "notes": "+5V servo supply decoupled by on-board C1 470uF 16V",
       "power_gnd_note_vi": "Nguồn chính +5V (đã có tụ lọc C1/C2 470µF 16V và C3 100nF hàn trực tiếp trên PCB Hub).",
-      "instruction_vi": "Cắm trực tiếp từ chân J3.2 (SERVO_D1) trên PCB Hub tới chân VCC (Red) của Động cơ Servo SG90 (Cửa chính) (nối về VIN (U1.15), Power (+5V)) bằng dây màu Đỏ (chiều dài thực tế ~15.46 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J3.2 (SERVO_D1) trên PCB Hub tới chân VCC (Red) của Động cơ Servo SG90 (Cửa chính D1 · Đồng tâm) (nối về VIN (U1.15), Power (+5V)) bằng dây màu Đỏ (chiều dài thực tế ~18.28 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d1_servo",
       "house3d_wire_key": "d1_door",
-      "length_cm": 15.46,
-      "straight_cm": 11.01,
-      "routed_cm": 13.11,
+      "length_cm": 18.28,
+      "straight_cm": 13.32,
+      "routed_cm": 15.49,
       "recommended_std_cm": 20,
       "recommended_note_vi": "Dây đuôi SG90 sẵn 25 cm (nối thẳng J3, không cần nối dài)",
       "within_30cm": true,
-      "route_channel": "Tech Bay -> P05 front cable slot -> P07 SG90 shelf",
+      "route_channel": "Tech Bay -> P05 Cable_Servo_D1 (X=48, Z=110) -> Coaxial top-jamb SG90",
       "waypoints_house_mm": [
         [
           132.54,
@@ -813,24 +1273,24 @@
           34.6
         ],
         [
-          132.54,
+          92.0,
           168.0,
-          28.0
+          56.0
         ],
         [
-          61.0,
-          184.0,
-          20.0
+          47.2,
+          188.0,
+          112.5
         ],
         [
-          51.0,
-          196.0,
-          18.0
+          47.2,
+          196.5,
+          113.0
         ],
         [
-          51.0,
-          207.1,
-          18.0
+          59.5,
+          201.5,
+          124.0
         ]
       ],
       "waypoints_threejs": [
@@ -840,69 +1300,69 @@
           2.5
         ],
         [
-          -1.7615,
-          0.7393,
-          1.871
+          -2.6315,
+          1.3243,
+          1.7918
         ],
         [
-          -1.783,
-          0.715,
-          1.7573
+          -2.7245,
+          1.383,
+          1.721
         ],
         [
-          -1.8478,
-          0.6947,
-          1.6775
+          -2.8123,
+          1.4588,
+          1.6643
         ],
         [
-          -1.9555,
-          0.6783,
-          1.6315
+          -2.8948,
+          1.551,
+          1.6215
         ],
         [
-          -3.3972,
-          0.517,
-          1.3093
+          -3.844,
+          2.7483,
+          1.1977
         ],
         [
-          -3.4932,
-          0.5053,
-          1.2768
+          -3.8722,
+          2.7845,
+          1.1758
         ],
         [
-          -3.5775,
-          0.493,
-          1.2255
+          -3.8893,
+          2.8075,
+          1.1398
         ],
         [
-          -3.65,
-          0.48,
-          1.155
+          -3.895,
+          2.8175,
+          1.09
         ],
         [
-          -3.7295,
-          0.464,
-          1.0595
+          -3.895,
+          2.82,
+          1.0475
         ],
         [
-          -3.7688,
-          0.4563,
-          1.0003
+          -3.8883,
+          2.8288,
+          0.9975
         ],
         [
-          -3.7923,
-          0.4515,
-          0.935
+          -3.868,
+          2.8485,
+          0.961
         ],
         [
-          -3.8,
-          0.45,
-          0.864
+          -3.8343,
+          2.8793,
+          0.9377
         ],
         [
-          -3.8,
-          0.45,
-          0.6975
+          -3.5875,
+          3.1,
+          0.8375
         ]
       ]
     },
@@ -920,7 +1380,7 @@
       "is_hub_wire": true,
       "module_id": "sg90_servo",
       "module_name": "SG90 Micro Servo",
-      "module_label_vi": "Động cơ Servo SG90 (Cửa chính)",
+      "module_label_vi": "Động cơ Servo SG90 (Cửa chính D1 · Đồng tâm)",
       "module_pin": "GND (Brown)",
       "nodemcu_pin": "GND",
       "gpio": "Ground",
@@ -933,16 +1393,16 @@
       "fw_ref": "esp8266_smarthome.ino:56",
       "notes": "Common GND (connects to SG90 brown pigtail wire)",
       "power_gnd_note_vi": "Dây Mass chung (GND) nối về thanh GND chung của PCB Hub và NodeMCU v2 Amica.",
-      "instruction_vi": "Cắm trực tiếp từ chân J3.3 (SERVO_D1) trên PCB Hub tới chân GND (Brown) của Động cơ Servo SG90 (Cửa chính) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~15.46 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J3.3 (SERVO_D1) trên PCB Hub tới chân GND (Brown) của Động cơ Servo SG90 (Cửa chính D1 · Đồng tâm) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~18.35 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d1_servo",
       "house3d_wire_key": "d1_door",
-      "length_cm": 15.46,
-      "straight_cm": 11.01,
-      "routed_cm": 13.11,
+      "length_cm": 18.35,
+      "straight_cm": 13.53,
+      "routed_cm": 15.55,
       "recommended_std_cm": 20,
       "recommended_note_vi": "Dây đuôi SG90 sẵn 25 cm (nối thẳng J3, không cần nối dài)",
       "within_30cm": true,
-      "route_channel": "Tech Bay -> P05 front cable slot -> P07 SG90 shelf",
+      "route_channel": "Tech Bay -> P05 Cable_Servo_D1 (X=48, Z=110) -> Coaxial top-jamb SG90",
       "waypoints_house_mm": [
         [
           135.08,
@@ -950,24 +1410,24 @@
           34.6
         ],
         [
-          135.08,
+          93.27,
           168.0,
-          28.0
+          56.0
         ],
         [
-          63.54,
-          184.0,
-          20.0
+          48.470000000000006,
+          188.0,
+          112.5
         ],
         [
-          53.54,
-          196.0,
-          18.0
+          48.470000000000006,
+          196.5,
+          113.0
         ],
         [
-          53.54,
-          207.1,
-          18.0
+          59.5,
+          202.77,
+          124.0
         ]
       ],
       "waypoints_threejs": [
@@ -977,69 +1437,69 @@
           2.5
         ],
         [
-          -1.698,
-          0.7393,
-          1.871
+          -2.5975,
+          1.3255,
+          1.79
         ],
         [
-          -1.7195,
-          0.715,
-          1.7573
+          -2.6918,
+          1.3838,
+          1.7203
         ],
         [
-          -1.7843,
-          0.6947,
-          1.6775
+          -2.7803,
+          1.4588,
+          1.664
         ],
         [
-          -1.892,
-          0.6783,
-          1.6315
+          -2.863,
+          1.551,
+          1.6215
         ],
         [
-          -3.3338,
-          0.517,
-          1.3093
+          -3.8123,
+          2.7483,
+          1.1977
         ],
         [
-          -3.4298,
-          0.5053,
-          1.2768
+          -3.8405,
+          2.7845,
+          1.1758
         ],
         [
-          -3.514,
-          0.493,
-          1.2255
+          -3.8575,
+          2.8075,
+          1.1398
         ],
         [
-          -3.5865,
-          0.48,
-          1.155
+          -3.8633,
+          2.8175,
+          1.09
         ],
         [
-          -3.666,
-          0.464,
-          1.0595
+          -3.8633,
+          2.82,
+          1.0475
         ],
         [
-          -3.7053,
-          0.4563,
-          1.0003
+          -3.857,
+          2.829,
+          0.9968
         ],
         [
-          -3.7288,
-          0.4515,
-          0.935
+          -3.8385,
+          2.8493,
+          0.9578
         ],
         [
-          -3.7365,
-          0.45,
-          0.864
+          -3.8072,
+          2.8808,
+          0.9307
         ],
         [
-          -3.7365,
-          0.45,
-          0.6975
+          -3.5875,
+          3.1,
+          0.8057
         ]
       ]
     },
@@ -1057,7 +1517,7 @@
       "is_hub_wire": true,
       "module_id": "led_living",
       "module_name": "5mm LED (Living Room)",
-      "module_label_vi": "Đèn LED 5mm Phòng khách (D0)",
+      "module_label_vi": "Đèn LED 5mm Phòng khách (D0 · J4)",
       "module_pin": "Anode (+)",
       "nodemcu_pin": "D0 (U2.1) via R1 220R",
       "gpio": "GPIO16",
@@ -1069,8 +1529,8 @@
       "wire_type_vi": "Dây Dupont 1x2 Cái–Cái",
       "fw_ref": "esp8266_smarthome.ino:55",
       "notes": "Active-HIGH through on-board 220R series resistor R1; also enroll_blink",
-      "power_gnd_note_vi": "Đấu Active-HIGH qua điện trở hạn dòng R1 220Ω trên PCB Hub.",
-      "instruction_vi": "Cắm trực tiếp từ chân J4.1 (LED_LR_D0) trên PCB Hub tới chân Anode (+) của Đèn LED 5mm Phòng khách (D0) (nối về D0 (U2.1) via R1 220R, GPIO16) bằng dây màu Vàng (chiều dài thực tế ~21.16 cm, dùng dây chuẩn 30 cm).",
+      "power_gnd_note_vi": "Đấu Active-HIGH qua điện trở hạn dòng R1 220Ω trên PCB Hub; gắn trên vách giữa P06 bằng vòng giữ SUP17.",
+      "instruction_vi": "Cắm trực tiếp từ chân J4.1 (LED_LR_D0) trên PCB Hub tới chân Anode (+) của Đèn LED 5mm Phòng khách (D0 · J4) (nối về D0 (U2.1) via R1 220R, GPIO16) bằng dây màu Vàng (chiều dài thực tế ~21.16 cm, dùng dây chuẩn 30 cm).",
       "wokwi_group": "d0_living",
       "house3d_wire_key": "d0_living",
       "length_cm": 21.16,
@@ -1194,7 +1654,7 @@
       "is_hub_wire": true,
       "module_id": "led_living",
       "module_name": "5mm LED (Living Room)",
-      "module_label_vi": "Đèn LED 5mm Phòng khách (D0)",
+      "module_label_vi": "Đèn LED 5mm Phòng khách (D0 · J4)",
       "module_pin": "Cathode (-)",
       "nodemcu_pin": "GND",
       "gpio": "Ground",
@@ -1207,7 +1667,7 @@
       "fw_ref": "esp8266_smarthome.ino:55",
       "notes": "LED cathode return to common GND",
       "power_gnd_note_vi": "Dây Mass chung (GND) nối về thanh GND chung của PCB Hub và NodeMCU v2 Amica.",
-      "instruction_vi": "Cắm trực tiếp từ chân J4.2 (LED_LR_D0) trên PCB Hub tới chân Cathode (-) của Đèn LED 5mm Phòng khách (D0) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~20.72 cm, dùng dây chuẩn 30 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J4.2 (LED_LR_D0) trên PCB Hub tới chân Cathode (-) của Đèn LED 5mm Phòng khách (D0 · J4) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~20.72 cm, dùng dây chuẩn 30 cm).",
       "wokwi_group": "d0_living",
       "house3d_wire_key": "d0_living",
       "length_cm": 20.72,
@@ -1331,7 +1791,7 @@
       "is_hub_wire": true,
       "module_id": "led_bedroom",
       "module_name": "5mm LED (Bedroom)",
-      "module_label_vi": "Đèn LED 5mm Phòng ngủ (D4)",
+      "module_label_vi": "Đèn LED 5mm Phòng ngủ (D4 · J5)",
       "module_pin": "Anode (+)",
       "nodemcu_pin": "+3V3 via R2 220R",
       "gpio": "Power (+3V3 limited)",
@@ -1344,7 +1804,7 @@
       "fw_ref": "esp8266_smarthome.ino:59,68",
       "notes": "Current-limited +3.3V via on-board R2 220R for boot-safe Active-LOW LED",
       "power_gnd_note_vi": "Nguồn +3.3V qua trở hạn dòng R2 220Ω trên PCB Hub (đấu Active-LOW an toàn khởi động).",
-      "instruction_vi": "Cắm trực tiếp từ chân J5.1 (LED_BR_D4) trên PCB Hub tới chân Anode (+) của Đèn LED 5mm Phòng ngủ (D4) (nối về +3V3 via R2 220R, Power (+3V3 limited)) bằng dây màu Tím (chiều dài thực tế ~27.48 cm, dùng dây chuẩn 30 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J5.1 (LED_BR_D4) trên PCB Hub tới chân Anode (+) của Đèn LED 5mm Phòng ngủ (D4 · J5) (nối về +3V3 via R2 220R, Power (+3V3 limited)) bằng dây màu Tím (chiều dài thực tế ~27.48 cm, dùng dây chuẩn 30 cm).",
       "wokwi_group": "d4_bedroom",
       "house3d_wire_key": "d4_bedroom",
       "length_cm": 27.48,
@@ -1468,7 +1928,7 @@
       "is_hub_wire": true,
       "module_id": "led_bedroom",
       "module_name": "5mm LED (Bedroom)",
-      "module_label_vi": "Đèn LED 5mm Phòng ngủ (D4)",
+      "module_label_vi": "Đèn LED 5mm Phòng ngủ (D4 · J5)",
       "module_pin": "Cathode (-)",
       "nodemcu_pin": "D4 (U2.5)",
       "gpio": "GPIO2",
@@ -1480,8 +1940,8 @@
       "wire_type_vi": "Dây Dupont 1x2 Cái–Cái",
       "fw_ref": "esp8266_smarthome.ino:59,68",
       "notes": "Active-LOW sink (BEDROOM_LED_ACTIVE_LOW=true); on-board R7 10k pull-up keeps GPIO2 HIGH at boot",
-      "power_gnd_note_vi": "Đấu Active-LOW trên D4 (GPIO2) kèm trở kéo lên R7 10kΩ để an toàn khi khởi động.",
-      "instruction_vi": "Cắm trực tiếp từ chân J5.2 (LED_BR_D4) trên PCB Hub tới chân Cathode (-) của Đèn LED 5mm Phòng ngủ (D4) (nối về D4 (U2.5), GPIO2) bằng dây màu Trắng (chiều dài thực tế ~27.45 cm, dùng dây chuẩn 30 cm).",
+      "power_gnd_note_vi": "Đấu Active-LOW trên D4 (GPIO2) kèm trở kéo lên R7 10kΩ để an toàn khi khởi động; gắn trên vách giữa P06 bằng vòng giữ SUP17.",
+      "instruction_vi": "Cắm trực tiếp từ chân J5.2 (LED_BR_D4) trên PCB Hub tới chân Cathode (-) của Đèn LED 5mm Phòng ngủ (D4 · J5) (nối về D4 (U2.5), GPIO2) bằng dây màu Trắng (chiều dài thực tế ~27.45 cm, dùng dây chuẩn 30 cm).",
       "wokwi_group": "d4_bedroom",
       "house3d_wire_key": "d4_bedroom",
       "length_cm": 27.45,
@@ -1605,7 +2065,7 @@
       "is_hub_wire": true,
       "module_id": "relay1_pump",
       "module_name": "Relay 1 (Blue 5V 1-ch)",
-      "module_label_vi": "Rơ-le 1 Xanh 5V (Máy bơm, D6)",
+      "module_label_vi": "Rơ-le 1 Xanh 5V (Máy bơm, D6 · J7/J8)",
       "module_pin": "VCC",
       "nodemcu_pin": "VIN (U1.15)",
       "gpio": "Power (+5V)",
@@ -1618,7 +2078,7 @@
       "fw_ref": "esp8266_smarthome.ino:61,70",
       "notes": "5V coil power for blue 1-channel Songle SRD-05VDC-SL-C relay module",
       "power_gnd_note_vi": "Nguồn chính +5V (đã có tụ lọc C1/C2 470µF 16V và C3 100nF hàn trực tiếp trên PCB Hub).",
-      "instruction_vi": "Cắm trực tiếp từ chân J7.1 (RLY1_PUMP_D6) trên PCB Hub tới chân VCC của Rơ-le 1 Xanh 5V (Máy bơm, D6) (nối về VIN (U1.15), Power (+5V)) bằng dây màu Đỏ (chiều dài thực tế ~7.89 cm, dùng dây chuẩn 10 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J7.1 (RLY1_PUMP_D6) trên PCB Hub tới chân VCC của Rơ-le 1 Xanh 5V (Máy bơm, D6 · J7/J8) (nối về VIN (U1.15), Power (+5V)) bằng dây màu Đỏ (chiều dài thực tế ~7.89 cm, dùng dây chuẩn 10 cm).",
       "wokwi_group": "d6_pump",
       "house3d_wire_key": "d6_pump",
       "length_cm": 7.89,
@@ -1692,7 +2152,7 @@
       "is_hub_wire": true,
       "module_id": "relay1_pump",
       "module_name": "Relay 1 (Blue 5V 1-ch)",
-      "module_label_vi": "Rơ-le 1 Xanh 5V (Máy bơm, D6)",
+      "module_label_vi": "Rơ-le 1 Xanh 5V (Máy bơm, D6 · J7/J8)",
       "module_pin": "GND",
       "nodemcu_pin": "GND",
       "gpio": "Ground",
@@ -1705,7 +2165,7 @@
       "fw_ref": "esp8266_smarthome.ino:61,70",
       "notes": "Relay 1 module logic/coil ground",
       "power_gnd_note_vi": "Dây Mass chung (GND) nối về thanh GND chung của PCB Hub và NodeMCU v2 Amica.",
-      "instruction_vi": "Cắm trực tiếp từ chân J7.2 (RLY1_PUMP_D6) trên PCB Hub tới chân GND của Rơ-le 1 Xanh 5V (Máy bơm, D6) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~7.89 cm, dùng dây chuẩn 10 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J7.2 (RLY1_PUMP_D6) trên PCB Hub tới chân GND của Rơ-le 1 Xanh 5V (Máy bơm, D6 · J7/J8) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~7.89 cm, dùng dây chuẩn 10 cm).",
       "wokwi_group": "d6_pump",
       "house3d_wire_key": "d6_pump",
       "length_cm": 7.89,
@@ -1779,7 +2239,7 @@
       "is_hub_wire": true,
       "module_id": "relay1_pump",
       "module_name": "Relay 1 (Blue 5V 1-ch)",
-      "module_label_vi": "Rơ-le 1 Xanh 5V (Máy bơm, D6)",
+      "module_label_vi": "Rơ-le 1 Xanh 5V (Máy bơm, D6 · J7/J8)",
       "module_pin": "IN",
       "nodemcu_pin": "D6 (U2.9)",
       "gpio": "GPIO12",
@@ -1792,7 +2252,7 @@
       "fw_ref": "esp8266_smarthome.ino:61,70",
       "notes": "Relay 1 trigger input (PUMP_RELAY_ACTIVE_LOW=false, active-HIGH)",
       "power_gnd_note_vi": "Kích mức CAO (Active-HIGH) điều khiển cuộn hút Rơ-le 1 cho máy bơm.",
-      "instruction_vi": "Cắm trực tiếp từ chân J7.3 (RLY1_PUMP_D6) trên PCB Hub tới chân IN của Rơ-le 1 Xanh 5V (Máy bơm, D6) (nối về D6 (U2.9), GPIO12) bằng dây màu Xanh lá (chiều dài thực tế ~7.89 cm, dùng dây chuẩn 10 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J7.3 (RLY1_PUMP_D6) trên PCB Hub tới chân IN của Rơ-le 1 Xanh 5V (Máy bơm, D6 · J7/J8) (nối về D6 (U2.9), GPIO12) bằng dây màu Xanh lá (chiều dài thực tế ~7.89 cm, dùng dây chuẩn 10 cm).",
       "wokwi_group": "d6_pump",
       "house3d_wire_key": "d6_pump",
       "length_cm": 7.89,
@@ -1866,7 +2326,7 @@
       "is_hub_wire": true,
       "module_id": "relay1_pump",
       "module_name": "Relay 1 (Blue 5V 1-ch)",
-      "module_label_vi": "Rơ-le 1 Xanh 5V (Máy bơm, D6)",
+      "module_label_vi": "Rơ-le 1 Xanh 5V (Máy bơm, D6 · J7/J8)",
       "module_pin": "COM (Screw)",
       "nodemcu_pin": "VIN (U1.15)",
       "gpio": "Power (+5V)",
@@ -1879,7 +2339,7 @@
       "fw_ref": "esp8266_smarthome.ino:61",
       "notes": "Feeds +5V power rail into Relay 1 COM screw terminal",
       "power_gnd_note_vi": "Nguồn chính +5V (đã có tụ lọc C1/C2 470µF 16V và C3 100nF hàn trực tiếp trên PCB Hub).",
-      "instruction_vi": "Cắm trực tiếp từ chân J8.1 (RLY1_SW) trên PCB Hub tới chân COM (Screw) của Rơ-le 1 Xanh 5V (Máy bơm, D6) (nối về VIN (U1.15), Power (+5V)) bằng dây màu Đỏ (chiều dài thực tế ~17.91 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J8.1 (RLY1_SW) trên PCB Hub tới chân COM (Screw) của Rơ-le 1 Xanh 5V (Máy bơm, D6 · J7/J8) (nối về VIN (U1.15), Power (+5V)) bằng dây màu Đỏ (chiều dài thực tế ~17.91 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d6_pump",
       "house3d_wire_key": "d6_pump",
       "length_cm": 17.91,
@@ -1953,7 +2413,7 @@
       "is_hub_wire": true,
       "module_id": "relay1_pump",
       "module_name": "Relay 1 (Blue 5V 1-ch)",
-      "module_label_vi": "Rơ-le 1 Xanh 5V (Máy bơm, D6)",
+      "module_label_vi": "Rơ-le 1 Xanh 5V (Máy bơm, D6 · J7/J8)",
       "module_pin": "NO (Screw)",
       "nodemcu_pin": "Switched +5V -> J2.1",
       "gpio": "Switched +5V",
@@ -1966,7 +2426,7 @@
       "fw_ref": "esp8266_smarthome.ino:61",
       "notes": "Switched +5V return from Relay 1 NO to Hub PCB D1 (1N4007 flyback) & J2.1",
       "power_gnd_note_vi": "Nguồn +5V đóng cắt qua tiếp điểm Rơ-le 1 (có diode dập xung D1 1N4007 hàn trên PCB Hub).",
-      "instruction_vi": "Cắm trực tiếp từ chân J8.2 (RLY1_SW) trên PCB Hub tới chân NO (Screw) của Rơ-le 1 Xanh 5V (Máy bơm, D6) (nối về Switched +5V -> J2.1, Switched +5V) bằng dây màu Vàng (chiều dài thực tế ~17.94 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J8.2 (RLY1_SW) trên PCB Hub tới chân NO (Screw) của Rơ-le 1 Xanh 5V (Máy bơm, D6 · J7/J8) (nối về Switched +5V -> J2.1, Switched +5V) bằng dây màu Vàng (chiều dài thực tế ~17.94 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d6_pump",
       "house3d_wire_key": "d6_pump",
       "length_cm": 17.94,
@@ -2040,7 +2500,7 @@
       "is_hub_wire": true,
       "module_id": "pump_unit",
       "module_name": "Mini Submersible Pump (3-6V)",
-      "module_label_vi": "Máy bơm chìm mini 3–6V",
+      "module_label_vi": "Máy bơm chìm mini 3–6V (J2)",
       "module_pin": "Pump + (Red)",
       "nodemcu_pin": "Switched +5V (via RLY1)",
       "gpio": "Switched +5V",
@@ -2053,7 +2513,7 @@
       "fw_ref": "esp8266_smarthome.ino:61,572",
       "notes": "Switched +5V to pump motor; protected by on-board D1 1N4007 flyback & C2 470uF 16V",
       "power_gnd_note_vi": "Nguồn +5V đóng cắt qua tiếp điểm Rơ-le 1 (có diode dập xung D1 1N4007 hàn trên PCB Hub).",
-      "instruction_vi": "Cắm trực tiếp từ chân J2.1 (PUMP_OUT) trên PCB Hub tới chân Pump + (Red) của Máy bơm chìm mini 3–6V (nối về Switched +5V (via RLY1), Switched +5V) bằng dây màu Đỏ (chiều dài thực tế ~26.45 cm, dùng dây chuẩn 30 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J2.1 (PUMP_OUT) trên PCB Hub tới chân Pump + (Red) của Máy bơm chìm mini 3–6V (J2) (nối về Switched +5V (via RLY1), Switched +5V) bằng dây màu Đỏ (chiều dài thực tế ~26.45 cm, dùng dây chuẩn 30 cm).",
       "wokwi_group": "d6_pump",
       "house3d_wire_key": "d6_pump",
       "length_cm": 26.45,
@@ -2152,7 +2612,7 @@
       "is_hub_wire": true,
       "module_id": "pump_unit",
       "module_name": "Mini Submersible Pump (3-6V)",
-      "module_label_vi": "Máy bơm chìm mini 3–6V",
+      "module_label_vi": "Máy bơm chìm mini 3–6V (J2)",
       "module_pin": "Pump - (Black)",
       "nodemcu_pin": "GND",
       "gpio": "Ground",
@@ -2165,7 +2625,7 @@
       "fw_ref": "esp8266_smarthome.ino:61,572",
       "notes": "Pump motor return to GND (anode of on-board D1 1N4007)",
       "power_gnd_note_vi": "Dây Mass chung (GND) nối về thanh GND chung của PCB Hub và NodeMCU v2 Amica.",
-      "instruction_vi": "Cắm trực tiếp từ chân J2.2 (PUMP_OUT) trên PCB Hub tới chân Pump - (Black) của Máy bơm chìm mini 3–6V (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~26.22 cm, dùng dây chuẩn 30 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J2.2 (PUMP_OUT) trên PCB Hub tới chân Pump - (Black) của Máy bơm chìm mini 3–6V (J2) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~26.22 cm, dùng dây chuẩn 30 cm).",
       "wokwi_group": "d6_pump",
       "house3d_wire_key": "d6_pump",
       "length_cm": 26.22,
@@ -2264,7 +2724,7 @@
       "is_hub_wire": true,
       "module_id": "buzzer_alarm",
       "module_name": "Active 5V Buzzer (TMB12A05)",
-      "module_label_vi": "Còi báo động 5V TMB12A05 (D8)",
+      "module_label_vi": "Còi báo động 5V TMB12A05 (D8 · J6)",
       "module_pin": "Buzzer (+)",
       "nodemcu_pin": "VIN (+5V)",
       "gpio": "Power (+5V)",
@@ -2277,7 +2737,7 @@
       "fw_ref": "esp8266_smarthome.ino:63,399",
       "notes": "+5V supply to TMB12A05 buzzer anode; protected by on-board D2 1N4007 flyback across J6.1-J6.2",
       "power_gnd_note_vi": "Nguồn chính +5V (đã có tụ lọc C1/C2 470µF 16V và C3 100nF hàn trực tiếp trên PCB Hub).",
-      "instruction_vi": "Cắm trực tiếp từ chân J6.1 (BUZZ_D8) trên PCB Hub tới chân Buzzer (+) của Còi báo động 5V TMB12A05 (D8) (nối về VIN (+5V), Power (+5V)) bằng dây màu Đỏ (chiều dài thực tế ~25.41 cm, dùng dây chuẩn 30 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J6.1 (BUZZ_D8) trên PCB Hub tới chân Buzzer (+) của Còi báo động 5V TMB12A05 (D8 · J6) (nối về VIN (+5V), Power (+5V)) bằng dây màu Đỏ (chiều dài thực tế ~25.41 cm, dùng dây chuẩn 30 cm).",
       "wokwi_group": "d8_buzzer",
       "house3d_wire_key": "d8_siren",
       "length_cm": 25.41,
@@ -2401,7 +2861,7 @@
       "is_hub_wire": true,
       "module_id": "buzzer_alarm",
       "module_name": "Active 5V Buzzer (TMB12A05)",
-      "module_label_vi": "Còi báo động 5V TMB12A05 (D8)",
+      "module_label_vi": "Còi báo động 5V TMB12A05 (D8 · J6)",
       "module_pin": "Buzzer (-)",
       "nodemcu_pin": "D8 (U2.11) via Q1 S8050",
       "gpio": "GPIO15 (NPN low-side)",
@@ -2414,7 +2874,7 @@
       "fw_ref": "esp8266_smarthome.ino:63,399",
       "notes": "Low-side switched by on-board Q1 (S8050 NPN) + R10 1k base resistor; R9 10k pull-down keeps GPIO15 LOW at boot",
       "power_gnd_note_vi": "Lái cực âm qua R10 1kΩ → transistor NPN Q1 (S8050) + R9 10kΩ kéo xuống GND + diode D2 1N4007 (không nối trực tiếp còi vào D8).",
-      "instruction_vi": "Cắm trực tiếp từ chân J6.2 (BUZZ_D8) trên PCB Hub tới chân Buzzer (-) của Còi báo động 5V TMB12A05 (D8) (nối về D8 (U2.11) via Q1 S8050, GPIO15 (NPN low-side)) bằng dây màu Cam (chiều dài thực tế ~25.81 cm, dùng dây chuẩn 30 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J6.2 (BUZZ_D8) trên PCB Hub tới chân Buzzer (-) của Còi báo động 5V TMB12A05 (D8 · J6) (nối về D8 (U2.11) via Q1 S8050, GPIO15 (NPN low-side)) bằng dây màu Cam (chiều dài thực tế ~25.81 cm, dùng dây chuẩn 30 cm).",
       "wokwi_group": "d8_buzzer",
       "house3d_wire_key": "d8_siren",
       "length_cm": 25.81,
@@ -2538,7 +2998,7 @@
       "is_hub_wire": true,
       "module_id": "relay2_speaker",
       "module_name": "Relay 2 (Red Opto 5V, Jmp=H)",
-      "module_label_vi": "Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7)",
+      "module_label_vi": "Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7 · J9/J10)",
       "module_pin": "DC+",
       "nodemcu_pin": "VIN (U1.15)",
       "gpio": "Power (+5V)",
@@ -2551,7 +3011,7 @@
       "fw_ref": "esp8266_smarthome.ino:62,71",
       "notes": "5V coil/opto supply for red opto-isolated 1-ch relay module (jumper set to H)",
       "power_gnd_note_vi": "Nguồn chính +5V (đã có tụ lọc C1/C2 470µF 16V và C3 100nF hàn trực tiếp trên PCB Hub).",
-      "instruction_vi": "Cắm trực tiếp từ chân J9.1 (RLY2_AMP_D7) trên PCB Hub tới chân DC+ của Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7) (nối về VIN (U1.15), Power (+5V)) bằng dây màu Đỏ (chiều dài thực tế ~6.26 cm, dùng dây chuẩn 10 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J9.1 (RLY2_AMP_D7) trên PCB Hub tới chân DC+ của Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7 · J9/J10) (nối về VIN (U1.15), Power (+5V)) bằng dây màu Đỏ (chiều dài thực tế ~6.26 cm, dùng dây chuẩn 10 cm).",
       "wokwi_group": "d3_d7_speaker",
       "house3d_wire_key": "d7_d3_speaker",
       "length_cm": 6.26,
@@ -2625,7 +3085,7 @@
       "is_hub_wire": true,
       "module_id": "relay2_speaker",
       "module_name": "Relay 2 (Red Opto 5V, Jmp=H)",
-      "module_label_vi": "Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7)",
+      "module_label_vi": "Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7 · J9/J10)",
       "module_pin": "DC-",
       "nodemcu_pin": "GND",
       "gpio": "Ground",
@@ -2638,7 +3098,7 @@
       "fw_ref": "esp8266_smarthome.ino:62,71",
       "notes": "Relay 2 module ground",
       "power_gnd_note_vi": "Dây Mass chung (GND) nối về thanh GND chung của PCB Hub và NodeMCU v2 Amica.",
-      "instruction_vi": "Cắm trực tiếp từ chân J9.2 (RLY2_AMP_D7) trên PCB Hub tới chân DC- của Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~6.26 cm, dùng dây chuẩn 10 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J9.2 (RLY2_AMP_D7) trên PCB Hub tới chân DC- của Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7 · J9/J10) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~6.26 cm, dùng dây chuẩn 10 cm).",
       "wokwi_group": "d3_d7_speaker",
       "house3d_wire_key": "d7_d3_speaker",
       "length_cm": 6.26,
@@ -2712,7 +3172,7 @@
       "is_hub_wire": true,
       "module_id": "relay2_speaker",
       "module_name": "Relay 2 (Red Opto 5V, Jmp=H)",
-      "module_label_vi": "Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7)",
+      "module_label_vi": "Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7 · J9/J10)",
       "module_pin": "IN",
       "nodemcu_pin": "D7 (U2.10)",
       "gpio": "GPIO13",
@@ -2725,7 +3185,7 @@
       "fw_ref": "esp8266_smarthome.ino:62,71",
       "notes": "Active-HIGH trigger (SPEAKER_RELAY_ACTIVE_LOW=false); auto-off 1.5s after chime",
       "power_gnd_note_vi": "Kích mức CAO (Active-HIGH, đặt jumper Rơ-le 2 về H); tự ngắt sau 1,5 giây khi phát chuông xong.",
-      "instruction_vi": "Cắm trực tiếp từ chân J9.3 (RLY2_AMP_D7) trên PCB Hub tới chân IN của Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7) (nối về D7 (U2.10), GPIO13) bằng dây màu Xanh lơ (chiều dài thực tế ~6.26 cm, dùng dây chuẩn 10 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J9.3 (RLY2_AMP_D7) trên PCB Hub tới chân IN của Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7 · J9/J10) (nối về D7 (U2.10), GPIO13) bằng dây màu Xanh lơ (chiều dài thực tế ~6.26 cm, dùng dây chuẩn 10 cm).",
       "wokwi_group": "d3_d7_speaker",
       "house3d_wire_key": "d7_d3_speaker",
       "length_cm": 6.26,
@@ -2799,7 +3259,7 @@
       "is_hub_wire": true,
       "module_id": "relay2_speaker",
       "module_name": "Relay 2 (Red Opto 5V, Jmp=H)",
-      "module_label_vi": "Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7)",
+      "module_label_vi": "Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7 · J9/J10)",
       "module_pin": "COM (Screw)",
       "nodemcu_pin": "VIN (U1.15)",
       "gpio": "Power (+5V)",
@@ -2812,7 +3272,7 @@
       "fw_ref": "esp8266_smarthome.ino:62",
       "notes": "Feeds +5V rail into Relay 2 COM screw terminal",
       "power_gnd_note_vi": "Nguồn chính +5V (đã có tụ lọc C1/C2 470µF 16V và C3 100nF hàn trực tiếp trên PCB Hub).",
-      "instruction_vi": "Cắm trực tiếp từ chân J10.1 (RLY2_SW) trên PCB Hub tới chân COM (Screw) của Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7) (nối về VIN (U1.15), Power (+5V)) bằng dây màu Đỏ (chiều dài thực tế ~18.75 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J10.1 (RLY2_SW) trên PCB Hub tới chân COM (Screw) của Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7 · J9/J10) (nối về VIN (U1.15), Power (+5V)) bằng dây màu Đỏ (chiều dài thực tế ~18.75 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d3_d7_speaker",
       "house3d_wire_key": "d7_d3_speaker",
       "length_cm": 18.75,
@@ -2886,7 +3346,7 @@
       "is_hub_wire": true,
       "module_id": "relay2_speaker",
       "module_name": "Relay 2 (Red Opto 5V, Jmp=H)",
-      "module_label_vi": "Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7)",
+      "module_label_vi": "Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7 · J9/J10)",
       "module_pin": "NO (Screw)",
       "nodemcu_pin": "Switched +5V -> J11.1",
       "gpio": "Switched +5V",
@@ -2899,7 +3359,7 @@
       "fw_ref": "esp8266_smarthome.ino:62",
       "notes": "Switched +5V return from Relay 2 NO to Hub C6 (100nF) & J11.1",
       "power_gnd_note_vi": "Nguồn +5V đóng cắt qua Rơ-le 2 cấp cho PAM8403 (đã lọc nhiễu bằng cặp tụ C6 100nF + tụ hóa C9 100µF 16V hàn trực tiếp trên PCB Hub cạnh J11).",
-      "instruction_vi": "Cắm trực tiếp từ chân J10.2 (RLY2_SW) trên PCB Hub tới chân NO (Screw) của Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7) (nối về Switched +5V -> J11.1, Switched +5V) bằng dây màu Cam (chiều dài thực tế ~18.53 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J10.2 (RLY2_SW) trên PCB Hub tới chân NO (Screw) của Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7 · J9/J10) (nối về Switched +5V -> J11.1, Switched +5V) bằng dây màu Cam (chiều dài thực tế ~18.53 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d3_d7_speaker",
       "house3d_wire_key": "d7_d3_speaker",
       "length_cm": 18.53,
@@ -2973,7 +3433,7 @@
       "is_hub_wire": true,
       "module_id": "pam8403_amp",
       "module_name": "PAM8403 Audio Amplifier",
-      "module_label_vi": "Mạch khuếch đại loa PAM8403",
+      "module_label_vi": "Mạch khuếch đại loa PAM8403 (J11/J12)",
       "module_pin": "5V+",
       "nodemcu_pin": "Switched +5V (via RLY2)",
       "gpio": "Switched +5V",
@@ -2986,7 +3446,7 @@
       "fw_ref": "esp8266_smarthome.ino:62,163",
       "notes": "Relay-switched +5V supply to PAM8403 (decoupled by on-board C6 100nF)",
       "power_gnd_note_vi": "Nguồn +5V đóng cắt qua Rơ-le 2 cấp cho PAM8403 (đã lọc nhiễu bằng cặp tụ C6 100nF + tụ hóa C9 100µF 16V hàn trực tiếp trên PCB Hub cạnh J11).",
-      "instruction_vi": "Cắm trực tiếp từ chân J11.1 (PAM8403_PWR) trên PCB Hub tới chân 5V+ của Mạch khuếch đại loa PAM8403 (nối về Switched +5V (via RLY2), Switched +5V) bằng dây màu Đỏ (chiều dài thực tế ~15.71 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J11.1 (PAM8403_PWR) trên PCB Hub tới chân 5V+ của Mạch khuếch đại loa PAM8403 (J11/J12) (nối về Switched +5V (via RLY2), Switched +5V) bằng dây màu Đỏ (chiều dài thực tế ~15.71 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d3_d7_speaker",
       "house3d_wire_key": "d7_d3_speaker",
       "length_cm": 15.71,
@@ -3085,7 +3545,7 @@
       "is_hub_wire": true,
       "module_id": "pam8403_amp",
       "module_name": "PAM8403 Audio Amplifier",
-      "module_label_vi": "Mạch khuếch đại loa PAM8403",
+      "module_label_vi": "Mạch khuếch đại loa PAM8403 (J11/J12)",
       "module_pin": "5V-",
       "nodemcu_pin": "GND",
       "gpio": "Ground",
@@ -3098,7 +3558,7 @@
       "fw_ref": "esp8266_smarthome.ino:62,163",
       "notes": "PAM8403 power ground",
       "power_gnd_note_vi": "Dây Mass chung (GND) nối về thanh GND chung của PCB Hub và NodeMCU v2 Amica.",
-      "instruction_vi": "Cắm trực tiếp từ chân J11.2 (PAM8403_PWR) trên PCB Hub tới chân 5V- của Mạch khuếch đại loa PAM8403 (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~15.76 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J11.2 (PAM8403_PWR) trên PCB Hub tới chân 5V- của Mạch khuếch đại loa PAM8403 (J11/J12) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~15.76 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d3_d7_speaker",
       "house3d_wire_key": "d7_d3_speaker",
       "length_cm": 15.76,
@@ -3197,7 +3657,7 @@
       "is_hub_wire": true,
       "module_id": "pam8403_amp",
       "module_name": "PAM8403 Audio Amplifier",
-      "module_label_vi": "Mạch khuếch đại loa PAM8403",
+      "module_label_vi": "Mạch khuếch đại loa PAM8403 (J11/J12)",
       "module_pin": "L (Audio In)",
       "nodemcu_pin": "D3 (U2.4) via C4/R5/R6/C5",
       "gpio": "GPIO0",
@@ -3210,7 +3670,7 @@
       "fw_ref": "esp8266_smarthome.ino:58,166-184",
       "notes": "DC-blocked (C4 10uF) & RC-attenuated (R5/R6 2.2k, C5 10nF) audio; R4 10k pull-up + IDLE=INPUT for boot safety",
       "power_gnd_note_vi": "Qua tụ chặn DC C4 10µF 16V, cầu R5/R6 2.2kΩ, C5 10nF và R4 10kΩ kéo lên 3.3V (chân D3 ở chế độ INPUT khi nghỉ).",
-      "instruction_vi": "Cắm trực tiếp từ chân J12.1 (AUDIO_D3) trên PCB Hub tới chân L (Audio In) của Mạch khuếch đại loa PAM8403 (nối về D3 (U2.4) via C4/R5/R6/C5, GPIO0) bằng dây màu Trắng (chiều dài thực tế ~13.08 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J12.1 (AUDIO_D3) trên PCB Hub tới chân L (Audio In) của Mạch khuếch đại loa PAM8403 (J11/J12) (nối về D3 (U2.4) via C4/R5/R6/C5, GPIO0) bằng dây màu Trắng (chiều dài thực tế ~13.08 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d3_d7_speaker",
       "house3d_wire_key": "d7_d3_speaker",
       "length_cm": 13.08,
@@ -3309,7 +3769,7 @@
       "is_hub_wire": true,
       "module_id": "pam8403_amp",
       "module_name": "PAM8403 Audio Amplifier",
-      "module_label_vi": "Mạch khuếch đại loa PAM8403",
+      "module_label_vi": "Mạch khuếch đại loa PAM8403 (J11/J12)",
       "module_pin": "GND (Audio ⊥)",
       "nodemcu_pin": "GND",
       "gpio": "Ground",
@@ -3322,7 +3782,7 @@
       "fw_ref": "esp8266_smarthome.ino:58",
       "notes": "Audio input signal ground reference",
       "power_gnd_note_vi": "Dây Mass chung (GND) nối về thanh GND chung của PCB Hub và NodeMCU v2 Amica.",
-      "instruction_vi": "Cắm trực tiếp từ chân J12.2 (AUDIO_D3) trên PCB Hub tới chân GND (Audio ⊥) của Mạch khuếch đại loa PAM8403 (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~13.13 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J12.2 (AUDIO_D3) trên PCB Hub tới chân GND (Audio ⊥) của Mạch khuếch đại loa PAM8403 (J11/J12) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~13.13 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d3_d7_speaker",
       "house3d_wire_key": "d7_d3_speaker",
       "length_cm": 13.13,
@@ -3418,7 +3878,7 @@
       "is_hub_wire": false,
       "module_id": "speaker_mini",
       "module_name": "Mini Speaker (28mm 8Ω 0.5W)",
-      "module_label_vi": "Loa tròn mini 28mm 8Ω 0.5W",
+      "module_label_vi": "Loa tròn mini 28mm 8Ω 0.5W (BTL)",
       "module_pin": "SPK +",
       "nodemcu_pin": "Off-board (PAM8403 BTL)",
       "gpio": "BTL Audio +",
@@ -3431,7 +3891,7 @@
       "fw_ref": "esp8266_smarthome.ino:16,58",
       "notes": "Bridge-Tied Load (BTL) positive output; DO NOT short to GND",
       "power_gnd_note_vi": "Ngõ ra loa vi sai BTL từ PAM8403: TUYỆT ĐỐI KHÔNG nối L_OUT- xuống GND.",
-      "instruction_vi": "Nối trực tiếp chân SPK + của Loa tròn mini 28mm 8Ω 0.5W tới chân PAM8403 L_OUT+ (dây liên kết ngoài mạch Hub) bằng dây màu Vàng (chiều dài thực tế ~4.04 cm, dùng dây chuẩn 10 cm).",
+      "instruction_vi": "Nối trực tiếp chân SPK + của Loa tròn mini 28mm 8Ω 0.5W (BTL) tới chân PAM8403 L_OUT+ (dây liên kết ngoài mạch Hub) bằng dây màu Vàng (chiều dài thực tế ~4.04 cm, dùng dây chuẩn 10 cm).",
       "wokwi_group": "d3_d7_speaker",
       "house3d_wire_key": "d7_d3_speaker",
       "length_cm": 4.04,
@@ -3502,7 +3962,7 @@
       "is_hub_wire": false,
       "module_id": "speaker_mini",
       "module_name": "Mini Speaker (28mm 8Ω 0.5W)",
-      "module_label_vi": "Loa tròn mini 28mm 8Ω 0.5W",
+      "module_label_vi": "Loa tròn mini 28mm 8Ω 0.5W (BTL)",
       "module_pin": "SPK -",
       "nodemcu_pin": "Off-board (PAM8403 BTL)",
       "gpio": "BTL Audio -",
@@ -3515,7 +3975,7 @@
       "fw_ref": "esp8266_smarthome.ino:16,58",
       "notes": "Bridge-Tied Load (BTL) negative output; NEVER tie to GND",
       "power_gnd_note_vi": "Ngõ ra loa vi sai BTL từ PAM8403: TUYỆT ĐỐI KHÔNG nối L_OUT- xuống GND.",
-      "instruction_vi": "Nối trực tiếp chân SPK - của Loa tròn mini 28mm 8Ω 0.5W tới chân PAM8403 L_OUT- (dây liên kết ngoài mạch Hub) bằng dây màu Nâu (chiều dài thực tế ~3.84 cm, dùng dây chuẩn 10 cm).",
+      "instruction_vi": "Nối trực tiếp chân SPK - của Loa tròn mini 28mm 8Ω 0.5W (BTL) tới chân PAM8403 L_OUT- (dây liên kết ngoài mạch Hub) bằng dây màu Nâu (chiều dài thực tế ~3.84 cm, dùng dây chuẩn 10 cm).",
       "wokwi_group": "d3_d7_speaker",
       "house3d_wire_key": "d7_d3_speaker",
       "length_cm": 3.84,
@@ -3589,7 +4049,7 @@
       "is_hub_wire": true,
       "module_id": "dht11_sensor",
       "module_name": "DHT11 3-Pin Breakout",
-      "module_label_vi": "Cảm biến nhiệt độ & độ ẩm DHT11 (D2)",
+      "module_label_vi": "Cảm biến nhiệt độ & độ ẩm DHT11 (D2 · J13)",
       "module_pin": "VCC (+)",
       "nodemcu_pin": "3V3 (U1.11/U2.6)",
       "gpio": "Power (+3V3)",
@@ -3602,7 +4062,7 @@
       "fw_ref": "esp8266_smarthome.ino:57,83",
       "notes": "3.3V sensor supply",
       "power_gnd_note_vi": "Nguồn cảm biến +3.3V lấy từ nhánh 3V3 trên PCB Hub (đã có tụ gốm C8 100nF hàn trên PCB lọc nhiễu cao tần).",
-      "instruction_vi": "Cắm trực tiếp từ chân J13.1 (DHT11_D2) trên PCB Hub tới chân VCC (+) của Cảm biến nhiệt độ & độ ẩm DHT11 (D2) (nối về 3V3 (U1.11/U2.6), Power (+3V3)) bằng dây màu Đỏ (chiều dài thực tế ~19.15 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J13.1 (DHT11_D2) trên PCB Hub tới chân VCC (+) của Cảm biến nhiệt độ & độ ẩm DHT11 (D2 · J13) (nối về 3V3 (U1.11/U2.6), Power (+3V3)) bằng dây màu Đỏ (chiều dài thực tế ~19.15 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d2_dht11",
       "house3d_wire_key": "d2_dht11",
       "length_cm": 19.15,
@@ -3726,7 +4186,7 @@
       "is_hub_wire": true,
       "module_id": "dht11_sensor",
       "module_name": "DHT11 3-Pin Breakout",
-      "module_label_vi": "Cảm biến nhiệt độ & độ ẩm DHT11 (D2)",
+      "module_label_vi": "Cảm biến nhiệt độ & độ ẩm DHT11 (D2 · J13)",
       "module_pin": "DATA (OUT)",
       "nodemcu_pin": "D2 (U2.3)",
       "gpio": "GPIO4",
@@ -3739,7 +4199,7 @@
       "fw_ref": "esp8266_smarthome.ino:57,83,544",
       "notes": "1-wire data bus with on-board R3 10k pull-up to +3V3",
       "power_gnd_note_vi": "Đường dữ liệu 1-Wire DHT11 đã có trở kéo lên R3 10kΩ lên +3.3V trên PCB Hub.",
-      "instruction_vi": "Cắm trực tiếp từ chân J13.2 (DHT11_D2) trên PCB Hub tới chân DATA (OUT) của Cảm biến nhiệt độ & độ ẩm DHT11 (D2) (nối về D2 (U2.3), GPIO4) bằng dây màu Xanh dương (chiều dài thực tế ~19.59 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J13.2 (DHT11_D2) trên PCB Hub tới chân DATA (OUT) của Cảm biến nhiệt độ & độ ẩm DHT11 (D2 · J13) (nối về D2 (U2.3), GPIO4) bằng dây màu Xanh dương (chiều dài thực tế ~19.59 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d2_dht11",
       "house3d_wire_key": "d2_dht11",
       "length_cm": 19.59,
@@ -3863,7 +4323,7 @@
       "is_hub_wire": true,
       "module_id": "dht11_sensor",
       "module_name": "DHT11 3-Pin Breakout",
-      "module_label_vi": "Cảm biến nhiệt độ & độ ẩm DHT11 (D2)",
+      "module_label_vi": "Cảm biến nhiệt độ & độ ẩm DHT11 (D2 · J13)",
       "module_pin": "GND (-)",
       "nodemcu_pin": "GND",
       "gpio": "Ground",
@@ -3876,7 +4336,7 @@
       "fw_ref": "esp8266_smarthome.ino:57",
       "notes": "DHT11 sensor ground",
       "power_gnd_note_vi": "Dây Mass chung (GND) nối về thanh GND chung của PCB Hub và NodeMCU v2 Amica.",
-      "instruction_vi": "Cắm trực tiếp từ chân J13.3 (DHT11_D2) trên PCB Hub tới chân GND (-) của Cảm biến nhiệt độ & độ ẩm DHT11 (D2) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~20.05 cm, dùng dây chuẩn 30 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J13.3 (DHT11_D2) trên PCB Hub tới chân GND (-) của Cảm biến nhiệt độ & độ ẩm DHT11 (D2 · J13) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~20.05 cm, dùng dây chuẩn 30 cm).",
       "wokwi_group": "d2_dht11",
       "house3d_wire_key": "d2_dht11",
       "length_cm": 20.05,
@@ -4000,7 +4460,7 @@
       "is_hub_wire": true,
       "module_id": "soil_lm393",
       "module_name": "Soil LM393 Comparator Module",
-      "module_label_vi": "Mạch so sánh độ ẩm đất LM393 (A0)",
+      "module_label_vi": "Mạch so sánh độ ẩm đất LM393 (A0 · J14)",
       "module_pin": "VCC",
       "nodemcu_pin": "3V3 (U1.11/U2.6)",
       "gpio": "Power (+3V3)",
@@ -4013,7 +4473,7 @@
       "fw_ref": "esp8266_smarthome.ino:18,64",
       "notes": "STRICTLY 3.3V (never 5V) so AO stays within ESP8266 ADC0 safe range",
       "power_gnd_note_vi": "Nguồn +3.3V BẮT BUỘC (tuyệt đối không cấp +5V để bảo vệ chân ESP8266; lọc nhiễu bằng tụ C8 100nF hàn trên PCB Hub + tụ 10µF của AMS1117 trên NodeMCU v2 Amica).",
-      "instruction_vi": "Cắm trực tiếp từ chân J14.1 (SOIL_A0) trên PCB Hub tới chân VCC của Mạch so sánh độ ẩm đất LM393 (A0) (nối về 3V3 (U1.11/U2.6), Power (+3V3)) bằng dây màu Đỏ (chiều dài thực tế ~26.36 cm, dùng dây chuẩn 30 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J14.1 (SOIL_A0) trên PCB Hub tới chân VCC của Mạch so sánh độ ẩm đất LM393 (A0 · J14) (nối về 3V3 (U1.11/U2.6), Power (+3V3)) bằng dây màu Đỏ (chiều dài thực tế ~26.36 cm, dùng dây chuẩn 30 cm).",
       "wokwi_group": "a0_soil",
       "house3d_wire_key": "a0_soil",
       "length_cm": 26.36,
@@ -4112,7 +4572,7 @@
       "is_hub_wire": true,
       "module_id": "soil_lm393",
       "module_name": "Soil LM393 Comparator Module",
-      "module_label_vi": "Mạch so sánh độ ẩm đất LM393 (A0)",
+      "module_label_vi": "Mạch so sánh độ ẩm đất LM393 (A0 · J14)",
       "module_pin": "GND",
       "nodemcu_pin": "GND",
       "gpio": "Ground",
@@ -4125,7 +4585,7 @@
       "fw_ref": "esp8266_smarthome.ino:18,64",
       "notes": "Soil sensor ground (LM393 DO pin intentionally left NC / unconnected)",
       "power_gnd_note_vi": "Dây Mass chung (GND) nối về thanh GND chung của PCB Hub và NodeMCU v2 Amica.",
-      "instruction_vi": "Cắm trực tiếp từ chân J14.2 (SOIL_A0) trên PCB Hub tới chân GND của Mạch so sánh độ ẩm đất LM393 (A0) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~26.36 cm, dùng dây chuẩn 30 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J14.2 (SOIL_A0) trên PCB Hub tới chân GND của Mạch so sánh độ ẩm đất LM393 (A0 · J14) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~26.36 cm, dùng dây chuẩn 30 cm).",
       "wokwi_group": "a0_soil",
       "house3d_wire_key": "a0_soil",
       "length_cm": 26.36,
@@ -4224,7 +4684,7 @@
       "is_hub_wire": true,
       "module_id": "soil_lm393",
       "module_name": "Soil LM393 Comparator Module",
-      "module_label_vi": "Mạch so sánh độ ẩm đất LM393 (A0)",
+      "module_label_vi": "Mạch so sánh độ ẩm đất LM393 (A0 · J14)",
       "module_pin": "AO",
       "nodemcu_pin": "A0 (U1.1)",
       "gpio": "ADC0",
@@ -4237,7 +4697,7 @@
       "fw_ref": "esp8266_smarthome.ino:64,568",
       "notes": "Analog moisture output (filtered by on-board C7 100nF); <40% ON / >=70% OFF",
       "power_gnd_note_vi": "Ngõ vào tương tự ADC0 đã lọc nhiễu bởi tụ C7 100nF trên PCB; bơm tự bật <40% và tắt ≥70%.",
-      "instruction_vi": "Cắm trực tiếp từ chân J14.3 (SOIL_A0) trên PCB Hub tới chân AO của Mạch so sánh độ ẩm đất LM393 (A0) (nối về A0 (U1.1), ADC0) bằng dây màu Xanh lá (chiều dài thực tế ~26.36 cm, dùng dây chuẩn 30 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J14.3 (SOIL_A0) trên PCB Hub tới chân AO của Mạch so sánh độ ẩm đất LM393 (A0 · J14) (nối về A0 (U1.1), ADC0) bằng dây màu Xanh lá (chiều dài thực tế ~26.36 cm, dùng dây chuẩn 30 cm).",
       "wokwi_group": "a0_soil",
       "house3d_wire_key": "a0_soil",
       "length_cm": 26.36,
@@ -4554,7 +5014,7 @@
       "is_hub_wire": true,
       "module_id": "ky037_sound",
       "module_name": "KY-037 / KY-038 Sound Module",
-      "module_label_vi": "Cảm biến âm thanh KY-037/KY-038 (D5)",
+      "module_label_vi": "Cảm biến âm thanh KY-037/KY-038 (D5 · J15)",
       "module_pin": "+ (VCC)",
       "nodemcu_pin": "3V3 (U1.11/U2.6)",
       "gpio": "Power (+3V3)",
@@ -4567,7 +5027,7 @@
       "fw_ref": "esp8266_smarthome.ino:14,60",
       "notes": "STRICTLY 3.3V so DO logic HIGH matches ESP8266 3.3V GPIO14",
       "power_gnd_note_vi": "Nguồn +3.3V BẮT BUỘC (tuyệt đối không cấp +5V để bảo vệ chân ESP8266; lọc nhiễu bằng tụ C8 100nF hàn trên PCB Hub + tụ 10µF của AMS1117 trên NodeMCU v2 Amica).",
-      "instruction_vi": "Cắm trực tiếp từ chân J15.1 (KY037_D5) trên PCB Hub tới chân + (VCC) của Cảm biến âm thanh KY-037/KY-038 (D5) (nối về 3V3 (U1.11/U2.6), Power (+3V3)) bằng dây màu Đỏ (chiều dài thực tế ~11.22 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J15.1 (KY037_D5) trên PCB Hub tới chân + (VCC) của Cảm biến âm thanh KY-037/KY-038 (D5 · J15) (nối về 3V3 (U1.11/U2.6), Power (+3V3)) bằng dây màu Đỏ (chiều dài thực tế ~11.22 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d5_ky037",
       "house3d_wire_key": "d5_ky037",
       "length_cm": 11.22,
@@ -4666,7 +5126,7 @@
       "is_hub_wire": true,
       "module_id": "ky037_sound",
       "module_name": "KY-037 / KY-038 Sound Module",
-      "module_label_vi": "Cảm biến âm thanh KY-037/KY-038 (D5)",
+      "module_label_vi": "Cảm biến âm thanh KY-037/KY-038 (D5 · J15)",
       "module_pin": "G (GND)",
       "nodemcu_pin": "GND",
       "gpio": "Ground",
@@ -4679,7 +5139,7 @@
       "fw_ref": "esp8266_smarthome.ino:14,60",
       "notes": "KY-037 ground (AO pin intentionally left NC / unconnected)",
       "power_gnd_note_vi": "Dây Mass chung (GND) nối về thanh GND chung của PCB Hub và NodeMCU v2 Amica.",
-      "instruction_vi": "Cắm trực tiếp từ chân J15.2 (KY037_D5) trên PCB Hub tới chân G (GND) của Cảm biến âm thanh KY-037/KY-038 (D5) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~11.49 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J15.2 (KY037_D5) trên PCB Hub tới chân G (GND) của Cảm biến âm thanh KY-037/KY-038 (D5 · J15) (nối về GND, Ground) bằng dây màu Đen (chiều dài thực tế ~11.49 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d5_ky037",
       "house3d_wire_key": "d5_ky037",
       "length_cm": 11.49,
@@ -4778,7 +5238,7 @@
       "is_hub_wire": true,
       "module_id": "ky037_sound",
       "module_name": "KY-037 / KY-038 Sound Module",
-      "module_label_vi": "Cảm biến âm thanh KY-037/KY-038 (D5)",
+      "module_label_vi": "Cảm biến âm thanh KY-037/KY-038 (D5 · J15)",
       "module_pin": "DO",
       "nodemcu_pin": "D5 (U2.8)",
       "gpio": "GPIO14",
@@ -4791,7 +5251,7 @@
       "fw_ref": "esp8266_smarthome.ino:60,412",
       "notes": "Digital clap/loud-sound interrupt (RISING edge, debounce >= 400ms)",
       "power_gnd_note_vi": "Ngõ vào số 3.3V bắt xung vỗ tay/tiếng động (ngắt sườn lên, chống dội ≥400ms).",
-      "instruction_vi": "Cắm trực tiếp từ chân J15.3 (KY037_D5) trên PCB Hub tới chân DO của Cảm biến âm thanh KY-037/KY-038 (D5) (nối về D5 (U2.8), GPIO14) bằng dây màu Vàng (chiều dài thực tế ~11.80 cm, dùng dây chuẩn 20 cm).",
+      "instruction_vi": "Cắm trực tiếp từ chân J15.3 (KY037_D5) trên PCB Hub tới chân DO của Cảm biến âm thanh KY-037/KY-038 (D5 · J15) (nối về D5 (U2.8), GPIO14) bằng dây màu Vàng (chiều dài thực tế ~11.80 cm, dùng dây chuẩn 20 cm).",
       "wokwi_group": "d5_ky037",
       "house3d_wire_key": "d5_ky037",
       "length_cm": 11.8,

@@ -45,6 +45,14 @@ window.SmartHome3D = (() => {
   let sceneSpecLoaded = false;
   let activeVillaRoot = null;
 
+  function setNodeName(obj, name) {
+    if (obj && typeof obj !== "function") {
+      try {
+        obj.name = name;
+      } catch (_) {}
+    }
+  }
+
   function registerClickable(obj, deviceId) {
     if (!obj) return;
     if (obj.isMesh) {
@@ -101,10 +109,12 @@ window.SmartHome3D = (() => {
 
   let livingBulbMat = null;
   let livingPointLight = null;
+  let livingLedGlowGroup = null;
 
   let bedBulbMat = null;
   let bedLampShadeMat = null;
   let bedPointLight = null;
+  let bedLedGlowGroup = null;
 
   let sirenBulbMat = null;
   let sirenPointLight = null;
@@ -135,6 +145,12 @@ window.SmartHome3D = (() => {
   const fallbackHandles = {};
   const glbHandles = {
     doorPivot: null,
+    servoHornPivot: null,
+    livingLedNode: null,
+    bedLedNode: null,
+    servoMats: [],
+    psuMats: [],
+    lm393Mats: [],
     livingMats: [],
     bedMats: [],
     pumpMats: [],
@@ -146,6 +162,7 @@ window.SmartHome3D = (() => {
     pamMats: [],
     ky037Mats: [],
     pinBindings: [],
+    boundNodes: [],
   };
 
   // Hệ thống Đường Dây Điện 3D nối từ PCB Hub DIY v3 (40 dây thực tế từ wiring_contract.json — KHÔNG Breadboard)
@@ -194,22 +211,35 @@ window.SmartHome3D = (() => {
   let labelsUserOverride = null; // null = tự động ẩn trên mobile & góc nhìn Mạch ESP
   let labelsVisible = true;
 
-  // 6 Nhãn Thiết bị (ẩn trước khi có state) + 4 Nhãn Cảm biến & Bảng Mạch
+  // 17 Nhãn 3D đồng bộ SSOT: 6 thiết bị chấp hành + đủ 14 mô-đun ngoại vi + NodeMCU v2 Amica + PCB Hub DIY v3
   const PIN_META = [
-    { id: "main_door", kind: "device", icon: "", shortName: "Cửa chính (D1)", pos: [-2.95, 1.65, 3.95] },
-    { id: "living_room_light", kind: "device", icon: "", shortName: "Đèn khách (D0)", pos: [-3.45, 2.35, 0.45] },
-    { id: "bedroom_light", kind: "device", icon: "", shortName: "Đèn ngủ (D4)", pos: [3.25, 3.15, -0.85] },
-    { id: "garden_pump", kind: "device", icon: "", shortName: "Máy bơm vườn (D6)", pos: [3.55, 1.15, 4.35] },
-    { id: "alarm_siren", kind: "device", icon: "", shortName: "Còi báo động (D8)", pos: [0.55, 2.95, 3.74] },
-    { id: "speaker_amp", kind: "device", icon: "", shortName: "Nguồn loa PAM8403 (D7/D3)", pos: [-0.55, 1.72, 2.28] },
-    { id: "sensor_soil_a0", kind: "sensor", cam: "garden", icon: "", shortName: "Độ ẩm đất (A0)", pos: [1.55, 1.25, 4.35] },
-    { id: "sensor_dht11_d2", kind: "sensor", cam: "living", icon: "", shortName: "Nhiệt/Ẩm DHT11 (D2)", pos: [0.1, 2.15, -1.1] },
-    { id: "sensor_ky037_d5", kind: "sensor", cam: "board", icon: "", shortName: "Âm thanh KY-037 (D5)", pos: [0.16, 1.62, 2.68] },
-    { id: "board_esp8266", kind: "sensor", cam: "board", icon: "", shortName: "NodeMCU v2 & Mạch", pos: [-0.25, 1.96, 2.45] },
+    { id: "main_door", moduleId: "main_door", kind: "device", icon: "", shortName: "Cửa chính (D1)", pos: [-2.95, 1.65, 3.95] },
+    { id: "living_room_light", moduleId: "led_living", kind: "device", icon: "", shortName: "LED khách (D0·J4)", pos: [-0.11, 3.35, 0.08] },
+    { id: "bedroom_light", moduleId: "led_bedroom", kind: "device", icon: "", shortName: "LED ngủ (D4·J5)", pos: [-0.04, 3.35, -0.58] },
+    { id: "garden_pump", moduleId: "pump_unit", kind: "device", icon: "", shortName: "Bơm vườn (D6·J2)", pos: [2.23, 0.78, 3.65] },
+    { id: "alarm_siren", moduleId: "buzzer_alarm", kind: "device", icon: "", shortName: "Còi 5V (D8·J6)", pos: [-0.08, 3.38, 1.0] },
+    { id: "speaker_amp", moduleId: "pam8403_amp", kind: "device", icon: "", shortName: "PAM8403 (J11/J12)", pos: [0.53, 0.45, 4.58] },
+    { id: "sensor_soil_a0", moduleId: "soil_probe", kind: "sensor", cam: "garden", icon: "", shortName: "Đầu dò YL-69 (A0)", pos: [3.88, 1.1, 3.65] },
+    { id: "sensor_dht11_d2", moduleId: "dht11_sensor", kind: "sensor", cam: "living", icon: "", shortName: "DHT11 (D2·J13)", pos: [-0.11, 2.55, -1.28] },
+    { id: "sensor_ky037_d5", moduleId: "ky037_sound", kind: "sensor", cam: "board", icon: "", shortName: "KY-037 (D5·J15)", pos: [-0.88, 0.92, 1.0] },
+    { id: "board_esp8266", moduleId: "nodemcu", kind: "sensor", cam: "board", icon: "", shortName: "NodeMCU v2", pos: [-2.06, 1.08, 3.24] },
+    { id: "mod_hub_pcb", moduleId: "hub_pcb", kind: "module", cam: "board", icon: "", shortName: "PCB Hub v3 (J1→ra)", defaultBadge: "15 cổng", pos: [-2.03, 0.72, 3.28] },
+    { id: "mod_sg90_servo", moduleId: "sg90_servo", kind: "module", cam: "door", icon: "", shortName: "Servo SG90 (D1·J3)", defaultBadge: "0° ĐÓNG", pos: [-3.29, 3.18, 0.84] },
+    { id: "mod_psu_5v", moduleId: "psu_5v", kind: "module", cam: "board", icon: "", shortName: "Nguồn 5V DC-022→J1", defaultBadge: "5V 2A", pos: [-4.25, 0.75, 5.45] },
+    { id: "mod_soil_lm393", moduleId: "soil_lm393", kind: "module", cam: "garden", icon: "", shortName: "LM393 Đất (A0·J14)", defaultBadge: "3.3V", pos: [2.85, 0.65, 1.55] },
+    { id: "mod_relay1_pump", moduleId: "relay1_pump", kind: "module", cam: "board", icon: "", shortName: "Rơ-le 1 Bơm (D6)", defaultBadge: "TẮT", pos: [0.58, 0.55, 2.48] },
+    { id: "mod_relay2_speaker", moduleId: "relay2_speaker", kind: "module", cam: "board", icon: "", shortName: "Rơ-le 2 Loa (D7)", defaultBadge: "TẮT", pos: [0.58, 0.55, 3.58] },
+    { id: "mod_speaker_mini", moduleId: "speaker_mini", kind: "module", cam: "board", icon: "", shortName: "Loa mini 28mm", defaultBadge: "8Ω BTL", pos: [0.5, 0.92, 5.49] },
   ];
 
   function resetGlbHandles() {
     glbHandles.doorPivot = null;
+    glbHandles.servoHornPivot = null;
+    glbHandles.livingLedNode = null;
+    glbHandles.bedLedNode = null;
+    glbHandles.servoMats = [];
+    glbHandles.psuMats = [];
+    glbHandles.lm393Mats = [];
     glbHandles.livingMats = [];
     glbHandles.bedMats = [];
     glbHandles.pumpMats = [];
@@ -221,6 +251,7 @@ window.SmartHome3D = (() => {
     glbHandles.pamMats = [];
     glbHandles.ky037Mats = [];
     glbHandles.pinBindings = [];
+    glbHandles.boundNodes = [];
     glbWireEntries.length = 0;
     contractWireEntries.length = 0;
     Object.keys(contractWireMetaById).forEach((k) => delete contractWireMetaById[k]);
@@ -922,13 +953,40 @@ window.SmartHome3D = (() => {
     updatePinAnchorFromNode(pinId, obj, yOffset);
   }
 
-  function recomputeBoundPinAnchors() {
-    if (!glbHandles.pinBindings || !glbHandles.pinBindings.length) return;
-    glbHandles.pinBindings.forEach((b) => {
-      if (b && b.obj) {
-        updatePinAnchorFromNode(b.pinId, b.obj, b.yOffset);
+  function repositionLedGlowAnchors() {
+    if (glbHandles.livingLedNode) {
+      const c = getNodeWorldCenter(glbHandles.livingLedNode);
+      if (c) {
+        if (livingLedGlowGroup && livingLedGlowGroup.position && typeof livingLedGlowGroup.position.set === "function") {
+          livingLedGlowGroup.position.set(c.x - 0.06, c.y, c.z);
+        }
+        if (livingPointLight && livingPointLight.position && typeof livingPointLight.position.set === "function") {
+          livingPointLight.position.set(c.x - 0.55, c.y - 0.25, c.z);
+        }
       }
-    });
+    }
+    if (glbHandles.bedLedNode) {
+      const c = getNodeWorldCenter(glbHandles.bedLedNode);
+      if (c) {
+        if (bedLedGlowGroup && bedLedGlowGroup.position && typeof bedLedGlowGroup.position.set === "function") {
+          bedLedGlowGroup.position.set(c.x + 0.06, c.y, c.z);
+        }
+        if (bedPointLight && bedPointLight.position && typeof bedPointLight.position.set === "function") {
+          bedPointLight.position.set(c.x + 0.55, c.y - 0.25, c.z);
+        }
+      }
+    }
+  }
+
+  function recomputeBoundPinAnchors() {
+    if (glbHandles.pinBindings && glbHandles.pinBindings.length) {
+      glbHandles.pinBindings.forEach((b) => {
+        if (b && b.obj) {
+          updatePinAnchorFromNode(b.pinId, b.obj, b.yOffset);
+        }
+      });
+    }
+    repositionLedGlowAnchors();
   }
 
   function parsePresetObj(raw) {
@@ -1065,6 +1123,11 @@ window.SmartHome3D = (() => {
         fallbackHandles[key].visible = false;
       }
     };
+    const markBound = (name) => {
+      if (name && !glbHandles.boundNodes.includes(name)) {
+        glbHandles.boundNodes.push(name);
+      }
+    };
 
     const glbDoorPivot = get("door_pivot");
     const glbDoorLeaf = get("main_door_leaf");
@@ -1073,27 +1136,62 @@ window.SmartHome3D = (() => {
       hideFallback("doorGroup");
       const targetDoor = glbDoorPivot || glbDoorLeaf;
       glbHandles.doorPivot = targetDoor;
+      if (glbDoorPivot) markBound("door_pivot");
+      if (glbDoorLeaf) markBound("main_door_leaf");
       registerClickable(targetDoor, "main_door");
       if (glbDoorLeaf && glbDoorLeaf !== targetDoor) registerClickable(glbDoorLeaf, "main_door");
       bindPinAnchor("main_door", glbDoorLeaf || glbDoorPivot, 0.3);
     }
 
+    const glbServo = get("SG90_DoorServo");
+    if (glbServo) {
+      boundCount++;
+      markBound("SG90_DoorServo");
+      hideFallback("sg90Servo");
+      glbHandles.servoMats = cloneNodeMaterials(glbServo);
+      registerClickable(glbServo, "main_door");
+      bindPinAnchor("mod_sg90_servo", glbServo, 0.28);
+    }
+
+    const glbServoHorn = get("sg90_horn_pivot") || get("SG90_WhiteHorn");
+    if (glbServoHorn) {
+      boundCount++;
+      markBound(glbServoHorn.name || "sg90_horn_pivot");
+      glbHandles.servoHornPivot = glbServoHorn;
+      registerClickable(glbServoHorn, "main_door");
+    }
+
+    const glbPsu = get("psu_5v_dc_jack");
+    if (glbPsu) {
+      boundCount++;
+      markBound("psu_5v_dc_jack");
+      hideFallback("psu5v");
+      glbHandles.psuMats = cloneNodeMaterials(glbPsu);
+      bindPinAnchor("mod_psu_5v", glbPsu, 0.26);
+    }
+
     const glbLiving = get("led_living_room");
     if (glbLiving) {
       boundCount++;
+      markBound("led_living_room");
       hideFallback("livingLamp");
-      glbHandles.livingMats = cloneNodeMaterials(glbLiving);
+      glbHandles.livingLedNode = glbLiving;
+      glbHandles.livingMats = cloneNodeMaterials(glbLiving).filter((m) => !/collar|sup17|lead|silver/i.test(String((m && m.name) || "")));
+      if (!glbHandles.livingMats.length) glbHandles.livingMats = cloneNodeMaterials(glbLiving);
       registerClickable(glbLiving, "living_room_light");
-      bindPinAnchor("living_room_light", glbLiving, 0.25);
+      bindPinAnchor("living_room_light", glbLiving, 0.28);
     }
 
     const glbBedroom = get("led_bedroom");
     if (glbBedroom) {
       boundCount++;
+      markBound("led_bedroom");
       hideFallback("bedLamp");
-      glbHandles.bedMats = cloneNodeMaterials(glbBedroom);
+      glbHandles.bedLedNode = glbBedroom;
+      glbHandles.bedMats = cloneNodeMaterials(glbBedroom).filter((m) => !/collar|sup17|lead|silver/i.test(String((m && m.name) || "")));
+      if (!glbHandles.bedMats.length) glbHandles.bedMats = cloneNodeMaterials(glbBedroom);
       registerClickable(glbBedroom, "bedroom_light");
-      bindPinAnchor("bedroom_light", glbBedroom, 0.25);
+      bindPinAnchor("bedroom_light", glbBedroom, 0.28);
     }
 
     const glbPump = get("pump_unit");
@@ -1102,6 +1200,7 @@ window.SmartHome3D = (() => {
     if (glbPump || glbWaterTube || glbRelay1) {
       if (glbPump) {
         boundCount++;
+        markBound("pump_unit");
         hideFallback("pumpUnit");
         glbHandles.pumpMats.push(...cloneNodeMaterials(glbPump));
         registerClickable(glbPump, "garden_pump");
@@ -1109,24 +1208,28 @@ window.SmartHome3D = (() => {
       }
       if (glbWaterTube) {
         boundCount++;
+        markBound("water_tube");
         hideFallback("waterTube");
         registerClickable(glbWaterTube, "garden_pump");
       }
       if (glbRelay1) {
         boundCount++;
+        markBound("relay1_pump");
         hideFallback("relay1");
         glbHandles.relay1Mats = cloneNodeMaterials(glbRelay1);
         registerClickable(glbRelay1, "garden_pump");
+        bindPinAnchor("mod_relay1_pump", glbRelay1, 0.26);
       }
     }
 
     const glbBuzzer = get("buzzer_alarm");
     if (glbBuzzer) {
       boundCount++;
+      markBound("buzzer_alarm");
       hideFallback("buzzerAlarm");
       glbHandles.buzzerMats = cloneNodeMaterials(glbBuzzer);
       registerClickable(glbBuzzer, "alarm_siren");
-      bindPinAnchor("alarm_siren", glbBuzzer, 0.22);
+      bindPinAnchor("alarm_siren", glbBuzzer, 0.24);
     }
 
     const glbRelay2 = get("relay2_speaker");
@@ -1135,18 +1238,23 @@ window.SmartHome3D = (() => {
     if (glbRelay2 || glbPam || glbSpeaker) {
       if (glbRelay2) {
         boundCount++;
+        markBound("relay2_speaker");
         hideFallback("relay2");
         glbHandles.relay2Mats = cloneNodeMaterials(glbRelay2);
         registerClickable(glbRelay2, "speaker_amp");
+        bindPinAnchor("mod_relay2_speaker", glbRelay2, 0.26);
       }
       if (glbPam) {
         boundCount++;
+        markBound("pam8403_module");
         hideFallback("pam8403");
         glbHandles.pamMats = cloneNodeMaterials(glbPam);
         registerClickable(glbPam, "speaker_amp");
+        bindPinAnchor("speaker_amp", glbPam, 0.26);
       }
       if (glbSpeaker) {
         boundCount++;
+        markBound("speaker_mini");
         hideFallback("speakerMini");
         glbSpeaker.userData = glbSpeaker.userData || {};
         glbSpeaker.userData._baseScale = glbSpeaker.scale
@@ -1159,20 +1267,34 @@ window.SmartHome3D = (() => {
         glbHandles.speakerMeshes.push(glbSpeaker);
         glbHandles.speakerMats = cloneNodeMaterials(glbSpeaker);
         registerClickable(glbSpeaker, "speaker_amp");
-        bindPinAnchor("speaker_amp", glbSpeaker, 0.24);
+        bindPinAnchor("mod_speaker_mini", glbSpeaker, 0.24);
+        if (!glbPam) {
+          bindPinAnchor("speaker_amp", glbSpeaker, 0.24);
+        }
       }
     }
 
     const glbDht = get("sensor_dht11");
     if (glbDht) {
       boundCount++;
+      markBound("sensor_dht11");
       hideFallback("dht11");
       bindPinAnchor("sensor_dht11_d2", glbDht, 0.26);
+    }
+
+    const glbLm393 = get("soil_lm393_board");
+    if (glbLm393) {
+      boundCount++;
+      markBound("soil_lm393_board");
+      hideFallback("soilLm393");
+      glbHandles.lm393Mats = cloneNodeMaterials(glbLm393);
+      bindPinAnchor("mod_soil_lm393", glbLm393, 0.24);
     }
 
     const glbSoil = get("sensor_soil");
     if (glbSoil) {
       boundCount++;
+      markBound("sensor_soil");
       hideFallback("soilSensor");
       bindPinAnchor("sensor_soil_a0", glbSoil, 0.26);
     }
@@ -1180,6 +1302,7 @@ window.SmartHome3D = (() => {
     const glbKy037 = get("sensor_mic_ky037");
     if (glbKy037) {
       boundCount++;
+      markBound("sensor_mic_ky037");
       hideFallback("ky037");
       glbHandles.ky037Mats = cloneNodeMaterials(glbKy037);
       bindPinAnchor("sensor_ky037_d5", glbKy037, 0.24);
@@ -1189,17 +1312,22 @@ window.SmartHome3D = (() => {
     const glbNodEmcu = get("nodemcu_esp8266");
     if (glbKicadHub) {
       boundCount++;
+      markBound("kicad_pcb_hub");
       hideFallback("hubCabinet");
       hideFallback("hubBreadboard");
-      bindPinAnchor("board_esp8266", glbKicadHub, 0.35);
+      bindPinAnchor("mod_hub_pcb", glbKicadHub, 0.22);
+      if (!glbNodEmcu) {
+        bindPinAnchor("board_esp8266", glbKicadHub, 0.36);
+      }
     }
     if (glbNodEmcu) {
       boundCount++;
+      markBound("nodemcu_esp8266");
       hideFallback("nodemcu");
-      if (!glbKicadHub) {
-        bindPinAnchor("board_esp8266", glbNodEmcu, 0.35);
-      }
+      bindPinAnchor("board_esp8266", glbNodEmcu, 0.36);
     }
+
+    repositionLedGlowAnchors();
 
     if (typeof villaRoot.traverse === "function") {
       villaRoot.traverse((node) => {
@@ -1518,24 +1646,28 @@ window.SmartHome3D = (() => {
     doorFallbackGroup.add(doorPivot);
     scene.add(doorFallbackGroup);
 
-    // Servo SG90 màu xanh dương gắn trên đỉnh bản lề Cửa chính (Chân D1)
+    // Servo SG90 màu xanh dương lắp đồng tâm trên đỉnh bản lề Cửa chính (Chân D1)
     const sg90Group = new THREE.Group();
-    sg90Group.position.set(-2.85, 2.72, 3.76);
+    setNodeName(sg90Group, "SG90_DoorServo");
+    fallbackHandles.sg90Servo = sg90Group;
+    sg90Group.position.set(-2.85, 2.84, 3.6);
     const sg90BlueMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.35, metalness: 0.15 });
-    const sg90Body = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.28, 0.22), sg90BlueMat);
+    const sg90Body = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.36, 0.22), sg90BlueMat);
+    sg90Body.position.set(-0.08, 0.06, 0);
     sg90Group.add(sg90Body);
-    const sg90Ears = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.05, 0.22), sg90BlueMat);
-    sg90Ears.position.y = 0.04;
+    const sg90Ears = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.05, 0.22), sg90BlueMat);
+    sg90Ears.position.set(-0.08, -0.02, 0);
     sg90Group.add(sg90Ears);
     const sg90GearBoss = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.12, 16), sg90BlueMat);
-    sg90GearBoss.position.set(0.08, -0.16, 0);
+    sg90GearBoss.position.set(0, -0.14, 0);
     sg90Group.add(sg90GearBoss);
 
     servoHornPivot = new THREE.Group();
-    servoHornPivot.position.set(0.08, -0.22, 0);
+    setNodeName(servoHornPivot, "sg90_horn_pivot");
+    servoHornPivot.position.set(0, -0.2, 0);
     const hornWhiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
     const hornArm = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.04, 0.09), hornWhiteMat);
-    hornArm.position.set(0.16, 0, 0);
+    hornArm.position.set(0.18, 0, 0);
     servoHornPivot.add(hornArm);
     const hornScrew = new THREE.Mesh(
       new THREE.CylinderGeometry(0.035, 0.035, 0.06, 12),
@@ -1543,7 +1675,7 @@ window.SmartHome3D = (() => {
     );
     servoHornPivot.add(hornScrew);
     sg90Group.add(servoHornPivot);
-    doorFallbackGroup.add(sg90Group);
+    scene.add(sg90Group);
 
     // Đèn báo trạng thái khóa cửa
     doorLockLedMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
@@ -1554,6 +1686,32 @@ window.SmartHome3D = (() => {
     doorEntranceLight = new THREE.PointLight(0x4ade80, 0, 5.5);
     doorEntranceLight.position.set(-1.9, 2.4, 3.2);
     scene.add(doorEntranceLight);
+
+    function createLedGlowHalo(coreHex, haloHex) {
+      const grp = new THREE.Group();
+      const coreMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.14, 18, 18),
+        new THREE.MeshBasicMaterial({
+          color: coreHex,
+          transparent: true,
+          opacity: 0.94,
+          depthWrite: false,
+        })
+      );
+      const outerMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.42, 18, 18),
+        new THREE.MeshBasicMaterial({
+          color: haloHex,
+          transparent: true,
+          opacity: 0.36,
+          depthWrite: false,
+        })
+      );
+      grp.add(coreMesh);
+      grp.add(outerMesh);
+      grp.visible = false;
+      return grp;
+    }
 
     // =========================================================================
     // 2. ĐÈN PHÒNG KHÁCH (living_room_light — Chân D0 / GPIO16 + trở hạn dòng)
@@ -1578,9 +1736,14 @@ window.SmartHome3D = (() => {
     livingGroup.add(lrBulb);
     scene.add(livingGroup);
 
-    livingPointLight = new THREE.PointLight(0xffd166, 0, 12);
+    livingLedGlowGroup = createLedGlowHalo(0xfff3b0, 0xfbbf24);
+    setNodeName(livingLedGlowGroup, "living_led_glow_halo");
+    livingLedGlowGroup.position.set(-2.6, 2.82, -0.2);
+    scene.add(livingLedGlowGroup);
+
+    livingPointLight = new THREE.PointLight(0xffd166, 0, 14);
     livingPointLight.position.set(-2.6, 2.6, -0.2);
-    livingPointLight.castShadow = true;
+    livingPointLight.castShadow = !isSoftwareRenderer;
     scene.add(livingPointLight);
 
     // =========================================================================
@@ -1611,9 +1774,14 @@ window.SmartHome3D = (() => {
     bedLampGroup.add(nightLampShade);
     scene.add(bedLampGroup);
 
-    bedPointLight = new THREE.PointLight(0xffb703, 0, 11);
+    bedLedGlowGroup = createLedGlowHalo(0xffe58f, 0xffb703);
+    setNodeName(bedLedGlowGroup, "bedroom_led_glow_halo");
+    bedLedGlowGroup.position.set(2.9, 2.88, -0.3);
+    scene.add(bedLedGlowGroup);
+
+    bedPointLight = new THREE.PointLight(0xffb703, 0, 14);
     bedPointLight.position.set(2.7, 2.5, -0.8);
-    bedPointLight.castShadow = true;
+    bedPointLight.castShadow = !isSoftwareRenderer;
     scene.add(bedPointLight);
 
     // =========================================================================
@@ -1659,7 +1827,7 @@ window.SmartHome3D = (() => {
    * Dựng trọn bộ Linh kiện Phần cứng Thực tế khớp ảnh tham chiếu:
    * - Bồn cây sân vườn + Máy bơm chìm mini 5V trắng (D6 qua Relay 1 xanh) + Tia nước 3D + Cảm biến đất + LM393 (A0)
    * - Cảm biến Nhiệt độ & Độ ẩm DHT11 xanh dương (D2) trên tường Phòng khách
-   * - Trạm Mạch Trung Tâm: Breadboard 400 lỗ + NodeMCU v2 hẹp 0.9" (2x15) cắm giữa rãnh + Diode 1N4007 + Tụ 470uF
+   * - Trạm Mạch Trung Tâm: PCB Hub DIY v3 (100x80 mm, 0 breadboard) + NodeMCU v2 Amica 0.9" (2x15) + Diode 1N4007 + Tụ C1–C9
    *   + Relay 1 xanh (D6 Bơm) + Relay 2 opto đỏ (D7) + Mạch khuếch đại PAM8403 xanh + Loa tròn bạc mini (D3 PWM)
    *   + Cảm biến âm thanh KY-037 PCB đỏ (D5 DO)
    */
@@ -1693,23 +1861,28 @@ window.SmartHome3D = (() => {
     probeTop.position.set(0, 0.16, 0);
     soilSensorGroup.add(probeTop);
 
+    const lm393Group = new THREE.Group();
+    setNodeName(lm393Group, "soil_lm393_board");
+    fallbackHandles.soilLm393 = lm393Group;
+    lm393Group.position.set(-0.9, 0.52, 0.32);
     const lm393Board = new THREE.Mesh(
       new THREE.BoxGeometry(0.26, 0.04, 0.34),
       new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.4 })
     );
     lm393Board.position.set(-0.32, -0.02, 0);
-    soilSensorGroup.add(lm393Board);
+    lm393Group.add(lm393Board);
     const lm393Pot = new THREE.Mesh(
       new THREE.BoxGeometry(0.08, 0.06, 0.08),
       new THREE.MeshStandardMaterial({ color: 0x38bdf8 })
     );
     lm393Pot.position.set(-0.32, 0.03, -0.05);
-    soilSensorGroup.add(lm393Pot);
+    lm393Group.add(lm393Pot);
     lm393AlertLedMat = new THREE.MeshBasicMaterial({ color: 0x22c55e });
     const lm393Led = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 10), lm393AlertLedMat);
     lm393Led.position.set(-0.25, 0.03, 0.08);
-    soilSensorGroup.add(lm393Led);
+    lm393Group.add(lm393Led);
     gardenGroup.add(soilSensorGroup);
+    gardenGroup.add(lm393Group);
 
     // Bể nước trong suốt + Máy bơm chìm mini 5V màu trắng (Chân D6)
     const pumpFallbackGroup = new THREE.Group();
@@ -2118,6 +2291,26 @@ window.SmartHome3D = (() => {
 
     centralHubGroup.add(ky037Group);
 
+    // Giắc nguồn 5V 2A DC-022 -> cầu đấu vít J1 trên mặt nạ khoang kỹ thuật (fallback)
+    const psuFallbackGroup = new THREE.Group();
+    setNodeName(psuFallbackGroup, "psu_5v_dc_jack");
+    fallbackHandles.psu5v = psuFallbackGroup;
+    psuFallbackGroup.position.set(-0.56, 0.14, 0.34);
+    const dcJackBarrel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.055, 0.055, 0.14, 16),
+      new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.35, metalness: 0.4 })
+    );
+    dcJackBarrel.rotation.x = Math.PI / 2;
+    psuFallbackGroup.add(dcJackBarrel);
+    const dcJackRing = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.068, 0.068, 0.022, 16),
+      new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.85, roughness: 0.2 })
+    );
+    dcJackRing.rotation.x = Math.PI / 2;
+    dcJackRing.position.z = 0.065;
+    psuFallbackGroup.add(dcJackRing);
+    centralHubGroup.add(psuFallbackGroup);
+
     // Vòng sóng phản hồi KY-037 khi phát hiện vỗ tay / tiếng động lớn
     ky037WaveMat = new THREE.MeshBasicMaterial({
       color: 0xf97316,
@@ -2270,10 +2463,13 @@ window.SmartHome3D = (() => {
       pinAnchors[m.id] = new THREE.Vector3(m.pos[0], m.pos[1], m.pos[2]);
       const el = document.createElement("button");
       el.setAttribute("data-id", m.id);
-      if (m.kind === "sensor") {
-        el.className = "pin-3d sensor-pin";
+      if (m.moduleId) {
+        el.setAttribute("data-module-id", m.moduleId);
+      }
+      if (m.kind === "sensor" || m.kind === "module") {
+        el.className = m.kind === "module" ? "pin-3d sensor-pin module-pin" : "pin-3d sensor-pin";
         el.title = "Bấm để chuyển góc nhìn Camera cận cảnh tới linh kiện này";
-        let initVal = "ONLINE";
+        let initVal = m.defaultBadge || "ONLINE";
         if (m.id === "sensor_soil_a0") initVal = `${sensorState.soil_moisture_pct}%`;
         else if (m.id === "sensor_dht11_d2") initVal = `${sensorState.temp_c}°C | ${sensorState.humidity_pct}%`;
         else if (m.id === "sensor_ky037_d5") initVal = sensorState.sound_detected ? "CÓ TIẾNG ĐỘNG!" : "Yên tĩnh";
@@ -2383,7 +2579,7 @@ window.SmartHome3D = (() => {
       const stSpan = el.querySelector(".pin-state");
       const hasValProp = el.dataset && el.dataset.hasValue !== undefined ? el.dataset.hasValue : el.getAttribute("data-has-value");
       const hasValue = hasValProp !== "false" && Boolean(stSpan && stSpan.textContent && stSpan.textContent.trim());
-      if (!hasValue || v.z > 1 || (m.kind === "sensor" && camGoal.radius >= 10.0)) {
+      if (!hasValue || v.z > 1) {
         el.style.display = "none";
         return;
       }
@@ -2393,17 +2589,15 @@ window.SmartHome3D = (() => {
       let rawY = (-(v.y * 0.5) + 0.5) * h;
 
       const isMobile = w < 500;
-      const chipW = el.offsetWidth || (isMobile ? 86 : 110);
-      const chipH = el.offsetHeight || (isMobile ? 22 : 26);
+      const chipW = el.offsetWidth || (isMobile ? 86 : 112);
+      const chipH = el.offsetHeight || (isMobile ? 16 : 19);
       const halfW = chipW * 0.5;
       const halfH = chipH * 0.5;
 
-      const pad = 8;
-      rawX = Math.max(pad + halfW, Math.min(w - pad - halfW, rawX));
-      rawY = Math.max(pad + halfH, Math.min(h - pad - halfH, rawY));
-
       visiblePins.push({
         el,
+        rawX,
+        rawY,
         x: rawX,
         y: rawY,
         hw: halfW,
@@ -2411,51 +2605,48 @@ window.SmartHome3D = (() => {
       });
     });
 
-    const iterations = 6;
-    const gapX = 8;
-    const gapY = 6;
-    for (let iter = 0; iter < iterations; iter++) {
-      for (let i = 0; i < visiblePins.length; i++) {
-        for (let j = i + 1; j < visiblePins.length; j++) {
-          const p1 = visiblePins[i];
-          const p2 = visiblePins[j];
-          const dx = p2.x - p1.x;
-          const dy = p2.y - p1.y;
-          const minDistX = p1.hw + p2.hw + gapX;
-          const minDistY = p1.hh + p2.hh + gapY;
-          const overlapX = minDistX - Math.abs(dx);
-          const overlapY = minDistY - Math.abs(dy);
+    if (!visiblePins.length) return;
 
-          if (overlapX > 0 && overlapY > 0) {
-            if (overlapY < overlapX) {
-              const pushY = overlapY * 0.5;
-              if (dy >= 0) {
-                p2.y += pushY;
-                p1.y -= pushY;
-              } else {
-                p2.y -= pushY;
-                p1.y += pushY;
-              }
-            } else {
-              const pushX = overlapX * 0.5;
-              if (dx >= 0) {
-                p2.x += pushX;
-                p1.x -= pushX;
-              } else {
-                p2.x -= pushX;
-                p1.x += pushX;
-              }
-            }
-          }
+    // Bố cục 2 cột bám viền Trái / Phải theo tọa độ chiếu 3D: giữ trung tâm mô hình 3D thông thoáng & 0% chồng lấn nhãn
+    const sortedByX = visiblePins.slice().sort((a, b) => a.rawX - b.rawX);
+    const leftCount = Math.floor(sortedByX.length / 2);
+    const leftCol = sortedByX.slice(0, leftCount).sort((a, b) => a.rawY - b.rawY);
+    const rightCol = sortedByX.slice(leftCount).sort((a, b) => a.rawY - b.rawY);
+
+    const padX = 6;
+    const topPad = 6;
+    const layoutColumn = (col, isLeft, bottomLimit) => {
+      if (!col.length) return;
+      const availTop = topPad + col[0].hh;
+      const availBot = Math.max(availTop, bottomLimit - col[col.length - 1].hh);
+      const span = Math.max(0, availBot - availTop);
+      const n = col.length;
+      for (let i = 0; i < n; i++) {
+        const p = col[i];
+        p.x = isLeft ? padX + p.hw : w - padX - p.hw;
+        p.y = n === 1 ? (availTop + availBot) * 0.5 : availTop + (span * i) / (n - 1);
+      }
+      // Bảo vệ khoảng cách tối thiểu giữa 2 nhãn kề nhau
+      const minGapY = 2;
+      for (let i = 1; i < n; i++) {
+        const prev = col[i - 1];
+        const cur = col[i];
+        const needed = prev.y + prev.hh + cur.hh + minGapY;
+        if (cur.y < needed) {
+          cur.y = needed;
         }
       }
+      const overflow = col[n - 1].y + col[n - 1].hh - bottomLimit;
+      if (overflow > 0) {
+        for (let i = 0; i < n; i++) {
+          col[i].y = Math.max(topPad + col[i].hh, col[i].y - overflow);
+        }
+      }
+    };
 
-      const pad = 8;
-      visiblePins.forEach((p) => {
-        p.x = Math.max(pad + p.hw, Math.min(w - pad - p.hw, p.x));
-        p.y = Math.max(pad + p.hh, Math.min(h - pad - p.hh, p.y));
-      });
-    }
+    // Chừa vùng đáy trái cho nhãn hướng dẫn ".viewport-note"
+    layoutColumn(leftCol, true, h - 38);
+    layoutColumn(rightCol, false, h - 8);
 
     visiblePins.forEach((p) => {
       p.el.style.transform = `translate(-50%, -50%) translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
@@ -2720,10 +2911,21 @@ window.SmartHome3D = (() => {
     audioWaveTimer = frames;
   }
 
-  function applyGlbEmissive(mats, hex, intensity) {
+  function applyGlbEmissive(mats, hex, intensity, overrideColorHex) {
     if (!mats || !mats.length) return;
     mats.forEach((m) => {
       if (!m) return;
+      if (overrideColorHex !== undefined && m.color && typeof m.color.setHex === "function") {
+        if (m.userData === undefined) m.userData = {};
+        if (m.userData._origColorHex === undefined && typeof m.color.getHex === "function") {
+          m.userData._origColorHex = m.color.getHex();
+        }
+        if (overrideColorHex !== null) {
+          m.color.setHex(overrideColorHex);
+        } else if (m.userData._origColorHex !== undefined) {
+          m.color.setHex(m.userData._origColorHex);
+        }
+      }
       if (m.emissive && typeof m.emissive.setHex === "function") {
         m.emissive.setHex(hex);
       }
@@ -2731,6 +2933,14 @@ window.SmartHome3D = (() => {
         m.emissiveIntensity = intensity;
       }
     });
+  }
+
+  function updateModulePinBadge(pinId, text, toneClass) {
+    const pin = pinElements[pinId];
+    if (!pin) return;
+    const st = pin.querySelector ? pin.querySelector(".pin-state") : null;
+    if (st) st.textContent = text;
+    pin.className = toneClass ? `pin-3d sensor-pin module-pin ${toneClass}` : "pin-3d sensor-pin module-pin";
   }
 
   function updateSensors(mqttSummary, serverConnected = true) {
@@ -2871,29 +3081,32 @@ window.SmartHome3D = (() => {
     if (deviceStates.living_room_light) {
       livingBulbMat.color.setHex(0xfffbeb);
       livingBulbMat.emissive.setHex(0xfbbf24);
-      livingBulbMat.emissiveIntensity = 1.6;
-      livingPointLight.intensity = 2.5;
+      livingBulbMat.emissiveIntensity = 2.2;
+      livingPointLight.intensity = 3.6;
+      if (livingLedGlowGroup) livingLedGlowGroup.visible = true;
       if (boardLedMats.d0_living) boardLedMats.d0_living.color.setHex(0xef4444);
-      applyGlbEmissive(glbHandles.livingMats, 0xfbbf24, 1.5);
+      applyGlbEmissive(glbHandles.livingMats, 0xfbbf24, 3.2, 0xfffbeb);
     } else {
       livingBulbMat.color.setHex(0x475569);
       livingBulbMat.emissive.setHex(0x000000);
       livingBulbMat.emissiveIntensity = 0;
       livingPointLight.intensity = 0;
+      if (livingLedGlowGroup) livingLedGlowGroup.visible = false;
       if (boardLedMats.d0_living) boardLedMats.d0_living.color.setHex(0x450a0a);
-      applyGlbEmissive(glbHandles.livingMats, 0x000000, 0);
+      applyGlbEmissive(glbHandles.livingMats, 0x000000, 0, null);
     }
 
     // 2. Đèn phòng ngủ (Chân D4 / GPIO2)
     if (deviceStates.bedroom_light) {
       bedBulbMat.color.setHex(0xfffbeb);
       bedBulbMat.emissive.setHex(0xffb703);
-      bedBulbMat.emissiveIntensity = 1.5;
+      bedBulbMat.emissiveIntensity = 2.2;
       bedLampShadeMat.emissive.setHex(0xf59e0b);
-      bedLampShadeMat.emissiveIntensity = 1.1;
-      bedPointLight.intensity = 2.2;
+      bedLampShadeMat.emissiveIntensity = 1.4;
+      bedPointLight.intensity = 3.4;
+      if (bedLedGlowGroup) bedLedGlowGroup.visible = true;
       if (boardLedMats.d4_bedroom) boardLedMats.d4_bedroom.color.setHex(0xfacc15);
-      applyGlbEmissive(glbHandles.bedMats, 0xffb703, 1.4);
+      applyGlbEmissive(glbHandles.bedMats, 0xffb703, 3.2, 0xfffbeb);
     } else {
       bedBulbMat.color.setHex(0x475569);
       bedBulbMat.emissive.setHex(0x000000);
@@ -2901,17 +3114,22 @@ window.SmartHome3D = (() => {
       bedLampShadeMat.emissive.setHex(0x000000);
       bedLampShadeMat.emissiveIntensity = 0;
       bedPointLight.intensity = 0;
+      if (bedLedGlowGroup) bedLedGlowGroup.visible = false;
       if (boardLedMats.d4_bedroom) boardLedMats.d4_bedroom.color.setHex(0x422006);
-      applyGlbEmissive(glbHandles.bedMats, 0x000000, 0);
+      applyGlbEmissive(glbHandles.bedMats, 0x000000, 0, null);
     }
 
     // 3. Cửa chính & Servo SG90 (Chân D1 / GPIO5)
     if (deviceStates.main_door) {
       doorLockLedMat.color.setHex(0x22c55e);
       doorEntranceLight.intensity = 1.6;
+      applyGlbEmissive(glbHandles.servoMats, 0x38bdf8, 0.45);
+      updateModulePinBadge("mod_sg90_servo", "90° MỞ", "pin-tone-ok");
     } else {
       doorLockLedMat.color.setHex(0xef4444);
       doorEntranceLight.intensity = 0;
+      applyGlbEmissive(glbHandles.servoMats, 0x000000, 0);
+      updateModulePinBadge("mod_sg90_servo", "0° ĐÓNG", "");
     }
 
     // 4. Còi báo động Buzzer 5V (Chân D8 / GPIO15)
@@ -2938,6 +3156,7 @@ window.SmartHome3D = (() => {
       if (boardLedMats.d6_relay_blue) boardLedMats.d6_relay_blue.color.setHex(0x22c55e);
       applyGlbEmissive(glbHandles.pumpMats, 0x0ea5e9, 0.9);
       applyGlbEmissive(glbHandles.relay1Mats, 0x22c55e, 0.8);
+      updateModulePinBadge("mod_relay1_pump", "BẬT", "pin-tone-ok");
     } else {
       if (pumpBodyMat) {
         pumpBodyMat.emissive.setHex(0x000000);
@@ -2948,6 +3167,7 @@ window.SmartHome3D = (() => {
       if (boardLedMats.d6_relay_blue) boardLedMats.d6_relay_blue.color.setHex(0x172554);
       applyGlbEmissive(glbHandles.pumpMats, 0x000000, 0);
       applyGlbEmissive(glbHandles.relay1Mats, 0x000000, 0);
+      updateModulePinBadge("mod_relay1_pump", "TẮT", "");
     }
 
     // 6. Nguồn mạch loa PAM8403 & Relay 2 opto đỏ (Chân D7 / GPIO13 + PWM D3 / GPIO0)
@@ -2962,6 +3182,7 @@ window.SmartHome3D = (() => {
       applyGlbEmissive(glbHandles.relay2Mats, 0xef4444, 0.8);
       applyGlbEmissive(glbHandles.pamMats, 0x22c55e, 0.9);
       applyGlbEmissive(glbHandles.speakerMats, 0x38bdf8, 0.7);
+      updateModulePinBadge("mod_relay2_speaker", "BẬT", "pin-tone-ok");
     } else {
       if (boardLedMats.d7_relay_red) boardLedMats.d7_relay_red.color.setHex(0x450a0a);
       if (boardLedMats.d7_pam8403_pwr) boardLedMats.d7_pam8403_pwr.color.setHex(0x052e16);
@@ -2973,6 +3194,7 @@ window.SmartHome3D = (() => {
       applyGlbEmissive(glbHandles.relay2Mats, 0x000000, 0);
       applyGlbEmissive(glbHandles.pamMats, 0x000000, 0);
       applyGlbEmissive(glbHandles.speakerMats, 0x000000, 0);
+      updateModulePinBadge("mod_relay2_speaker", "TẮT", "");
     }
 
     // 7. Làm sáng Đường Dây Điện 3D tương ứng khi thiết bị đang BẬT / MỞ (trừ khi đang highlight hướng dẫn nối dây)
@@ -3008,15 +3230,20 @@ window.SmartHome3D = (() => {
     const prevRenderTimeMs = lastRenderTimeMs;
     lastRenderTimeMs = timeMs || 0;
     renderedFramesCount++;
+    let dtSec = 0.05;
     let camLerpAlpha = 0.12;
     if (renderedFramesCount > 1 && prevRenderTimeMs > 0 && Number.isFinite(timeMs) && timeMs > prevRenderTimeMs) {
-      const dtSec = Math.max(0.016, Math.min(0.5, (timeMs - prevRenderTimeMs) / 1000));
+      dtSec = Math.max(0.016, Math.min(0.5, (timeMs - prevRenderTimeMs) / 1000));
       camLerpAlpha = 1 - Math.exp(-7.67 * dtSec);
     }
 
-    // 1. Nội suy góc xoay Cửa Chính & Tay đòn Servo SG90 (Chân D1)
-    const targetDoorAngle = deviceStates.main_door ? -1.62 : 0.0;
-    currentDoorAngle += (targetDoorAngle - currentDoorAngle) * 0.12;
+    // 1. Nội suy góc xoay đồng bộ Cửa Chính & Tay đòn Servo SG90 (Chân D1, 0° đóng / +90° mở vào phòng khách)
+    const targetDoorAngle = deviceStates.main_door ? Math.PI / 2 : 0.0;
+    const doorLerpAlpha = 1 - Math.exp(-8.0 * dtSec);
+    currentDoorAngle += (targetDoorAngle - currentDoorAngle) * doorLerpAlpha;
+    if (Math.abs(targetDoorAngle - currentDoorAngle) < 0.005) {
+      currentDoorAngle = targetDoorAngle;
+    }
     if (doorPivot) {
       doorPivot.rotation.y = currentDoorAngle;
     }
@@ -3025,6 +3252,9 @@ window.SmartHome3D = (() => {
     }
     if (servoHornPivot) {
       servoHornPivot.rotation.y = currentDoorAngle;
+    }
+    if (glbHandles.servoHornPivot) {
+      glbHandles.servoHornPivot.rotation.y = currentDoorAngle;
     }
 
     // 2. Đèn chớp Còi Báo Động Buzzer 5V (Chân D8)
@@ -3142,6 +3372,63 @@ window.SmartHome3D = (() => {
     updatePinPositions();
   }
 
+  function getDebugState() {
+    const readMaxEmissive = (mats, fallbackMat) => {
+      if (Array.isArray(mats) && mats.length > 0) {
+        let best = 0;
+        mats.forEach((m) => {
+          const val = m && Number.isFinite(Number(m.emissiveIntensity)) ? Number(m.emissiveIntensity) : 0;
+          if (val > best) best = val;
+        });
+        return Math.round(best * 1000) / 1000;
+      }
+      const fb = fallbackMat && Number.isFinite(Number(fallbackMat.emissiveIntensity)) ? Number(fallbackMat.emissiveIntensity) : 0;
+      return Math.round(fb * 1000) / 1000;
+    };
+    const activeDoorPivot = glbHandles.doorPivot || doorPivot;
+    const activeHornPivot = glbHandles.servoHornPivot || servoHornPivot;
+    const doorRad =
+      activeDoorPivot && activeDoorPivot.rotation && Number.isFinite(Number(activeDoorPivot.rotation.y))
+        ? Number(activeDoorPivot.rotation.y)
+        : currentDoorAngle;
+    const hornRad =
+      activeHornPivot && activeHornPivot.rotation && Number.isFinite(Number(activeHornPivot.rotation.y))
+        ? Number(activeHornPivot.rotation.y)
+        : currentDoorAngle;
+    const radToDeg = (r) => Math.round(((r * 180) / Math.PI) * 100) / 100;
+
+    return {
+      doorOpen: Boolean(deviceStates.main_door),
+      doorAngleDeg: radToDeg(doorRad),
+      servoHornAngleDeg: radToDeg(hornRad),
+      livingLightOn: Boolean(deviceStates.living_room_light),
+      livingLedEmissive: readMaxEmissive(glbHandles.livingMats, livingBulbMat),
+      livingPointLightIntensity:
+        livingPointLight && Number.isFinite(Number(livingPointLight.intensity)) ? Number(livingPointLight.intensity) : 0,
+      bedroomLightOn: Boolean(deviceStates.bedroom_light),
+      bedroomLedEmissive: readMaxEmissive(glbHandles.bedMats, bedBulbMat),
+      bedroomPointLightIntensity:
+        bedPointLight && Number.isFinite(Number(bedPointLight.intensity)) ? Number(bedPointLight.intensity) : 0,
+      labelsVisible: Boolean(labelsVisible),
+      modulePins: PIN_META.map((m) => {
+        const el = pinElements[m.id];
+        const stSpan = el && typeof el.querySelector === "function" ? el.querySelector(".pin-state") : null;
+        return {
+          id: m.id,
+          moduleId: m.moduleId || null,
+          kind: m.kind,
+          label: m.shortName,
+          stateText: stSpan ? String(stSpan.textContent || "").trim() : "",
+          visible: Boolean(el && el.style && el.style.display && el.style.display !== "none"),
+        };
+      }),
+      boundGlbNodes: glbHandles.boundNodes.slice(),
+      contractWireCount: contractWireEntries.length,
+      wiresVisible: Boolean(wiringDisplayState.visible),
+      breadboardUsed: false,
+    };
+  }
+
   return {
     init,
     updateDevices,
@@ -3160,6 +3447,7 @@ window.SmartHome3D = (() => {
     toggleLabelsVisible,
     areLabelsVisible,
     getBoardFrameMetrics,
+    getDebugState,
     onResize,
     loadSceneSpec,
   };

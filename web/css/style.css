@@ -501,7 +501,7 @@ h2,
 /* ================= 3D VIEWPORT (TOÀN CẢNH ONLY) ================= */
 .viewport,
 .house3d-viewport {
-  height: 302px;
+  height: 390px;
   border-radius: 12px;
   border: 1px solid #dce7e6;
   background: linear-gradient(145deg, #f3f8f7, #eaf2f1);
@@ -560,15 +560,17 @@ h2,
   pointer-events: auto;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 9px;
+  gap: 4px;
+  padding: 2px 6px;
+  max-width: 47%;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 9.5px;
+  line-height: 1.25;
   font-weight: 500;
   border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(15, 23, 42, 0.92);
+  background: rgba(15, 23, 42, 0.90);
   color: #e2e8f0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
@@ -585,22 +587,26 @@ h2,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 11px;
   line-height: 1;
 }
 
 .pin-3d .pin-name {
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .pin-3d .pin-state,
 .pin-3d strong {
   font-weight: 700;
-  padding: 1px 6px;
+  font-size: 9px;
+  padding: 1px 5px;
   border-radius: 999px;
   letter-spacing: 0.02em;
-  line-height: 1.25;
+  line-height: 1.2;
   text-shadow: none;
+  flex-shrink: 0;
 }
 
 .pin-3d.off {
@@ -701,6 +707,22 @@ h2,
 .pin-3d.sensor-pin.pin-tone-danger .pin-state {
   background: #991b1b;
   color: #ffffff;
+}
+
+.pin-3d.module-pin {
+  font-size: 10.5px;
+  padding: 3px 7px;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(20, 184, 166, 0.75);
+  color: #e2e8f0;
+}
+
+.pin-3d.module-pin .pin-state {
+  background: #0f766e;
+  color: #ffffff;
+  font-size: 10px;
+  padding: 1px 5px;
 }
 
 /* ================= 3D CAMERA TOOLBAR ================= */
@@ -1335,11 +1357,12 @@ h2,
     flex: 0 0 auto;
   }
   .pin-3d {
-    font-size: 10px;
-    min-height: 44px;
-    min-width: 44px;
-    padding: 6px 10px;
+    font-size: 8.5px;
+    min-height: 0;
+    min-width: 0;
+    padding: 2px 5px;
     gap: 3px;
+    max-width: 47.5%;
   }
   .btn-cam,
   .btn-cam-toggle {
@@ -1455,7 +1478,7 @@ h2,
   }
   .viewport,
   .house3d-viewport {
-    height: 220px;
+    height: 310px;
   }
   .viewport-note .note-desktop {
     display: none;

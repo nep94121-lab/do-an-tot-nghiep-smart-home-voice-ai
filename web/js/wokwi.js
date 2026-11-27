@@ -448,6 +448,7 @@
       'Garden rim channel (LM393 -> YL-69 Probe)': 'Mép trên vách vườn (LM393 → Đầu dò đất YL-69)',
       'Tech Bay left power channel (J1 -> DC-022)': 'Rãnh nguồn trái khoang kỹ thuật (Cầu vít J1 → Giắc DC-022)',
       'Tech Bay -> P05 front cable slot -> P07 SG90 shelf': 'Khoang kỹ thuật → Lỗ dây mặt tiền P05 → Kệ Servo SG90 (P07)',
+      'Tech Bay -> P05 Cable_Servo_D1 (X=48, Z=110) -> Coaxial top-jamb SG90': 'Khoang kỹ thuật → Lỗ dây Cable_Servo_D1 trên P05 (X=48, Z=110 mm) → Servo SG90 đồng tâm đỉnh bản lề',
       'P05 open front cutaway (Z=56 above KY037 ledge) -> P06_WALL_MID Living Room chase': 'Khoảng mở mặt tiền P05 (Z=56 mm trên bệ KY-037) → Vách giữa P06 phía phòng khách',
       'P05 Cable_Front_BR (X=224) -> P06_WALL_MID Bedroom vertical chase': 'Lỗ dây P05 (X=224 mm) → Rãnh dọc vách giữa P06 phía phòng ngủ',
       'Tech Bay -> P05 center pillar vertical chase -> Buzzer': 'Khoang kỹ thuật → Trụ giữa mặt tiền P05 → Còi báo động 5V',
@@ -661,6 +662,15 @@
           ? `X=${Number(wire.hub_pin_xy_mm[0]).toFixed(2)} mm, Y=${Number(wire.hub_pin_xy_mm[1]).toFixed(2)} mm`
           : 'Liên kết ngoài mạch Hub';
 
+      const extraContextHtml =
+        wire.module_id === 'sg90_servo' && contract && contract.door_torque_margin
+          ? `<p class="pcb-step-card-note"><strong>Liên kết cơ khí đồng tâm SG90:</strong> Lắp đảo trục trên đỉnh bản lề (<code>P07_SERVO_SHELF</code> + <code>SUP11</code> + khớp ngàm <code>SUP10B</code> + bản lề <code>SUP10</code>, dự phòng mô-men <strong>${escWokwiHtml(
+              contract.door_torque_margin.worst_case_safety_margin_x
+            )}×</strong>, dây luồn qua <code>Cable_Servo_D1</code>).</p>`
+          : wire.module_id === 'psu_5v'
+            ? `<p class="pcb-step-card-note"><strong>Ngõ vào J1 &amp; Ngõ ra đóng cắt:</strong> Nguồn 5V 2A (DC-022) cấp vào <code>J1</code> nuôi NodeMCU <code>VIN</code>, Servo <code>J3</code>, Còi <code>J6</code> và 2 nhánh rơ-le đóng cắt <code>J8→J2</code> (Bơm 5V), <code>J10→J11</code> (Mạch loa PAM8403).</p>`
+            : '';
+
       card.hidden = false;
       card.innerHTML = `
         <div class="pcb-step-card-top">
@@ -694,6 +704,7 @@
         <div class="pcb-step-card-guide">
           <p><strong>Hướng dẫn cắm dây:</strong> ${escWokwiHtml(wire.instruction_vi)}</p>
           <p class="pcb-step-card-note"><strong>Lưu ý kỹ thuật:</strong> ${escWokwiHtml(wire.power_gnd_note_vi)}</p>
+          ${extraContextHtml}
         </div>
       `;
     }
