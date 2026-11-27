@@ -3,7 +3,7 @@
 > **Nguồn tính tự động:** `scripts/compute_wire_lengths.py` tính từ tọa độ chân thực trên `smarthome_hub.kicad_pcb` (`J1–J15`) và vị trí giá đỡ module thực trong nhà in 3D v2 (`hardware/mica/mica_design.py` + `hardware/in 3 d/`), đã cộng **+18% độ chùng & bán kính uốn `R >= 8 mm`**.
 
 - **Tổng số dây:** **40 dây** (36 dây từ PCB Hub `J1–J15` + 4 dây nối giữa module `PAM8403→Loa` và `LM393→Đầu dò đất`).
-- **Chiều dài tính toán (đã cộng 18% độ chùng):** Ngắn nhất **`3.84 cm`**, Dài nhất **`27.48 cm`**, Tổng cộng **`646.50 cm`** (`6.46 m`).
+- **Chiều dài tính toán (đã cộng 18% độ chùng):** Ngắn nhất **`3.84 cm`**, Dài nhất **`27.48 cm`**, Tổng cộng **`654.99 cm`** (`6.55 m`).
 - **Kiểm tra giới hạn dây Dupont chuẩn `<= 30 cm`:** **ĐẠT 40/40 (0 dây vượt 30 cm)**.
 
 ## 1. Bảng Chi Tiết 40 Dây Nối & Chiều Dài (cm)
@@ -12,9 +12,9 @@
 | :---: | :--- | :--- | :--- | :--- | :--- | ---: | ---: | ---: | :---: | :---: |
 | `W01` | `J1.1` | 5V 2A External Supply (`+5V`) | `+5V` | Red | Screw Terminal 22AWG | 7.63 | 8.12 | **9.58** | **10 cm** | PASS |
 | `W02` | `J1.2` | 5V 2A External Supply (`GND`) | `GND` | Black | Screw Terminal 22AWG | 7.27 | 7.71 | **9.10** | **10 cm** | PASS |
-| `W03` | `J3.1` | SG90 Micro Servo (`PWM (Orange)`) | `D1_SERVO` | Orange | Dupont 1x3 F-M | 11.01 | 13.11 | **15.46** | **20 cm** | PASS |
-| `W04` | `J3.2` | SG90 Micro Servo (`VCC (Red)`) | `+5V` | Red | Dupont 1x3 F-M | 11.01 | 13.11 | **15.46** | **20 cm** | PASS |
-| `W05` | `J3.3` | SG90 Micro Servo (`GND (Brown)`) | `GND` | Black | Dupont 1x3 F-M | 11.01 | 13.11 | **15.46** | **20 cm** | PASS |
+| `W03` | `J3.1` | SG90 Micro Servo (`PWM (Orange)`) | `D1_SERVO` | Orange | Dupont 1x3 F-M | 13.12 | 15.45 | **18.24** | **20 cm** | PASS |
+| `W04` | `J3.2` | SG90 Micro Servo (`VCC (Red)`) | `+5V` | Red | Dupont 1x3 F-M | 13.32 | 15.49 | **18.28** | **20 cm** | PASS |
+| `W05` | `J3.3` | SG90 Micro Servo (`GND (Brown)`) | `GND` | Black | Dupont 1x3 F-M | 13.53 | 15.55 | **18.35** | **20 cm** | PASS |
 | `W06` | `J4.1` | 5mm LED (Living Room) (`Anode (+)`) | `LED_LR_A` | Yellow | Dupont 1x2 F-F | 15.85 | 17.93 | **21.16** | **30 cm** | PASS |
 | `W07` | `J4.2` | 5mm LED (Living Room) (`Cathode (-)`) | `GND` | Black | Dupont 1x2 F-F | 15.57 | 17.56 | **20.72** | **30 cm** | PASS |
 | `W08` | `J5.1` | 5mm LED (Bedroom) (`Anode (+)`) | `LED_BR_A` | Purple | Dupont 1x2 F-F | 16.62 | 23.29 | **27.48** | **30 cm** | PASS |

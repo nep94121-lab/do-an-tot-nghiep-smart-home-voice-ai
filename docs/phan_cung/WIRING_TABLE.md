@@ -3,7 +3,7 @@
 > **Single Source of Truth (SSOT):** Auto-generated deterministically by `scripts/generate_wiring_docs.py` directly from `hardware/wiring_contract.py` + `hardware/wire_lengths.json`.
 > **Architecture Policy:** **100% PCB-Direct (ZERO white breadboard)**. NodeMCU **v2 Amica** (`48.26 × 25.40 mm`, CP2102, 0.9" row spacing) plugs directly into sockets `U1/U2` on the `100.0 × 80.0 × 1.6 mm` Hub DIY v3 PCB (`51 footprints`, `0 ERC / 0 DRC`), with **ALL `C1–C9` & `D1–D2` soldered directly on-board**.
 > **Verified Wiring Totals:** **40 physical wires** = **36 Hub PCB plug-in wires** (`J1`..`J15`, 100% of all 36 connector pins) + **4 off-board inter-module wires** (`PAM8403 → Mini Speaker ×2`, `LM393 → YL-69 Soil Probe ×2`).
-> **Computed 3D Routed Wire Lengths (+18% Slack):** Min **`3.84 cm`**, Max **`27.48 cm`**, Total **`646.5 cm`** — **40/40 wires `<= 30.0 cm`** (see [`WIRE_LIST_LENGTHS.md`](WIRE_LIST_LENGTHS.md), [`DIMENSIONS_AUDIT.md`](DIMENSIONS_AUDIT.md), and [`diy_pcb/`](diy_pcb/)).
+> **Computed 3D Routed Wire Lengths (+18% Slack):** Min **`3.84 cm`**, Max **`27.48 cm`**, Total **`654.99 cm`** — **40/40 wires `<= 30.0 cm`** (see [`WIRE_LIST_LENGTHS.md`](WIRE_LIST_LENGTHS.md), [`DIMENSIONS_AUDIT.md`](DIMENSIONS_AUDIT.md), and [`diy_pcb/`](diy_pcb/)).
 > **Removed Legacy Parts Policy (Strict Confirmation):** **NO breadboard, NO fan, NO AC, NO IR** (`VS1838B`, `IR LED 940nm`, cooling fan, or AC mains relay do NOT exist anywhere in firmware, KiCad schematic/PCB, 3D models, or wiring harnesses).
 > **Companion 2D Vector Diagram:** [`wiring_diagram_2d.svg`](wiring_diagram_2d.svg) · [`wiring_diagram_2d.pdf`](wiring_diagram_2d.pdf) · [`wiring_diagram_2d.png`](wiring_diagram_2d.png)
 
@@ -15,9 +15,9 @@ Every single physical plug-in wire is listed one row per wire (`W01`–`W40`), c
 |---|---|---|---|---|---|---|---|---|---:|---:|---|---|
 | `W01` | `J1.1 (PWR_5V_IN)` | **Red** (`#DC2626`) | 5V 2A External Supply | `+5V` | `VIN (U1.15)` | `Power (+5V)` | `+5V` | Screw Terminal 22AWG | **9.58** | 10 cm | `esp8266_smarthome.ino:15-16` | Main +5V rail; on-board C1/C2 (470uF 16V) + C3 (100nF) bulk decoupling + D3 power LED |
 | `W02` | `J1.2 (PWR_5V_IN)` | **Black** (`#18181B`) | 5V 2A External Supply | `GND` | `GND (U1.10/14, U2.7/14)` | `Ground` | `GND` | Screw Terminal 22AWG | **9.10** | 10 cm | `esp8266_smarthome.ino:15-16` | Common system ground reference shared with NodeMCU and all modules |
-| `W03` | `J3.1 (SERVO_D1)` | **Orange** (`#EA580C`) | SG90 Micro Servo | `PWM (Orange)` | `D1 (U2.2)` | `GPIO5` | `D1_SERVO` | Dupont 1x3 F-M | **15.46** | 20 cm | `esp8266_smarthome.ino:56` | 50Hz PWM control: 0 deg closed / 90 deg open (main_door) |
-| `W04` | `J3.2 (SERVO_D1)` | **Red** (`#DC2626`) | SG90 Micro Servo | `VCC (Red)` | `VIN (U1.15)` | `Power (+5V)` | `+5V` | Dupont 1x3 F-M | **15.46** | 20 cm | `esp8266_smarthome.ino:56` | +5V servo supply decoupled by on-board C1 470uF 16V |
-| `W05` | `J3.3 (SERVO_D1)` | **Black** (`#18181B`) | SG90 Micro Servo | `GND (Brown)` | `GND` | `Ground` | `GND` | Dupont 1x3 F-M | **15.46** | 20 cm | `esp8266_smarthome.ino:56` | Common GND (connects to SG90 brown pigtail wire) |
+| `W03` | `J3.1 (SERVO_D1)` | **Orange** (`#EA580C`) | SG90 Micro Servo | `PWM (Orange)` | `D1 (U2.2)` | `GPIO5` | `D1_SERVO` | Dupont 1x3 F-M | **18.24** | 20 cm | `esp8266_smarthome.ino:56` | 50Hz PWM control: 0 deg closed / 90 deg open (main_door) |
+| `W04` | `J3.2 (SERVO_D1)` | **Red** (`#DC2626`) | SG90 Micro Servo | `VCC (Red)` | `VIN (U1.15)` | `Power (+5V)` | `+5V` | Dupont 1x3 F-M | **18.28** | 20 cm | `esp8266_smarthome.ino:56` | +5V servo supply decoupled by on-board C1 470uF 16V |
+| `W05` | `J3.3 (SERVO_D1)` | **Black** (`#18181B`) | SG90 Micro Servo | `GND (Brown)` | `GND` | `Ground` | `GND` | Dupont 1x3 F-M | **18.35** | 20 cm | `esp8266_smarthome.ino:56` | Common GND (connects to SG90 brown pigtail wire) |
 | `W06` | `J4.1 (LED_LR_D0)` | **Yellow** (`#CA8A04`) | 5mm LED (Living Room) | `Anode (+)` | `D0 (U2.1) via R1 220R` | `GPIO16` | `LED_LR_A` | Dupont 1x2 F-F | **21.16** | 30 cm | `esp8266_smarthome.ino:55` | Active-HIGH through on-board 220R series resistor R1; also enroll_blink |
 | `W07` | `J4.2 (LED_LR_D0)` | **Black** (`#18181B`) | 5mm LED (Living Room) | `Cathode (-)` | `GND` | `Ground` | `GND` | Dupont 1x2 F-F | **20.72** | 30 cm | `esp8266_smarthome.ino:55` | LED cathode return to common GND |
 | `W08` | `J5.1 (LED_BR_D4)` | **Purple** (`#9333EA`) | 5mm LED (Bedroom) | `Anode (+)` | `+3V3 via R2 220R` | `Power (+3V3 limited)` | `LED_BR_A` | Dupont 1x2 F-F | **27.48** | 30 cm | `esp8266_smarthome.ino:59,68` | Current-limited +3.3V via on-board R2 220R for boot-safe Active-LOW LED |
@@ -175,3 +175,29 @@ Audited against component datasheets (`Nichicon UVR/UHE`, `Murata RDE`, `Vishay 
 | `soil_lm393` | LM393 Soil Moisture Comparator Board (A0) | `32.0 × 14.0 × 12.1` | `12.1` | HandsOnTech Soil Moisture Sensor Spec |
 | `soil_probe` | YL-69 Soil Moisture 2-Prong Probe | `60.0 × 20.0 × 1.6` | `1.6` | HandsOnTech Soil Moisture Sensor Spec |
 | `ky037_sound` | KY-037 / KY-038 Sound Sensor Module (D5) | `35.0 × 15.0 × 13.1` | `13.1` | Joy-IT KY-038 / KY-037 Sound Sensor Datasheet |
+
+## 7. Authoritative 14 Off-Board Modules + Core Boards & Coaxial SG90 Direct-Drive Door
+
+Synced directly from `hardware/component_dimensions_ssot.py` (`AUTHORITATIVE_14_MODULES`, `AUTHORITATIVE_CORE_BOARDS`, `SG90_MECHANICAL_SPECS`, `compute_door_torque_margin()`): **0 screws, 0 glue, 0 slicer supports**.
+
+- **Coaxial Top-Jamb SG90 Direct-Drive Door (`coaxial_direct_drive_top_jamb`):** Unified hinge & servo shaft axis at `(77.0, 201.5)` mm (`P07_SERVO_SHELF` at `Z=108.5..111.5 mm`, `SUP11_SG90_SNAP_SADDLE`, `SUP10_DOOR_MORTISE_HINGE` ×2, `SUP10B_DOOR_HORN_COUPLER`, end-stops `-2.0°..+92.0°`).
+- **SG90 Torque Budget:** Stall torque `1.8 kg·cm` @ 4.8V vs worst-case door load `0.1272 kg·cm` (door `17.6 g`, width `56.0 mm`) → **`14.16×` worst-case safety margin** (`138.6×` nominal, `>= 5×` check: `PASS`).
+
+| # | Module ID | Vietnamese Label | Hub Refs | Screwless Mount Parts | Blender / Web 3D Node |
+|---:|---|---|---|---|---|
+| 1 | `sg90_servo` | Servo SG90 (Cửa chính D1) | `J3` | `P07_SERVO_SHELF`, `SUP11_SG90_SNAP_SADDLE`, `SUP10_DOOR_MORTISE_HINGE`, `SUP10B_DOOR_HORN_COUPLER` | `SG90_DoorServo` / `mod_sg90_servo` |
+| 2 | `psu_5v` | Nguồn 5V 2A / DC-022 → J1 | `J1` | `P15_TECH_FASCIA`, `SUP16_DC022_STRAIN_RELIEF` | `psu_5v_dc_jack` / `mod_psu_5v` |
+| 3 | `led_living` | Đèn LED 5mm Phòng khách (D0) | `J4` | `P06_WALL_MID`, `SUP17_LED5MM_RETAINING_COLLAR` | `led_living_room` / `living_room_light` |
+| 4 | `led_bedroom` | Đèn LED 5mm Phòng ngủ (D4) | `J5` | `P06_WALL_MID`, `SUP17_LED5MM_RETAINING_COLLAR` | `led_bedroom` / `bedroom_light` |
+| 5 | `buzzer_alarm` | Còi báo động 5V TMB12A05 (D8) | `J6` | `P05_WALL_FRONT`, `SUP18_BUZZER_SNAP_COLLAR` | `buzzer_alarm` / `alarm_siren` |
+| 6 | `ky037_sound` | Cảm biến âm thanh KY-037 (D5) | `J15` | `SUP13_KY037_SNAP_CRADLE`, `P05_WALL_FRONT` | `sensor_mic_ky037` / `sensor_ky037_d5` |
+| 7 | `dht11_sensor` | Cảm biến nhiệt/ẩm DHT11 (D2) | `J13` | `SUP12_DHT11_SNAP_CRADLE`, `P06_WALL_MID` | `sensor_dht11` / `sensor_dht11_d2` |
+| 8 | `soil_lm393` | Mạch so sánh đất LM393 (A0) | `J14` | `SUP14_LM393_SNAP_CRADLE`, `P13_GARDEN_BACK` | `soil_lm393_board` / `mod_soil_lm393` |
+| 9 | `soil_probe` | Đầu dò độ ẩm đất YL-69 | `LM393` | `P14_SOIL_BRIDGE` | `sensor_soil` / `sensor_soil_a0` |
+| 10 | `pump_unit` | Máy bơm 5V + Ống nước (J2) | `J2` | `SUP15_WATER_TANK_LINER`, `P10_WATER_DIVIDER` | `pump_unit` / `garden_pump` |
+| 11 | `speaker_mini` | Loa tròn mini 28mm (8Ω) | `PAM8403` | `SUP09_SPEAKER_SNAP_RETAINER`, `P15_TECH_FASCIA` | `speaker_mini` / `mod_speaker_mini` |
+| 12 | `pam8403_amp` | Mạch khuếch đại PAM8403 (J11/J12) | `J11, J12` | `SUP08_PAM8403_SNAP_TRAY`, `P01A_BASE_TECH` | `pam8403_module` / `speaker_amp` |
+| 13 | `relay1_pump` | Rơ-le 1 Bơm (D6 · Ngõ ra J2/J8) | `J7, J8` | `SUP07_RELAY_SNAP_CADDY`, `P01A_BASE_TECH` | `relay1_pump` / `mod_relay1_pump` |
+| 14 | `relay2_speaker` | Rơ-le 2 Loa (D7 · Ngõ ra J10/J11) | `J9, J10` | `SUP07_RELAY_SNAP_CADDY`, `P01A_BASE_TECH` | `relay2_speaker` / `mod_relay2_speaker` |
+| 15 | `nodemcu` | NodeMCU ESP8266 v2 Amica | `U1, U2` | `SUP06_HUB_PCB_SNAP_CARRIER`, `P15_TECH_FASCIA` | `nodemcu_esp8266` / `board_esp8266` |
+| 16 | `hub_pcb` | PCB Hub DIY v3 (J1 vào · J2/J8/J10/J11 ra) | `J1, J2, J3, J4, J5, J6, J7, J8, J9, J10, J11, J12, J13, J14, J15` | `SUP06_HUB_PCB_SNAP_CARRIER`, `P16_PCB_PLATE`, `SUP05_P16_TENON_RISER` | `kicad_pcb_hub` / `mod_hub_pcb` |

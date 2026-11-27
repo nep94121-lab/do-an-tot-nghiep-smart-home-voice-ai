@@ -1,9 +1,9 @@
 Wire_ID,Group,PCB_Header_Pin,Module,Module_Pin,Signal_Net,Color,Connector_Type,Straight_cm,Routed_cm,Length_Incl_18pct_Slack_cm,Recommended_Std_cm,Within_30cm,Route_Channel
 W01,Power Supply,J1.1,5V 2A External Supply,+5V,+5V,Red,Screw Terminal 22AWG,7.63,8.12,9.58,10,PASS,Tech Bay left power channel (J1 -> DC-022)
 W02,Power Supply,J1.2,5V 2A External Supply,GND,GND,Black,Screw Terminal 22AWG,7.27,7.71,9.10,10,PASS,Tech Bay left power channel (J1 -> DC-022)
-W03,Main Door (SG90),J3.1,SG90 Micro Servo,PWM (Orange),D1_SERVO,Orange,Dupont 1x3 F-M,11.01,13.11,15.46,20,PASS,Tech Bay -> P05 front cable slot -> P07 SG90 shelf
-W04,Main Door (SG90),J3.2,SG90 Micro Servo,VCC (Red),+5V,Red,Dupont 1x3 F-M,11.01,13.11,15.46,20,PASS,Tech Bay -> P05 front cable slot -> P07 SG90 shelf
-W05,Main Door (SG90),J3.3,SG90 Micro Servo,GND (Brown),GND,Black,Dupont 1x3 F-M,11.01,13.11,15.46,20,PASS,Tech Bay -> P05 front cable slot -> P07 SG90 shelf
+W03,Main Door (SG90),J3.1,SG90 Micro Servo,PWM (Orange),D1_SERVO,Orange,Dupont 1x3 F-M,13.12,15.45,18.24,20,PASS,"Tech Bay -> P05 Cable_Servo_D1 (X=48, Z=110) -> Coaxial top-jamb SG90"
+W04,Main Door (SG90),J3.2,SG90 Micro Servo,VCC (Red),+5V,Red,Dupont 1x3 F-M,13.32,15.49,18.28,20,PASS,"Tech Bay -> P05 Cable_Servo_D1 (X=48, Z=110) -> Coaxial top-jamb SG90"
+W05,Main Door (SG90),J3.3,SG90 Micro Servo,GND (Brown),GND,Black,Dupont 1x3 F-M,13.53,15.55,18.35,20,PASS,"Tech Bay -> P05 Cable_Servo_D1 (X=48, Z=110) -> Coaxial top-jamb SG90"
 W06,Living Room LED,J4.1,5mm LED (Living Room),Anode (+),LED_LR_A,Yellow,Dupont 1x2 F-F,15.85,17.93,21.16,30,PASS,P05 open front cutaway (Z=56 above KY037 ledge) -> P06_WALL_MID Living Room chase
 W07,Living Room LED,J4.2,5mm LED (Living Room),Cathode (-),GND,Black,Dupont 1x2 F-F,15.57,17.56,20.72,30,PASS,P05 open front cutaway (Z=56 above KY037 ledge) -> P06_WALL_MID Living Room chase
 W08,Bedroom LED,J5.1,5mm LED (Bedroom),Anode (+),LED_BR_A,Purple,Dupont 1x2 F-F,16.62,23.29,27.48,30,PASS,P05 Cable_Front_BR (X=224) -> P06_WALL_MID Bedroom vertical chase
