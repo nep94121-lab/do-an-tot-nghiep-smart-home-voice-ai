@@ -258,12 +258,11 @@ def test_cat4_custom_command_crud_with_confirmation() -> None:
         assert r1_ok.status_code == 200 and r1_ok.json().get("confirmed") is True
         assert len(list_custom_commands()) == 1
 
-        # Use (requires confirmation -> then executes!)
+        # Use (R1 agyfix11: saved custom command executes immediately with zero re-confirmation)
         r2 = client.post("/api/text_command", headers=h1, json={"text": "đi làm"})
-        assert r2.status_code == 200 and r2.json().get("requires_confirmation") is True
-        assert engine.devices["main_door"]["state"] == "OPEN"
-        r2_ok = client.post("/api/text_command", headers=h1, json={"text": "được"})
-        assert r2_ok.status_code == 200 and r2_ok.json().get("confirmed") is True
+        assert r2.status_code == 200
+        assert r2.json().get("requires_confirmation") is False
+        assert r2.json().get("executed") is True
         assert engine.devices["living_room_light"]["state"] == "OFF"
         assert engine.devices["main_door"]["state"] == "CLOSED"
 
@@ -1331,16 +1330,12 @@ def test_round7_sensor_custom_commands_stutter_di_a_and_echo_guard() -> None:
         assert len(cmds) == 1
         cmd_id_t124 = cmds[0]["command_id"]
 
-        # Invoke via voice -> asks confirmation (NOT hijacked by direct sensor query) -> confirm -> live values, 0 mutations
+        # Invoke via voice -> executes immediately (R1: no re-confirm on saved custom command), live values, 0 mutations
         r_run_ask = client.post("/api/voice_command", headers=h1, json={"transcript": "xem không khí"})
         assert r_run_ask.status_code == 200
-        assert r_run_ask.json().get("requires_confirmation") is True
-        assert r_run_ask.json().get("action_kind") == "run_custom_command"
-
-        r_run_ok = client.post("/api/voice_command", headers=h1, json={"transcript": "đồng ý"})
-        assert r_run_ok.status_code == 200
-        d_run = r_run_ok.json()
-        assert d_run.get("confirmed") is True and d_run.get("executed") is True
+        d_run = r_run_ask.json()
+        assert d_run.get("requires_confirmation") is False
+        assert d_run.get("executed") is True
         rep_run = _assert_vi_reply(d_run)
         assert "29.2" in rep_run and "64%" in rep_run
         assert _device_snapshot() == before_devs, "Sensor-only custom command must NOT mutate any device"
@@ -1352,7 +1347,7 @@ def test_round7_sensor_custom_commands_stutter_di_a_and_echo_guard() -> None:
         assert "29.2" in rep_rest and "64%" in rep_rest
         assert _device_snapshot() == before_devs
 
-        # 2. Soil + sound + device-state query custom command (via REST + confirm)
+        # 2. Soil + sound + device-state query custom command (via REST + immediate execution)
         r_q2 = client.post(
             "/api/text_command",
             headers=h1,
@@ -1360,10 +1355,10 @@ def test_round7_sensor_custom_commands_stutter_di_a_and_echo_guard() -> None:
         )
         assert r_q2.status_code == 200 and r_q2.json().get("requires_confirmation") is True
         assert client.post("/api/text_command", headers=h1, json={"text": "ok"}).json().get("confirmed") is True
-        r_q2_ask = client.post("/api/text_command", headers=h1, json={"text": "kiểm tra nhà"})
-        assert r_q2_ask.status_code == 200 and r_q2_ask.json().get("requires_confirmation") is True
-        r_q2_go = client.post("/api/text_command", headers=h1, json={"text": "ok"})
+        r_q2_go = client.post("/api/text_command", headers=h1, json={"text": "kiểm tra nhà"})
         assert r_q2_go.status_code == 200
+        assert r_q2_go.json().get("requires_confirmation") is False
+        assert r_q2_go.json().get("executed") is True
         rep_q2 = _assert_vi_reply(r_q2_go.json())
         assert "48%" in rep_q2 and "tiếng động lớn" in rep_q2.lower() and "cửa chính đang mở" in rep_q2.lower()
         assert _device_snapshot() == before_devs
@@ -1377,10 +1372,10 @@ def test_round7_sensor_custom_commands_stutter_di_a_and_echo_guard() -> None:
         )
         assert r_mix.status_code == 200 and r_mix.json().get("requires_confirmation") is True
         assert client.post("/api/text_command", headers=h1, json={"text": "ok"}).json().get("confirmed") is True
-        r_mix_ask = client.post("/api/text_command", headers=h1, json={"text": "chào buổi tối"})
-        assert r_mix_ask.status_code == 200 and r_mix_ask.json().get("requires_confirmation") is True
-        r_mix_go = client.post("/api/text_command", headers=h1, json={"text": "ok"})
+        r_mix_go = client.post("/api/text_command", headers=h1, json={"text": "chào buổi tối"})
         assert r_mix_go.status_code == 200
+        assert r_mix_go.json().get("requires_confirmation") is False
+        assert r_mix_go.json().get("executed") is True
         rep_mix = _assert_vi_reply(r_mix_go.json())
         assert engine.devices["living_room_light"]["state"] == "ON"
         assert "đèn phòng khách" in rep_mix.lower() and "29.2" in rep_mix
@@ -1752,9 +1747,10 @@ def test_round8_remediation1_general_structural_safety_and_nlu() -> None:
         assert client.post("/api/voice_command", headers=h1, json={"transcript": "chốt luôn giúp anh nhé"}).json().get("confirmed") is True
 
         r_run = client.post("/api/voice_command", headers=h1, json={"transcript": "Kích hoạt lệnh tiếp khách"})
-        assert r_run.status_code == 200 and r_run.json().get("requires_confirmation") is True
-        assert r_run.json().get("action_kind") == "run_custom_command"
-        assert client.post("/api/voice_command", headers=h1, json={"transcript": "hủy bỏ nhé"}).json().get("cancelled") is True
+        assert r_run.status_code == 200 and r_run.json().get("requires_confirmation") is False
+        assert r_run.json().get("executed") is True
+        assert engine.devices["living_room_light"]["state"] == "ON"
+        assert engine.devices["main_door"]["state"] == "OPEN"
 
         r_del = client.post("/api/voice_command", headers=h1, json={"transcript": "Gỡ bỏ lệnh tiếp khách giúp tôi"})
         assert r_del.status_code == 200 and r_del.json().get("requires_confirmation") is True

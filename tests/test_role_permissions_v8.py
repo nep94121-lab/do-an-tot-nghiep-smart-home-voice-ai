@@ -203,9 +203,9 @@ def test_cap1_zero_wrong_denials_rest_text_voice_and_poisoned_singleton() -> Non
                 assert rc1_ok.status_code == 200 and rc1_ok.json().get("confirmed") is True
 
                 rc_run = client.post("/api/voice_command", headers=hdrs, json={"transcript": "về nhà"})
-                assert rc_run.status_code == 200 and rc_run.json().get("requires_confirmation") is True
-                rc_run_ok = client.post("/api/voice_command", headers=hdrs, json={"transcript": "đồng ý"})
-                assert rc_run_ok.status_code == 200 and rc_run_ok.json().get("confirmed") is True
+                assert rc_run.status_code == 200
+                assert rc_run.json().get("requires_confirmation") is False
+                assert rc_run.json().get("executed") is True
 
                 rc_del = client.post("/api/voice_command", headers=hdrs, json={"transcript": "xóa lệnh về nhà"})
                 assert rc_del.status_code == 200 and rc_del.json().get("requires_confirmation") is True

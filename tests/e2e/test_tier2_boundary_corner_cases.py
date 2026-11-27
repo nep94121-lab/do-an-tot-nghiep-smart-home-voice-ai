@@ -51,14 +51,12 @@ class TestTier2BoundaryCornerCases:
         assert res["silent_ignore"] is False
 
     def test_long_hesitation_pause_vad_config(self) -> None:
-        """ADV-01/ADV-04: Cấu hình VAD low-latency (350ms + END_SENSITIVITY_HIGH) phản hồi nhanh, tránh đơ lượt."""
+        """ADV-01/ADV-04/agyfix11-R4: Cấu hình VAD chịu ngập ngừng giữa câu (1400ms + END_SENSITIVITY_LOW)."""
         prompt_builder_path = ROOT / "backend" / "live" / "prompt_builder.py"
         target_file = prompt_builder_path if prompt_builder_path.exists() else (ROOT / "backend" / "server.py")
         server_code = target_file.read_text(encoding="utf-8")
-        # Đảm bảo cấu hình silence_duration_ms 350ms low-latency (ADDENDUM E)
-        assert "silence_duration_ms=350" in server_code or "silence_duration_ms = 350" in server_code or "350" in server_code
-        # Đảm bảo có VAD sensitivity HIGH cho end-of-speech phản hồi nhanh
-        assert "END_SENSITIVITY_HIGH" in server_code or "end_of_speech_sensitivity" in server_code
+        assert "silence_duration_ms=1400" in server_code or "silence_duration_ms = 1400" in server_code
+        assert "END_SENSITIVITY_LOW" in server_code and "end_of_speech_sensitivity" in server_code
 
     def test_low_volume_boundary_rms(self) -> None:
         """Kiểm thử biên âm lượng sát ngưỡng RMS 0.02."""

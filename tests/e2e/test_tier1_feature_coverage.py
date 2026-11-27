@@ -122,9 +122,9 @@ class TestTier1FeatureCoverage:
 
         has_vad_tuning = (
             "silence_duration_ms" in code
-            and ("350" in code or "silence_duration_ms=350" in code or "END_SENSITIVITY_HIGH" in code)
+            and ("1400" in code or "silence_duration_ms=1400" in code or "END_SENSITIVITY_LOW" in code)
         )
-        assert has_vad_tuning, "Thiếu cấu hình VAD low-latency trong backend/live/prompt_builder.py!"
+        assert has_vad_tuning, "Thiếu cấu hình VAD tự nhiên (agyfix11 R4) trong backend/live/prompt_builder.py!"
 
     def test_feat07_system_instruction_prompt_guard(self) -> None:
         """FEAT-07: Vietnamese & Filler Prompt Guard trong System Instruction."""

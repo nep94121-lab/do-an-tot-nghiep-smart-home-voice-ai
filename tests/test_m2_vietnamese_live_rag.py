@@ -54,12 +54,12 @@ class TestM2VietnameseLiveAndRAG(unittest.TestCase):
 
         aad = cfg.realtime_input_config.automatic_activity_detection
         self.assertIsNotNone(aad, "Thiếu automatic_activity_detection")
-        self.assertEqual(aad.silence_duration_ms, 350)
+        self.assertEqual(aad.silence_duration_ms, 1400)
         self.assertEqual(
             aad.end_of_speech_sensitivity,
-            types.EndSensitivity.END_SENSITIVITY_HIGH,
+            types.EndSensitivity.END_SENSITIVITY_LOW,
         )
-        self.assertEqual(aad.prefix_padding_ms, 100)
+        self.assertEqual(aad.prefix_padding_ms, 240)
 
     def test_02_build_system_instruction_guards(self) -> None:
         """Kiểm tra System Instruction có đủ Vietnamese Prompt Guard, Filler Sound Guard và Domain Guard 6 thiết bị."""
