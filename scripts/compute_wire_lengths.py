@@ -141,8 +141,10 @@ def get_module_pin_house_xyz(hw_map: dict[str, md.HardwarePartSpec], module_id: 
         return (cx, cy + 10.5, cz + dz)
     if module_id == "sg90_servo":
         cx, cy, cz = C("HW_SG90")
-        dx = -2.54 if "PWM" in module_pin else (0.0 if "VCC" in module_pin else 2.54)
-        return (cx + dx, cy - 11.0, cz - 6.0)
+        # Inverted coaxial top-jamb SG90: body X=60.1..82.9, Y=195.4..207.6, Z=107.4..129.9
+        # 3-wire pigtail exits left end (X=59.5, Y=201.5, Z=124.0) with slight Y stagger
+        dy = -1.27 if "PWM" in module_pin else (0.0 if "VCC" in module_pin else 1.27)
+        return (round(cx - 12.0, 2), round(cy + dy, 2), round(cz + 5.35, 2))
     if module_id == "led_living":
         cx, cy, cz = C("HW_LED_LR")
         dz = 1.27 if "Anode" in module_pin else -1.27
@@ -231,8 +233,16 @@ def build_routed_waypoints(
         return [start, (sx - 12.0, sy, sz), (ex + 8.0, ey + 18.0, 22.0), end], "Tech Bay left power channel (J1 -> DC-022)"
 
     if module_id == "sg90_servo":
-        # J3 top header -> P05 Cable_Front_LR (X=26, Y=192, Z=17) or low door jamb notch -> SG90 underside
-        return [start, (sx, 168.0, 28.0), (ex + 10.0, 184.0, 20.0), (ex, 196.0, 18.0), end], "Tech Bay -> P05 front cable slot -> P07 SG90 shelf"
+        # J3 top header -> climb Tech Bay -> through P05 Cable_Servo_D1 (X=48, Y=192..195, Z=110, Dia 10mm)
+        # passing upper-left of hole (Z=112.5..113.0, strictly clearing P07_SERVO_SHELF top Z=111.5) -> SG90 left exit (59.5, 201.5, 124.0)
+        off = round(ey - 201.5, 2)
+        return [
+            start,
+            (92.0 + off, 168.0, 56.0),
+            (47.2 + off, 188.0, 112.5),
+            (47.2 + off, 196.5, 113.0),
+            end,
+        ], "Tech Bay -> P05 Cable_Servo_D1 (X=48, Z=110) -> Coaxial top-jamb SG90"
 
     if module_id in ("led_living", "dht11_sensor"):
         # Route from PCB north edge -> cleanly over P05 open front cutaway above KY037_Ledge (H=48mm, X=148..188) -> P06_WALL_MID Living Room face
@@ -377,13 +387,18 @@ def compute_all_wires() -> dict[str, Any]:
         })
 
     lengths = [r["length_cm"] for r in rows]
+    sg90_lengths = [r["length_cm"] for r in rows if r["module_id"] == "sg90_servo"]
+    sg90_within_25 = bool(sg90_lengths) and all(0.0 < v <= 25.0 for v in sg90_lengths)
     buy_counts = collections.Counter((r["recommended_std_cm"], r["connector_type"]) for r in rows)
     std_totals = collections.Counter(r["recommended_std_cm"] for r in rows)
 
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "slack_factor": SLACK_FACTOR,
         "max_allowed_cm": MAX_ALLOWED_CM,
+        "sg90_pigtail_limit_cm": 25.0,
+        "sg90_max_length_cm": max(sg90_lengths) if sg90_lengths else 0.0,
+        "sg90_within_25cm": sg90_within_25,
         "pcb_center_house_mm": list(pcb_center),
         "total_wires": len(rows),
         "min_length_cm": min(lengths),
@@ -472,12 +487,14 @@ def main() -> int:
         "total_wires": data["total_wires"],
         "min_length_cm": data["min_length_cm"],
         "max_length_cm": data["max_length_cm"],
+        "sg90_max_length_cm": data["sg90_max_length_cm"],
+        "sg90_within_25cm": data["sg90_within_25cm"],
         "total_length_cm": data["total_length_cm"],
         "all_within_30cm": data["all_within_30cm"],
         "flagged_over_30cm": data["flagged_over_30cm"],
         "counts_by_standard_cm": data["counts_by_standard_cm"],
     }, indent=2))
-    if args.strict and not data["all_within_30cm"]:
+    if args.strict and (not data["all_within_30cm"] or not data["sg90_within_25cm"]):
         return 1
     return 0
 

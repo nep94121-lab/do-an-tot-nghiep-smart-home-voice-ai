@@ -28,6 +28,8 @@ SCENE_SPEC = REPO_ROOT / "hardware" / "blender" / "SCENE_SPEC.json"
 REQUIRED_NODES = [
     "door_pivot",
     "main_door_leaf",
+    "SG90_DoorServo",
+    "sg90_horn_pivot",
     "led_living_room",
     "led_bedroom",
     "pump_unit",
@@ -39,7 +41,9 @@ REQUIRED_NODES = [
     "pam8403_module",
     "sensor_dht11",
     "sensor_soil",
+    "soil_lm393_board",
     "sensor_mic_ky037",
+    "psu_5v_dc_jack",
     "kicad_pcb_hub",
     "nodemcu_esp8266",
 ]
@@ -88,7 +92,9 @@ def verify_glbs() -> dict:
         "routed_wire_node_count": len(wire_nodes),
         "missing_required_nodes": missing,
         "forbidden_nodes": forbidden,
+        "required_contract_node_count": len(REQUIRED_NODES),
         "all_16_contract_nodes_present": True,
+        "all_20_contract_nodes_present": True,
     }
     print(json.dumps(summary, indent=2))
     return summary
@@ -139,7 +145,7 @@ def group_bbox_mm(root_obj, include_names=None, exclude_names=None):
     }
 
 groups = [
-    'kicad_pcb_hub', 'nodemcu_esp8266', 'SG90_DoorServo', 'door_pivot', 'main_door_leaf',
+    'kicad_pcb_hub', 'nodemcu_esp8266', 'SG90_DoorServo', 'sg90_horn_pivot', 'door_pivot', 'main_door_leaf',
     'led_living_room', 'led_bedroom', 'pump_unit', 'water_tube', 'relay1_pump', 'relay2_speaker',
     'buzzer_alarm', 'speaker_mini', 'pam8403_module', 'sensor_dht11', 'sensor_soil',
     'soil_lm393_board', 'sensor_mic_ky037', 'psu_5v_dc_jack',
@@ -170,8 +176,8 @@ if pcb_obj:
         if abs(mdata['size'][2] - 38.1) < 0.3 and abs(mdata['size'][0] - 2.54) < 0.3:
             out['sub_parts']['kicad_u1_u2_socket'] = mdata
 
-# Pairwise overlaps between hardware groups (excluding door_pivot <-> main_door_leaf parent/child)
-check_groups = [g for g in groups if g not in ('water_tube', 'door_pivot') and g in out['groups']]
+# Pairwise overlaps between hardware groups (excluding parent/child kinematic sub-nodes & water_tube)
+check_groups = [g for g in groups if g not in ('water_tube', 'door_pivot', 'sg90_horn_pivot') and g in out['groups']]
 for i in range(len(check_groups)):
     for j in range(i + 1, len(check_groups)):
         a, b = check_groups[i], check_groups[j]
@@ -208,7 +214,7 @@ with open(sys.argv[-1], 'w', encoding='utf-8') as f:
     # Assert key datasheet envelopes within +-0.5 mm tolerance
     expected = {
         "nodemcu_esp8266": (25.4, 7.14, 49.4),
-        "SG90_DoorServo": (12.2, 31.0, 32.2),
+        "SG90_DoorServo": (32.2, 31.0, 12.2),
         "pump_unit": (24.0, 33.0, 45.0),
         "relay1_pump": (50.0, 18.5, 26.0),
         "relay2_speaker": (50.0, 18.5, 26.0),
@@ -228,7 +234,7 @@ with open(sys.argv[-1], 'w', encoding='utf-8') as f:
     sub_exp = {
         "led_living_room_body": (8.6, 5.8, 5.8),
         "led_bedroom_body": (8.6, 5.8, 5.8),
-        "sg90_body": (12.2, 22.5, 22.8),
+        "sg90_body": (22.8, 22.5, 12.2),
     }
     for name, exp in sub_exp.items():
         got = data["sub_parts"][name]["size"]

@@ -287,14 +287,14 @@ HARDWARE_PARTS: list[HardwarePartSpec] = [
     ),
     HardwarePartSpec(
         part_id="HW_SG90",
-        name="TowerPro SG90 9g Micro Servo (Main Door D1)",
-        room="Living Room (Door Jamb)",
+        name="TowerPro SG90 9g Micro Servo (Main Door D1, Coaxial Top-Jamb Direct-Drive)",
+        room="Living Room (Top Door Jamb)",
         mount_panel="P07_SERVO_SHELF",
-        fasteners="2x M2x10 screws + M2 nuts + M2 washers (Dia 2.5 mm holes, 27.8 mm pitch — only <3mm exception)",
-        center_xyz=(51.0, 218.1, 24.0),
-        size_xyz=(12.2, 32.2, 26.0),
+        fasteners="SUP11_SG90_SNAP_SADDLE mortise clamp on P07_SERVO_SHELF (0 screws, 0 glue; coaxial shaft at X=77.0, Y=201.5)",
+        center_xyz=(71.5, 201.5, 118.65),
+        size_xyz=(32.2, 12.2, 22.5),
         color_rgb=(0.12, 0.45, 0.90),
-        datasheet_dims="Body 22.8 x 12.2 x 22.5 mm; tab span 32.2 mm; M2 holes 27.8 mm apart",
+        datasheet_dims="Body 22.8 x 12.2 x 22.5 mm; tab span 32.2 mm; shaft offset 5.9 mm -> coaxial hinge (77.0, 201.5)",
         source_name="HandsOnTech TowerPro SG90 Datasheet",
         source_url="https://www.handsontec.com/dataspecs/SG90-Servo.pdf",
     ),
@@ -303,7 +303,7 @@ HARDWARE_PARTS: list[HardwarePartSpec] = [
         name="5V Active Electromagnetic Buzzer (TMB12A05, D8)",
         room="Center Pillar (Front)",
         mount_panel="P05_WALL_FRONT",
-        fasteners="Dia 12.5 mm clearance hole + silicone/hot-glue bead on rear",
+        fasteners="Dia 12.5 mm aperture + SUP18_BUZZER_SNAP_COLLAR rear mortise retainer (0 screws, 0 glue)",
         center_xyz=(200.0, 196.8, 126.0),
         size_xyz=(12.0, 9.5, 12.0),
         color_rgb=(0.12, 0.12, 0.14),
@@ -316,7 +316,7 @@ HARDWARE_PARTS: list[HardwarePartSpec] = [
         name="Living Room 5mm LED (Kingbright WP7113, D0)",
         room="Living Room",
         mount_panel="P06_WALL_MID",
-        fasteners="Dia 5.5 mm hole + 5mm LED panel bezel",
+        fasteners="Dia 5.2 mm aperture + SUP17_LED5MM_RETAINING_COLLAR mortise snap bezel (0 screws, 0 glue)",
         center_xyz=(197.0, 232.0, 126.0),
         size_xyz=(8.6, 5.8, 5.8),
         color_rgb=(1.00, 0.86, 0.42),
@@ -329,7 +329,7 @@ HARDWARE_PARTS: list[HardwarePartSpec] = [
         name="Bedroom 5mm LED (Kingbright WP7113, D4)",
         room="Bedroom",
         mount_panel="P06_WALL_MID",
-        fasteners="Dia 5.5 mm hole + 5mm LED panel bezel",
+        fasteners="Dia 5.2 mm aperture + SUP17_LED5MM_RETAINING_COLLAR mortise snap bezel (0 screws, 0 glue)",
         center_xyz=(203.0, 258.0, 126.0),
         size_xyz=(8.6, 5.8, 5.8),
         color_rgb=(1.00, 0.78, 0.34),
@@ -977,9 +977,9 @@ def build_design() -> tuple[list[PanelSpec], list[JointPair]]:
             "notch", "Receives P04 front tab", "J_P04_P05_1",
         ),
         RectOp(
-            "SlotServoShelf", "41.0 - (16.0 + Params.tab_clr) / 2.0", "28.0 - Params.slot_w / 2.0",
-            "16.0 + Params.tab_clr", "Params.slot_w",
-            "slot", "Receives P07_SERVO_SHELF tab (16mm)", "J_P07_P05_1",
+            "SlotServoShelf", "61.5 - (30.0 + Params.tab_clr) / 2.0", "110.0 - Params.slot_w / 2.0",
+            "30.0 + Params.tab_clr", "Params.slot_w",
+            "slot", "Receives P07_SERVO_SHELF coaxial top-jamb tab (30mm)", "J_P07_P05_1",
         ),
     ]
     joints.append(JointPair(
@@ -996,8 +996,8 @@ def build_design() -> tuple[list[PanelSpec], list[JointPair]]:
     ))
     joints.append(JointPair(
         "J_P07_P05_1", "P07_SERVO_SHELF", "P05_WALL_FRONT", "X",
-        (X_L + 41.0, f"{Y_F} + Params.T_mm / 2.0", 28.0),
-        16.0, "16.0 + Params.tab_clr", "Params.T_mm", "Params.slot_w",
+        (X_L + 61.5, f"{Y_F} + Params.T_mm / 2.0", 110.0),
+        30.0, "30.0 + Params.tab_clr", "Params.T_mm", "Params.slot_w",
         joint_kind="slot",
     ))
 
@@ -1020,6 +1020,7 @@ def build_design() -> tuple[list[PanelSpec], list[JointPair]]:
         CircleOp("KY037_Mic_Aperture", 148.0, 26.0, "Params.mic_d", "mic", "KY-037 electret mic acoustic window"),
         CircleOp("KY037_Mount_M3", 168.0, 26.0, "Params.m3_mod_d", "m3", "KY-037 PCB M3 mounting hole"),
         CircleOp("Cable_Front_LR", 16.0, 17.0, "Params.cable_d", "cable", "Tech Bay to Living Room cable pass-through"),
+        CircleOp("Cable_Servo_D1", 38.0, 110.0, 10.0, "cable", "Dedicated SG90 servo 3-wire cable pass-through (X=48, Z=110)"),
         CircleOp("Cable_Front_BR", 214.0, 17.0, "Params.cable_d", "cable", "Tech Bay to Bedroom/Mid-Wall cable pass-through (world X=224)"),
     ]
 
@@ -1136,46 +1137,47 @@ def build_design() -> tuple[list[PanelSpec], list[JointPair]]:
     ))
 
     # ------------------------------------------------------------------
-    # P07_SERVO_SHELF: Horizontal SG90 Door Servo Bracket (XY at Z = 28 - T/2)
-    # World X in [34, 68] (34mm), World Y body starts at 192 + T + tab_clr/2 (46mm deep)
-    # Front tab (16mm wide) extends across P05_WALL_FRONT to Y = 192
+    # P07_SERVO_SHELF: Horizontal Top-Jamb Coaxial SG90 Door Servo Bracket (XY at Z = 110 - T/2 = 108.5..111.5)
+    # World X in [47, 96] (49mm wide, centered on SG90 body X=71.5 -> coaxial shaft at X=77.0, Y=201.5!)
+    # World Y body starts at 192 + T + tab_clr/2 = 195.125 (26mm deep -> Y=195.125..221.125)
+    # Front tab (30mm wide, u=9.5..39.5 -> world X=56.5..86.5) locks into P05_WALL_FRONT header at Z=110.0
     # ------------------------------------------------------------------
     p07_tab_d = "Params.T_mm + Params.tab_clr / 2.0"
     p07_adds = [
-        RectOp("ShelfBody", 0.0, 0.0, 34.0, 46.0, "add"),
-        RectOp("ShelfTab", 9.0, f"-({p07_tab_d})", 16.0, p07_tab_d, "add"),
+        RectOp("ShelfBody", 0.0, 0.0, 49.0, 26.0, "add"),
+        RectOp("ShelfTab", 9.5, f"-({p07_tab_d})", 30.0, p07_tab_d, "add"),
     ]
     p07_cuts = [
         RectOp(
             "SG90_Cutout",
-            "17.0 - Params.sg90_W / 2.0",
-            "23.0 - Params.sg90_L / 2.0",
-            "Params.sg90_W",
+            "24.5 - Params.sg90_L / 2.0",
+            "6.375 - Params.sg90_W / 2.0",
             "Params.sg90_L",
+            "Params.sg90_W",
             "cut",
-            "SG90 servo body cutout (12.7x23.3)",
+            "SG90 servo coaxial body cutout (23.3x12.7 along X, shaft at X=77.0, Y=201.5)",
         ),
     ]
     p07_circles = [
-        CircleOp("SG90_M2_Front", 17.0, "23.0 - Params.sg90_pitch / 2.0", "Params.sg90_m2_d", "m2", "SG90 M2 tab screw #1 (Dia 2.5mm, use M2 washer)"),
-        CircleOp("SG90_M2_Rear", 17.0, "23.0 + Params.sg90_pitch / 2.0", "Params.sg90_m2_d", "m2", "SG90 M2 tab screw #2 (Dia 2.5mm, use M2 washer)"),
+        CircleOp("SG90_M2_Left", "24.5 - Params.sg90_pitch / 2.0", 6.375, "Params.sg90_m2_d", "m2", "SG90 M2 tab hole #1 (stripped in 3D print v2; SUP11 snap saddle used)"),
+        CircleOp("SG90_M2_Right", "24.5 + Params.sg90_pitch / 2.0", 6.375, "Params.sg90_m2_d", "m2", "SG90 M2 tab hole #2 (stripped in 3D print v2; SUP11 snap saddle used)"),
     ]
     p07_poly: list[tuple[str | float, str | float]] = [
-        (0.0, 0.0), (9.0, 0.0), (9.0, f"-({p07_tab_d})"), (25.0, f"-({p07_tab_d})"), (25.0, 0.0),
-        (34.0, 0.0), (34.0, 46.0), (0.0, 46.0),
+        (0.0, 0.0), (9.5, 0.0), (9.5, f"-({p07_tab_d})"), (39.5, f"-({p07_tab_d})"), (39.5, 0.0),
+        (49.0, 0.0), (49.0, 26.0), (0.0, 26.0),
     ]
     panels.append(PanelSpec(
         panel_id="P07_SERVO_SHELF",
-        name="SG90 Door Servo Mount Shelf",
+        name="SG90 Coaxial Top-Jamb Door Servo Shelf",
         qty=1,
         plane="XY",
-        origin_xyz=(34.0, f"{Y_F} + Params.T_mm + Params.tab_clr / 2.0", "28.0 - Params.T_mm / 2.0"),
+        origin_xyz=(47.0, f"{Y_F} + Params.T_mm + Params.tab_clr / 2.0", "110.0 - Params.T_mm / 2.0"),
         explode_xyz=(-60.0, 35.0, 60.0),
         add_rects=p07_adds,
         cut_rects=p07_cuts,
         cut_circles=p07_circles,
         outer_poly_expr=p07_poly,
-        notes="Slots into P05 left door jamb (16mm tab); 12.7x23.3mm SG90 cutout + 2x Dia 2.5mm M2 holes (only <3mm exception, use M2 washers).",
+        notes="Coaxial top-jamb SG90 shelf (Z=108.5..111.5, strictly above door Z<=102): 23.3x12.7 cutout aligns shaft to hinge axis (77.0, 201.5); SUP11 clamps ears with 0 screws/glue.",
         color_rgb=(0.66, 0.86, 0.99),
     ))
 
@@ -1185,9 +1187,9 @@ def build_design() -> tuple[list[PanelSpec], list[JointPair]]:
     p08_adds = [RectOp("DoorLeafBody", 0.0, 0.0, 56.0, 100.0, "add")]
     p08_cuts = [RectOp("DoorWindow", 15.0, 54.0, 26.0, 30.0, "window", "Main Door window cutout (26x30)")]
     p08_circles = [
-        CircleOp("Door_Hinge_Bot", 5.5, 16.0, "Params.clamp_d", "clamp", "Bottom hinge Dia 3.0mm hole"),
-        CircleOp("Door_Hinge_Top", 5.5, 84.0, "Params.clamp_d", "clamp", "Top hinge Dia 3.0mm hole"),
-        CircleOp("Door_Servo_Link", 15.0, 28.0, "Params.clamp_d", "clamp", "SG90 servo push-rod linkage Dia 3.0mm hole"),
+        CircleOp("Door_Hinge_Bot", 5.5, 16.0, "Params.clamp_d", "clamp", "Bottom hinge Dia 3.0mm hole (Z=18.0)"),
+        CircleOp("Door_Hinge_Top", 5.5, 76.0, "Params.clamp_d", "clamp", "Upper hinge Dia 3.0mm hole (Z=78.0)"),
+        CircleOp("Door_Servo_Link", 10.0, 95.0, "Params.clamp_d", "clamp", "Top coaxial SG90 horn coupler mount (Z=97.0)"),
     ]
     p08_poly = [(0.0, 0.0), (56.0, 0.0), (56.0, 100.0), (0.0, 100.0)]
     panels.append(PanelSpec(

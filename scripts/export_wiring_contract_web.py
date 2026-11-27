@@ -22,7 +22,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from hardware.component_dimensions_ssot import COMPONENT_DIMENSIONS  # noqa: E402
+from hardware.component_dimensions_ssot import (  # noqa: E402
+    AUTHORITATIVE_14_MODULES,
+    AUTHORITATIVE_CORE_BOARDS,
+    COMPONENT_DIMENSIONS,
+    SG90_MECHANICAL_SPECS,
+    compute_door_torque_margin,
+)
 from hardware.wiring_contract import (  # noqa: E402
     FIRMWARE_PIN_CONTRACT,
     HUB_CONNECTOR_MAP,
@@ -64,20 +70,20 @@ COLOR_ROLES_VI: dict[str, str] = {
 }
 
 MODULE_LABELS_VI: dict[str, str] = {
-    "psu_5v": "Nguồn ngoài 5V 2A",
-    "sg90_servo": "Động cơ Servo SG90 (Cửa chính)",
-    "led_living": "Đèn LED 5mm Phòng khách (D0)",
-    "led_bedroom": "Đèn LED 5mm Phòng ngủ (D4)",
-    "relay1_pump": "Rơ-le 1 Xanh 5V (Máy bơm, D6)",
-    "pump_unit": "Máy bơm chìm mini 3–6V",
-    "buzzer_alarm": "Còi báo động 5V TMB12A05 (D8)",
-    "relay2_speaker": "Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7)",
-    "pam8403_amp": "Mạch khuếch đại loa PAM8403",
-    "speaker_mini": "Loa tròn mini 28mm 8Ω 0.5W",
-    "dht11_sensor": "Cảm biến nhiệt độ & độ ẩm DHT11 (D2)",
-    "soil_lm393": "Mạch so sánh độ ẩm đất LM393 (A0)",
+    "psu_5v": "Nguồn 5V 2A / Giắc DC-022 → J1",
+    "sg90_servo": "Động cơ Servo SG90 (Cửa chính D1 · Đồng tâm)",
+    "led_living": "Đèn LED 5mm Phòng khách (D0 · J4)",
+    "led_bedroom": "Đèn LED 5mm Phòng ngủ (D4 · J5)",
+    "relay1_pump": "Rơ-le 1 Xanh 5V (Máy bơm, D6 · J7/J8)",
+    "pump_unit": "Máy bơm chìm mini 3–6V (J2)",
+    "buzzer_alarm": "Còi báo động 5V TMB12A05 (D8 · J6)",
+    "relay2_speaker": "Rơ-le 2 Đỏ Opto 5V (Nguồn loa, D7 · J9/J10)",
+    "pam8403_amp": "Mạch khuếch đại loa PAM8403 (J11/J12)",
+    "speaker_mini": "Loa tròn mini 28mm 8Ω 0.5W (BTL)",
+    "dht11_sensor": "Cảm biến nhiệt độ & độ ẩm DHT11 (D2 · J13)",
+    "soil_lm393": "Mạch so sánh độ ẩm đất LM393 (A0 · J14)",
     "soil_probe": "Đầu dò độ ẩm đất YL-69",
-    "ky037_sound": "Cảm biến âm thanh KY-037/KY-038 (D5)",
+    "ky037_sound": "Cảm biến âm thanh KY-037/KY-038 (D5 · J15)",
 }
 
 MODULE_WOKWI_GROUP: dict[str, str] = {
@@ -185,7 +191,13 @@ def _build_power_gnd_note_vi(w: WireEntry) -> str:
         else:
             parts.append("Nguồn cảm biến +3.3V lấy từ nhánh 3V3 trên PCB Hub (đã có tụ gốm C8 100nF hàn trên PCB lọc nhiễu cao tần).")
     elif net == "+5V":
-        parts.append("Nguồn chính +5V (đã có tụ lọc C1/C2 470µF 16V và C3 100nF hàn trực tiếp trên PCB Hub).")
+        if w.module_id == "psu_5v":
+            parts.append(
+                "Ngõ vào nguồn chính +5V 2A từ giắc DC-022 (mặt nạ P15 + khóa giữ dây SUP16) vào cầu đấu vít J1 trên PCB Hub "
+                "(lọc bằng C1/C2 470µF 16V, C3 100nF), cấp cho VIN NodeMCU, Servo J3, Còi J6 và hai nhánh ngõ ra đóng cắt qua rơ-le (J8→J2 Bơm, J10→J11 Loa PAM8403)."
+            )
+        else:
+            parts.append("Nguồn chính +5V (đã có tụ lọc C1/C2 470µF 16V và C3 100nF hàn trực tiếp trên PCB Hub).")
     elif net in ("PUMP_5V", "AMP_5V"):
         if net == "PUMP_5V":
             parts.append("Nguồn +5V đóng cắt qua tiếp điểm Rơ-le 1 (có diode dập xung D1 1N4007 hàn trên PCB Hub).")
@@ -195,12 +207,17 @@ def _build_power_gnd_note_vi(w: WireEntry) -> str:
                 "(đã lọc nhiễu bằng cặp tụ C6 100nF + tụ hóa C9 100µF 16V hàn trực tiếp trên PCB Hub cạnh J11)."
             )
     elif net == "GND":
-        parts.append("Dây Mass chung (GND) nối về thanh GND chung của PCB Hub và NodeMCU v2 Amica.")
+        if w.module_id == "psu_5v":
+            parts.append(
+                "Dây Mass chung (GND) từ giắc nguồn DC-022 vào J1.2 trên PCB Hub, làm chuẩn Mass chung cho NodeMCU v2 Amica và toàn bộ 14 mô-đun (kể cả ngõ ra đóng cắt J2/J11)."
+            )
+        else:
+            parts.append("Dây Mass chung (GND) nối về thanh GND chung của PCB Hub và NodeMCU v2 Amica.")
     elif "btl" in notes_low:
         parts.append("Ngõ ra loa vi sai BTL từ PAM8403: TUYỆT ĐỐI KHÔNG nối L_OUT- xuống GND.")
 
     if w.net == "D4_LED_BR":
-        parts.append("Đấu Active-LOW trên D4 (GPIO2) kèm trở kéo lên R7 10kΩ để an toàn khi khởi động.")
+        parts.append("Đấu Active-LOW trên D4 (GPIO2) kèm trở kéo lên R7 10kΩ để an toàn khi khởi động; gắn trên vách giữa P06 bằng vòng giữ SUP17.")
     elif w.net == "AUD_OUT":
         parts.append("Qua tụ chặn DC C4 10µF 16V, cầu R5/R6 2.2kΩ, C5 10nF và R4 10kΩ kéo lên 3.3V (chân D3 ở chế độ INPUT khi nghỉ).")
     elif w.net == "BUZZ_K":
@@ -212,9 +229,12 @@ def _build_power_gnd_note_vi(w: WireEntry) -> str:
     elif w.net == "D5_MIC_DO":
         parts.append("Ngõ vào số 3.3V bắt xung vỗ tay/tiếng động (ngắt sườn lên, chống dội ≥400ms).")
     elif w.net == "D1_SERVO":
-        parts.append("Tín hiệu PWM 50Hz điều khiển Servo SG90 (0° đóng cửa / 90° mở cửa).")
+        parts.append(
+            "Tín hiệu PWM 50Hz điều khiển Servo SG90 lắp đồng tâm trên đỉnh bản lề cửa chính "
+            "(kệ P07 + đai gài SUP11 + khớp ngàm tay đòn SUP10B + bản lề mộng SUP10, 0° đóng / 90° mở vào phòng khách, dây đi qua lỗ Cable_Servo_D1)."
+        )
     elif w.net == "LED_LR_A":
-        parts.append("Đấu Active-HIGH qua điện trở hạn dòng R1 220Ω trên PCB Hub.")
+        parts.append("Đấu Active-HIGH qua điện trở hạn dòng R1 220Ω trên PCB Hub; gắn trên vách giữa P06 bằng vòng giữ SUP17.")
     elif w.net == "D6_RLY1_PUMP":
         parts.append("Kích mức CAO (Active-HIGH) điều khiển cuộn hút Rơ-le 1 cho máy bơm.")
     elif w.net == "D7_RLY2_AMP":
@@ -334,10 +354,15 @@ def build_web_contract_payload() -> dict[str, Any]:
             }
         )
 
+    auth_mod_by_id: dict[str, dict[str, Any]] = {
+        str(m["module_id"]): m for m in AUTHORITATIVE_14_MODULES
+    }
+
     modules_out: list[dict[str, Any]] = []
     for mid in module_order:
         dim_info = MODULE_DIMENSIONS_MM.get(mid, {})
         dims = dim_info.get("dims_mm")
+        auth_meta = auth_mod_by_id.get(mid, {})
         modules_out.append(
             {
                 "module_id": mid,
@@ -348,8 +373,30 @@ def build_web_contract_payload() -> dict[str, Any]:
                 "dims_mm": list(dims) if isinstance(dims, (tuple, list)) else None,
                 "wire_ids": module_wires[mid],
                 "wire_count": len(module_wires[mid]),
+                "hub_refs": list(auth_meta.get("hub_refs", ())),
+                "mount_parts": list(auth_meta.get("mount_parts", ())),
+                "blender_node": auth_meta.get("blender_node"),
+                "web3d_pin_id": auth_meta.get("web3d_pin_id"),
             }
         )
+
+    def _to_json_clean(val: Any) -> Any:
+        if isinstance(val, tuple):
+            return [_to_json_clean(x) for x in val]
+        if isinstance(val, list):
+            return [_to_json_clean(x) for x in val]
+        if isinstance(val, dict):
+            return {str(k): _to_json_clean(v) for k, v in val.items()}
+        return val
+
+    authoritative_14_modules_out: list[dict[str, Any]] = [
+        _to_json_clean(item) for item in AUTHORITATIVE_14_MODULES
+    ]
+    authoritative_core_boards_out: list[dict[str, Any]] = [
+        _to_json_clean(item) for item in AUTHORITATIVE_CORE_BOARDS
+    ]
+    sg90_mechanical_specs_out: dict[str, Any] = _to_json_clean(SG90_MECHANICAL_SPECS)
+    door_torque_margin_out: dict[str, Any] = _to_json_clean(compute_door_torque_margin())
 
     connectors_out: list[dict[str, Any]] = []
     for c in HUB_CONNECTORS:
@@ -453,6 +500,10 @@ def build_web_contract_payload() -> dict[str, Any]:
         "wire_lengths_summary": wire_lengths_summary,
         "wire_colors": wire_colors,
         "modules": modules_out,
+        "authoritative_14_modules": authoritative_14_modules_out,
+        "authoritative_core_boards": authoritative_core_boards_out,
+        "sg90_mechanical_specs": sg90_mechanical_specs_out,
+        "door_torque_margin": door_torque_margin_out,
         "wires": wires_out,
         "connectors": connectors_out,
         "firmware_pins": firmware_pins_out,
@@ -474,6 +525,8 @@ def build_web_contract_payload() -> dict[str, Any]:
             "offboard_wires": len(wires_out) - hub_count,
             "connectors": len(connectors_out),
             "modules": len(modules_out),
+            "authoritative_14_modules": len(authoritative_14_modules_out),
+            "authoritative_core_boards": len(authoritative_core_boards_out),
             "firmware_pins": len(firmware_pins_out),
             "protection_components": len(protection_out),
             "onboard_passives": len(onboard_passives_out),

@@ -43,7 +43,7 @@ SCENE_SPEC_PATH = REPO_ROOT / "hardware" / "blender" / "SCENE_SPEC.json"
 BLENDER_SCRIPT_PATH = REPO_ROOT / "scripts" / "build_smarthome_blender.py"
 HOUSE3D_JS_PATH = REPO_ROOT / "web" / "house3d.js"
 OUT_MD_PATH = REPO_ROOT / "docs" / "phan_cung" / "DIMENSIONS_AUDIT.md"
-DEFAULT_RECEIPT_PATH = pathlib.Path(r"C:\Users\LENOVO\datn-wt\agyhw12_20261127\build_receipts\dimensions_audit.json")
+DEFAULT_RECEIPT_PATH = pathlib.Path(r"C:\Users\LENOVO\datn-wt\agyhw13_20261127\build_receipts\dimensions_audit.json")
 
 
 def parse_kicad_footprints_detailed(pcb_path: pathlib.Path) -> dict[str, Any]:
@@ -146,14 +146,14 @@ def build_print_mount_lookup() -> dict[str, str]:
     return {
         "hub_pcb": fmt_sup("SUP06_HUB_PCB_SNAP_CARRIER", "4× Ø3.0mm snap pegs @ 90×70mm on `P16_PCB_PLATE`"),
         "nodemcu": "`SUP06` + `P15_TECH_FASCIA` 128mm open USB cutaway (v2 Amica 22.86mm pitch only)",
-        "psu_5v": "`P15_TECH_FASCIA` M12 hole `Ø12.5mm` (12.0+0.5mm clearance)",
-        "sg90_servo": fmt_sup("SUP11_SG90_SNAP_SADDLE", "`P07_SERVO_SHELF` cutout `23.3×12.7mm` (+0.5mm)"),
-        "led_living": "`P06_WALL_MID` `LED_Living_5mm` hole `Ø5.5mm` (relocated to u=40, v=126)",
-        "led_bedroom": "`P06_WALL_MID` `LED_Bedroom_5mm` hole `Ø5.5mm` (relocated to u=66, v=126)",
+        "psu_5v": fmt_sup("SUP16_DC022_STRAIN_RELIEF", "`P15_TECH_FASCIA` M12 hole `Ø12.5mm` + rear snap strain-relief collar (0 screws)"),
+        "sg90_servo": fmt_sup("SUP11_SG90_SNAP_SADDLE", "Coaxial top-jamb `P07_SERVO_SHELF` `23.3×12.7mm` + `SUP10`/`SUP10B` coupler (0 screws)"),
+        "led_living": fmt_sup("SUP17_LED5MM_RETAINING_COLLAR", "`P06_WALL_MID` `LED_Living_5mm` `Ø5.5mm` @ u=40, v=126 (0 screws)"),
+        "led_bedroom": fmt_sup("SUP17_LED5MM_RETAINING_COLLAR", "`P06_WALL_MID` `LED_Bedroom_5mm` `Ø5.5mm` @ u=66, v=126 (0 screws)"),
         "relay1_pump": fmt_sup("SUP07_RELAY_SNAP_CADDY", "4× Ø2.9mm snap pegs @ 44.5×20.5mm on `P01A`"),
         "relay2_speaker": fmt_sup("SUP07_RELAY_SNAP_CADDY", "4× Ø2.9mm snap pegs @ 44.5×20.5mm on `P01A`"),
         "pump_unit": "Free-standing inside `P09/P10/P12/P13` water tank (52×126×54mm) + `Ø10.0mm` tube hole",
-        "buzzer_alarm": "`P05_WALL_FRONT` `Buzzer_12mm` hole `Ø12.5mm` (12.0+0.5mm)",
+        "buzzer_alarm": fmt_sup("SUP18_BUZZER_SNAP_COLLAR", "`P05_WALL_FRONT` `Buzzer_12mm` `Ø12.5mm` + rear mortise snap cup (0 screws)"),
         "pam8403_amp": fmt_sup("SUP08_PAM8403_SNAP_TRAY", "21.4×18.4mm edge-rail cavity (+0.20mm/side) on `P01A`"),
         "speaker_mini": fmt_sup("SUP09_SPEAKER_SNAP_RETAINER", "`P15` 19-hole Ø3.0mm grille behind Ø28mm frame"),
         "dht11_sensor": fmt_sup("SUP12_DHT11_SNAP_CRADLE", "`P06_WALL_MID` vent `12.5×16.0mm` (relocated to u=94, v=88)"),

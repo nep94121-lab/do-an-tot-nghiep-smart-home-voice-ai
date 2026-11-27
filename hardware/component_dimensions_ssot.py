@@ -520,3 +520,254 @@ MODULE_DIMENSIONS_MM: dict[str, dict[str, Any]] = {
     for c in COMPONENT_DIMENSIONS
     if c.category in ("pcb", "module")
 }
+
+
+# ---------------------------------------------------------------------------
+# Extended SG90 Coaxial Door-Actuator Mechanical SSOT (R1 agyhw13)
+# Source: TowerPro SG90 Micro Servo Datasheet (HandsOnTech SG90-Servo.pdf)
+# ---------------------------------------------------------------------------
+SG90_MECHANICAL_SPECS: dict[str, Any] = {
+    "source_name": "TowerPro SG90 9g Micro Servo Datasheet (HandsOnTech)",
+    "source_url": "https://www.handsontec.com/dataspecs/SG90-Servo.pdf",
+    "body_l_mm": 22.8,
+    "body_w_mm": 12.2,
+    "body_h_mm": 22.5,
+    "ear_span_mm": 32.2,
+    "ear_w_mm": 12.2,
+    "ear_thickness_mm": 2.5,
+    "ear_bottom_from_body_bottom_mm": 15.9,
+    "ear_top_to_gearbox_deck_mm": 4.1,
+    "ear_hole_pitch_mm": 27.8,
+    "ear_hole_dia_mm": 2.0,
+    "shaft_offset_from_front_mm": 5.9,
+    "shaft_offset_from_center_mm": 5.5,
+    "gear_hub_dia_mm": 11.8,
+    "gear_hub_h_mm": 4.2,
+    "spline_dia_mm": 4.8,
+    "spline_exposed_h_mm": 2.3,
+    "overall_h_with_horn_mm": 31.0,
+    "horn_single_arm_len_mm": 14.5,
+    "horn_center_to_tip_mm": 17.5,
+    "horn_width_mm": 4.5,
+    "horn_thickness_mm": 1.6,
+    "horn_hub_dia_mm": 6.0,
+    "horn_hole_pitches_mm": (6.5, 9.0, 11.5, 14.0),
+    "pigtail_len_cm": 25.0,
+    "stall_torque_kg_cm_4v8": 1.80,
+    "stall_torque_nm_4v8": 0.1765,
+    "speed_sec_per_60deg_4v8": 0.12,
+    # Unified coaxial door-hinge drive parameters (house world frame mm)
+    "drive_mechanism": "coaxial_direct_drive_top_jamb",
+    "hinge_pivot_xy_mm": (77.0, 201.5),
+    "servo_body_center_xyz_mm": (71.5, 201.5, 118.65),
+    "shelf_z_range_mm": (108.5, 111.5),
+    "horn_z_center_mm": 100.1,
+    "door_leaf_w_h_t_mm": (56.0, 100.0, 3.0),
+    "door_swing_deg_range": (0.0, 90.0),
+    "endstop_deg_range": (-2.0, 92.0),
+    "coupler_slot_w_mm": 4.9,
+    "coupler_slot_len_mm": 14.5,
+}
+
+
+def compute_door_torque_margin(
+    door_mass_g: float = 17.6,
+    door_width_mm: float = 56.0,
+    hinge_pin_dia_mm: float = 2.7,
+    pla_friction_mu: float = 0.30,
+    swing_time_s: float = 0.25,
+    external_bump_n: float = 0.20,
+) -> dict[str, Any]:
+    """Compute physical torque budget & safety margin for SG90 coaxial direct-drive door."""
+    import math
+
+    m_kg = door_mass_g / 1000.0
+    w_m = door_width_mm / 1000.0
+    r_pin_m = (hinge_pin_dia_mm / 2.0) / 1000.0
+    g = 9.81
+    # Inertia of flat door leaf about vertical hinge axis: I = (1/3) * m * W^2
+    inertia_kg_m2 = (1.0 / 3.0) * m_kg * (w_m ** 2)
+    # Peak angular acceleration for 90 deg (pi/2 rad) bang-bang/trapezoidal move in swing_time_s
+    alpha_rad_s2 = (2.0 * (math.pi / 2.0)) / ((swing_time_s / 2.0) ** 2) * 0.25  # ~50.3 rad/s^2
+    tau_dyn_nm = inertia_kg_m2 * alpha_rad_s2
+    # Conservative 5x binding multiplier on PLA-on-PLA hinge friction
+    tau_fric_nm = 5.0 * pla_friction_mu * (m_kg * g) * r_pin_m
+    # Fingertip bump / airflow disturbance at outer door edge
+    tau_ext_nm = external_bump_n * w_m
+    tau_nominal_nm = tau_dyn_nm + tau_fric_nm
+    tau_worst_nm = tau_nominal_nm + tau_ext_nm
+
+    nm_to_kgcm = 100.0 / g  # 10.1937 kg.cm per N.m
+    tau_sg90_kgcm = float(SG90_MECHANICAL_SPECS["stall_torque_kg_cm_4v8"])
+    tau_nominal_kgcm = tau_nominal_nm * nm_to_kgcm
+    tau_worst_kgcm = tau_worst_nm * nm_to_kgcm
+
+    return {
+        "mechanism": SG90_MECHANICAL_SPECS["drive_mechanism"],
+        "door_mass_g": door_mass_g,
+        "door_width_mm": door_width_mm,
+        "sg90_stall_torque_kg_cm": tau_sg90_kgcm,
+        "dynamic_torque_kg_cm": round(tau_dyn_nm * nm_to_kgcm, 5),
+        "friction_torque_kg_cm": round(tau_fric_nm * nm_to_kgcm, 5),
+        "external_disturbance_torque_kg_cm": round(tau_ext_nm * nm_to_kgcm, 5),
+        "nominal_required_torque_kg_cm": round(tau_nominal_kgcm, 5),
+        "worst_case_required_torque_kg_cm": round(tau_worst_kgcm, 4),
+        "nominal_safety_margin_x": round(tau_sg90_kgcm / max(tau_nominal_kgcm, 1e-6), 1),
+        "worst_case_safety_margin_x": round(tau_sg90_kgcm / max(tau_worst_kgcm, 1e-6), 2),
+        "passes_min_5x_margin": (tau_sg90_kgcm / max(tau_worst_kgcm, 1e-6)) >= 5.0,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Authoritative 14 Off-Board Modules + NodeMCU + Hub PCB Registry (R1/R2/R4)
+# Single source consumed by FreeCAD fit_table, Blender SCENE_SPEC, Web 3D & tests
+# ---------------------------------------------------------------------------
+AUTHORITATIVE_14_MODULES: tuple[dict[str, Any], ...] = (
+    {
+        "module_id": "sg90_servo",
+        "hw_part_id": "HW_SG90",
+        "label_vi": "Servo SG90 (Cửa chính D1)",
+        "mount_parts": ("P07_SERVO_SHELF", "SUP11_SG90_SNAP_SADDLE", "SUP10_DOOR_MORTISE_HINGE", "SUP10B_DOOR_HORN_COUPLER"),
+        "blender_node": "SG90_DoorServo",
+        "web3d_pin_id": "mod_sg90_servo",
+        "hub_refs": ("J3",),
+    },
+    {
+        "module_id": "psu_5v",
+        "hw_part_id": "HW_DC_JACK",
+        "label_vi": "Nguồn 5V 2A / DC-022 → J1",
+        "mount_parts": ("P15_TECH_FASCIA", "SUP16_DC022_STRAIN_RELIEF"),
+        "blender_node": "psu_5v_dc_jack",
+        "web3d_pin_id": "mod_psu_5v",
+        "hub_refs": ("J1",),
+    },
+    {
+        "module_id": "led_living",
+        "hw_part_id": "HW_LED_LR",
+        "label_vi": "Đèn LED 5mm Phòng khách (D0)",
+        "mount_parts": ("P06_WALL_MID", "SUP17_LED5MM_RETAINING_COLLAR"),
+        "blender_node": "led_living_room",
+        "web3d_pin_id": "living_room_light",
+        "hub_refs": ("J4",),
+    },
+    {
+        "module_id": "led_bedroom",
+        "hw_part_id": "HW_LED_BR",
+        "label_vi": "Đèn LED 5mm Phòng ngủ (D4)",
+        "mount_parts": ("P06_WALL_MID", "SUP17_LED5MM_RETAINING_COLLAR"),
+        "blender_node": "led_bedroom",
+        "web3d_pin_id": "bedroom_light",
+        "hub_refs": ("J5",),
+    },
+    {
+        "module_id": "buzzer_alarm",
+        "hw_part_id": "HW_BUZZER",
+        "label_vi": "Còi báo động 5V TMB12A05 (D8)",
+        "mount_parts": ("P05_WALL_FRONT", "SUP18_BUZZER_SNAP_COLLAR"),
+        "blender_node": "buzzer_alarm",
+        "web3d_pin_id": "alarm_siren",
+        "hub_refs": ("J6",),
+    },
+    {
+        "module_id": "ky037_sound",
+        "hw_part_id": "HW_KY037",
+        "label_vi": "Cảm biến âm thanh KY-037 (D5)",
+        "mount_parts": ("SUP13_KY037_SNAP_CRADLE", "P05_WALL_FRONT"),
+        "blender_node": "sensor_mic_ky037",
+        "web3d_pin_id": "sensor_ky037_d5",
+        "hub_refs": ("J15",),
+    },
+    {
+        "module_id": "dht11_sensor",
+        "hw_part_id": "HW_DHT11",
+        "label_vi": "Cảm biến nhiệt/ẩm DHT11 (D2)",
+        "mount_parts": ("SUP12_DHT11_SNAP_CRADLE", "P06_WALL_MID"),
+        "blender_node": "sensor_dht11",
+        "web3d_pin_id": "sensor_dht11_d2",
+        "hub_refs": ("J13",),
+    },
+    {
+        "module_id": "soil_lm393",
+        "hw_part_id": "HW_LM393",
+        "label_vi": "Mạch so sánh đất LM393 (A0)",
+        "mount_parts": ("SUP14_LM393_SNAP_CRADLE", "P13_GARDEN_BACK"),
+        "blender_node": "soil_lm393_board",
+        "web3d_pin_id": "mod_soil_lm393",
+        "hub_refs": ("J14",),
+    },
+    {
+        "module_id": "soil_probe",
+        "hw_part_id": "HW_SOIL_PROBE",
+        "label_vi": "Đầu dò độ ẩm đất YL-69",
+        "mount_parts": ("P14_SOIL_BRIDGE",),
+        "blender_node": "sensor_soil",
+        "web3d_pin_id": "sensor_soil_a0",
+        "hub_refs": ("LM393",),
+    },
+    {
+        "module_id": "pump_unit",
+        "hw_part_id": "HW_PUMP",
+        "label_vi": "Máy bơm 5V + Ống nước (J2)",
+        "mount_parts": ("SUP15_WATER_TANK_LINER", "P10_WATER_DIVIDER"),
+        "blender_node": "pump_unit",
+        "web3d_pin_id": "garden_pump",
+        "hub_refs": ("J2",),
+    },
+    {
+        "module_id": "speaker_mini",
+        "hw_part_id": "HW_SPEAKER",
+        "label_vi": "Loa tròn mini 28mm (8Ω)",
+        "mount_parts": ("SUP09_SPEAKER_SNAP_RETAINER", "P15_TECH_FASCIA"),
+        "blender_node": "speaker_mini",
+        "web3d_pin_id": "mod_speaker_mini",
+        "hub_refs": ("PAM8403",),
+    },
+    {
+        "module_id": "pam8403_amp",
+        "hw_part_id": "HW_PAM8403",
+        "label_vi": "Mạch khuếch đại PAM8403 (J11/J12)",
+        "mount_parts": ("SUP08_PAM8403_SNAP_TRAY", "P01A_BASE_TECH"),
+        "blender_node": "pam8403_module",
+        "web3d_pin_id": "speaker_amp",
+        "hub_refs": ("J11", "J12"),
+    },
+    {
+        "module_id": "relay1_pump",
+        "hw_part_id": "HW_RELAY1",
+        "label_vi": "Rơ-le 1 Bơm (D6 · Ngõ ra J2/J8)",
+        "mount_parts": ("SUP07_RELAY_SNAP_CADDY", "P01A_BASE_TECH"),
+        "blender_node": "relay1_pump",
+        "web3d_pin_id": "mod_relay1_pump",
+        "hub_refs": ("J7", "J8"),
+    },
+    {
+        "module_id": "relay2_speaker",
+        "hw_part_id": "HW_RELAY2",
+        "label_vi": "Rơ-le 2 Loa (D7 · Ngõ ra J10/J11)",
+        "mount_parts": ("SUP07_RELAY_SNAP_CADDY", "P01A_BASE_TECH"),
+        "blender_node": "relay2_speaker",
+        "web3d_pin_id": "mod_relay2_speaker",
+        "hub_refs": ("J9", "J10"),
+    },
+)
+
+AUTHORITATIVE_CORE_BOARDS: tuple[dict[str, Any], ...] = (
+    {
+        "module_id": "nodemcu",
+        "hw_part_id": "HW_NODEMCU",
+        "label_vi": "NodeMCU ESP8266 v2 Amica",
+        "mount_parts": ("SUP06_HUB_PCB_SNAP_CARRIER", "P15_TECH_FASCIA"),
+        "blender_node": "nodemcu_esp8266",
+        "web3d_pin_id": "board_esp8266",
+        "hub_refs": ("U1", "U2"),
+    },
+    {
+        "module_id": "hub_pcb",
+        "hw_part_id": "HW_PCB",
+        "label_vi": "PCB Hub DIY v3 (J1 vào · J2/J8/J10/J11 ra)",
+        "mount_parts": ("SUP06_HUB_PCB_SNAP_CARRIER", "P16_PCB_PLATE", "SUP05_P16_TENON_RISER"),
+        "blender_node": "kicad_pcb_hub",
+        "web3d_pin_id": "mod_hub_pcb",
+        "hub_refs": ("J1", "J2", "J3", "J4", "J5", "J6", "J7", "J8", "J9", "J10", "J11", "J12", "J13", "J14", "J15"),
+    },
+)

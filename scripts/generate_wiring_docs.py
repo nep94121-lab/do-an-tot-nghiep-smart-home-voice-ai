@@ -35,6 +35,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from hardware.component_dimensions_ssot import (  # noqa: E402
+    AUTHORITATIVE_14_MODULES,
+    AUTHORITATIVE_CORE_BOARDS,
+    SG90_MECHANICAL_SPECS,
+    compute_door_torque_margin,
+)
 from hardware.wiring_contract import (  # noqa: E402
     FIRMWARE_PIN_CONTRACT,
     HUB_CONNECTOR_MAP,
@@ -320,8 +326,38 @@ def generate_wiring_table_md(out_path: Path, stats: dict[str, object]) -> None:
         )
     lines.append("")
 
+    # Section 7: Authoritative 14 Modules + Core Boards & Coaxial SG90 Door Mechanical Margin
+    tm = compute_door_torque_margin()
+    lines.append("## 7. Authoritative 14 Off-Board Modules + Core Boards & Coaxial SG90 Direct-Drive Door")
+    lines.append("")
+    lines.append(
+        "Synced directly from `hardware/component_dimensions_ssot.py` (`AUTHORITATIVE_14_MODULES`, `AUTHORITATIVE_CORE_BOARDS`, "
+        "`SG90_MECHANICAL_SPECS`, `compute_door_torque_margin()`): **0 screws, 0 glue, 0 slicer supports**."
+    )
+    lines.append("")
+    lines.append(
+        f"- **Coaxial Top-Jamb SG90 Direct-Drive Door (`{tm['mechanism']}`):** Unified hinge & servo shaft axis at "
+        f"`{SG90_MECHANICAL_SPECS['hinge_pivot_xy_mm']}` mm (`P07_SERVO_SHELF` at `Z={SG90_MECHANICAL_SPECS['shelf_z_range_mm'][0]}..{SG90_MECHANICAL_SPECS['shelf_z_range_mm'][1]} mm`, "
+        f"`SUP11_SG90_SNAP_SADDLE`, `SUP10_DOOR_MORTISE_HINGE` ×2, `SUP10B_DOOR_HORN_COUPLER`, end-stops `{SG90_MECHANICAL_SPECS['endstop_deg_range'][0]}°..+{SG90_MECHANICAL_SPECS['endstop_deg_range'][1]}°`)."
+    )
+    lines.append(
+        f"- **SG90 Torque Budget:** Stall torque `{tm['sg90_stall_torque_kg_cm']} kg·cm` @ 4.8V vs worst-case door load "
+        f"`{tm['worst_case_required_torque_kg_cm']} kg·cm` (door `{tm['door_mass_g']} g`, width `{tm['door_width_mm']} mm`) → "
+        f"**`{tm['worst_case_safety_margin_x']}×` worst-case safety margin** (`{tm['nominal_safety_margin_x']}×` nominal, `>= 5×` check: `{'PASS' if tm['passes_min_5x_margin'] else 'FAIL'}`)."
+    )
+    lines.append("")
+    lines.append("| # | Module ID | Vietnamese Label | Hub Refs | Screwless Mount Parts | Blender / Web 3D Node |")
+    lines.append("|---:|---|---|---|---|---|")
+    for idx_m, mod in enumerate((*AUTHORITATIVE_14_MODULES, *AUTHORITATIVE_CORE_BOARDS), start=1):
+        refs = ", ".join(mod["hub_refs"])
+        mounts = ", ".join(f"`{p}`" for p in mod["mount_parts"])
+        lines.append(
+            f"| {idx_m} | `{mod['module_id']}` | {mod['label_vi']} | `{refs}` | {mounts} | `{mod['blender_node']}` / `{mod['web3d_pin_id']}` |"
+        )
+    lines.append("")
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text("\n".join(lines), encoding="utf-8")
+    out_path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
 # ---------------------------------------------------------------------------
@@ -1827,6 +1863,11 @@ def main() -> int:
         default=2.4,
         help="PyMuPDF rasterization scale from 1200x825 pt vector PDF (default 2.4 => 2880x1980 px).",
     )
+    parser.add_argument(
+        "--md-only",
+        action="store_true",
+        help="Only regenerate docs/phan_cung/WIRING_TABLE.md without rewriting SVG/PDF/PNG.",
+    )
     args = parser.parse_args()
 
     stats = validate_contract()
@@ -1838,6 +1879,10 @@ def main() -> int:
     png_path = out_dir / "wiring_diagram_2d.png"
 
     generate_wiring_table_md(md_path, stats)
+    if args.md_only:
+        print(f"[OK] Contract validated: {stats['total_wires']} wires ({stats['hub_wires']} Hub + {stats['offboard_wires']} Off-Board).")
+        print(f"[OK] Markdown: {md_path} ({md_path.stat().st_size:,} bytes)")
+        return 0
     scene = build_clean_wiring_diagram()
     scene.write_svg(svg_path)
     scene.write_pdf(pdf_path)

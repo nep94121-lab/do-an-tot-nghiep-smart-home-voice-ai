@@ -28,6 +28,7 @@ import pathlib
 import sys
 import bpy
 import bmesh
+from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Euler, Vector
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -37,7 +38,7 @@ MICA_DIR = REPO_ROOT / "hardware" / "mica"
 if str(MICA_DIR) not in sys.path:
     sys.path.insert(0, str(MICA_DIR))
 
-from hardware.component_dimensions_ssot import COMPONENT_DIM_MAP  # noqa: E402
+from hardware.component_dimensions_ssot import COMPONENT_DIM_MAP, SG90_MECHANICAL_SPECS  # noqa: E402
 from hardware.wiring_contract import HUB_CONNECTOR_MAP, HUB_CONNECTORS  # noqa: E402
 import mica_design as md  # noqa: E402
 
@@ -354,11 +355,20 @@ def build_materials() -> dict[str, bpy.types.Material]:
         "ic_black":    make_mat("IC_EpoxyBlack",    (0.07, 0.07, 0.08, 1.0), roughness=0.32),
         "pot_blue":    make_mat("TrimmerPotBlue",   (0.10, 0.38, 0.82, 1.0), roughness=0.38),
         "mic_felt":    make_mat("ElectretFelt",     (0.06, 0.06, 0.07, 1.0), roughness=0.92),
-        "led_lr":      make_mat("LED_LivingWarm",   (1.00, 0.90, 0.65, 1.0), roughness=0.14, emission=(1.0, 0.85, 0.45), emission_strength=1.2),
-        "led_br":      make_mat("LED_BedroomWarm",  (1.00, 0.82, 0.50, 1.0), roughness=0.14, emission=(1.0, 0.74, 0.32), emission_strength=1.1),
-        "led_red":     make_mat("LED_StatusRed",    (0.95, 0.14, 0.12, 1.0), roughness=0.18, emission=(0.95, 0.12, 0.10), emission_strength=0.9),
-        "led_grn":     make_mat("LED_StatusGreen",  (0.12, 0.88, 0.28, 1.0), roughness=0.18, emission=(0.12, 0.88, 0.28), emission_strength=0.9),
+        "pla_mount":   make_mat("PLA_SnapMount",    (0.56, 0.70, 0.80, 1.0), roughness=0.40, metallic=0.04),
+        "pla_coupler": make_mat("PLA_HornCoupler",  (0.92, 0.44, 0.10, 1.0), roughness=0.35, metallic=0.05),
+        "plug_yellow": make_mat("DCPlugYellowTip",  (0.95, 0.78, 0.06, 1.0), roughness=0.32),
+        "led_lr":      make_mat("LED_LivingWarm",   (1.00, 0.92, 0.65, 1.0), roughness=0.12, emission=(1.0, 0.88, 0.48), emission_strength=6.5),
+        "led_br":      make_mat("LED_BedroomWarm",  (1.00, 0.84, 0.48, 1.0), roughness=0.12, emission=(1.0, 0.76, 0.32), emission_strength=5.8),
+        "led_lr_halo": make_mat("LED_LivingHalo",   (1.00, 0.90, 0.55, 0.24), roughness=0.10, emission=(1.0, 0.86, 0.42), emission_strength=3.5, alpha=0.24),
+        "led_br_halo": make_mat("LED_BedroomHalo",  (1.00, 0.78, 0.40, 0.24), roughness=0.10, emission=(1.0, 0.74, 0.30), emission_strength=3.2, alpha=0.24),
+        "led_red":     make_mat("LED_StatusRed",    (0.95, 0.14, 0.12, 1.0), roughness=0.18, emission=(0.95, 0.12, 0.10), emission_strength=1.4),
+        "led_grn":     make_mat("LED_StatusGreen",  (0.12, 0.88, 0.28, 1.0), roughness=0.18, emission=(0.12, 0.88, 0.28), emission_strength=1.8),
         "jumper_yel":  make_mat("JumperYellow",     (0.95, 0.76, 0.04, 1.0), roughness=0.34),
+        "callout_j1":  make_mat("Callout_J1_In",    (0.95, 0.16, 0.14, 1.0), roughness=0.28, emission=(0.95, 0.20, 0.12), emission_strength=1.2),
+        "callout_j2":  make_mat("Callout_J2_Pump",  (0.06, 0.74, 0.92, 1.0), roughness=0.28, emission=(0.06, 0.74, 0.92), emission_strength=1.0),
+        "callout_sw":  make_mat("Callout_RelaySw",  (0.96, 0.68, 0.08, 1.0), roughness=0.28, emission=(0.96, 0.68, 0.08), emission_strength=1.0),
+        "callout_amp": make_mat("Callout_AmpOut",   (0.14, 0.84, 0.42, 1.0), roughness=0.28, emission=(0.14, 0.84, 0.42), emission_strength=1.0),
 
         # Top-side PCB jumper wire materials
         "w_red":       make_mat("WireRed_5V",       (0.86, 0.12, 0.12, 1.0), roughness=0.38),
@@ -444,11 +454,57 @@ def build_open_cutaway_house(mats: dict[str, bpy.types.Material]) -> bpy.types.O
     add_box_house("FrontCutawayBed",  214.0, 396.0, 192.0, 195.0,   0.0,  CUT_H, mats["wall_cream"], parent=arch)
     add_box_house("FrontCutawayBedC", 214.0, 396.0, 191.5, 195.5, CUT_H,  CUT_H + 2.0, mats["wall_trim"], parent=arch)
 
-    # P07_SERVO_SHELF: horizontal SG90 mount shelf (X in [34..68], Y in [195..241], Z in [26.5..29.5])
-    add_box_house("P07_ServoShelf_L", 34.0, 44.5, 195.0, 241.0, 26.5, 29.5, mats["wall_trim"], parent=arch)
-    add_box_house("P07_ServoShelf_R", 57.5, 68.0, 195.0, 241.0, 26.5, 29.5, mats["wall_trim"], parent=arch)
-    add_box_house("P07_ServoShelf_F", 44.5, 57.5, 195.0, 206.0, 26.5, 29.5, mats["wall_trim"], parent=arch)
-    add_box_house("P07_ServoShelf_B", 44.5, 57.5, 230.0, 241.0, 26.5, 29.5, mats["wall_trim"], parent=arch)
+    # P07_SERVO_SHELF: coaxial top-jamb horizontal SG90 mount shelf (X in [47..96], Y in [195.125..221.125], Z in [108.5..111.5])
+    # SG90 cutout: X in [59.85..83.15], Y in [195.15..207.85] -> coaxial shaft at (77.0, 201.5)
+    add_box_house("P07_ServoShelf_L",   47.0, 59.85, 195.125, 221.125, 108.5, 111.5, mats["wall_trim"], parent=arch, bevel_mm=0.2)
+    add_box_house("P07_ServoShelf_R",   83.15, 96.0, 195.125, 221.125, 108.5, 111.5, mats["wall_trim"], parent=arch, bevel_mm=0.2)
+    add_box_house("P07_ServoShelf_B",   59.85, 83.15, 207.85, 221.125, 108.5, 111.5, mats["wall_trim"], parent=arch, bevel_mm=0.2)
+    add_box_house("P07_ServoShelf_Tab", 56.5, 86.5, 192.0, 195.15, 108.5, 111.5, mats["wall_trim"], parent=arch)
+
+    # Integral non-stalling mechanical end-stop lugs on P07_SERVO_SHELF underside (Z = 98.5..108.5)
+    add_box_house("P07_EndStop_Closed", 90.5, 94.5, 195.5, 198.7, 98.5, 108.5, mats["pla_coupler"], parent=arch, bevel_mm=0.2)
+    add_box_house("P07_EndStop_Open",   70.3, 74.3, 212.0, 216.0, 98.5, 108.5, mats["pla_coupler"], parent=arch, bevel_mm=0.2)
+
+    # SUP11_SG90_SNAP_SADDLE atop P07 (Z=111.5..115.2) clamping SG90 ears with center window for blue body
+    add_box_house("SUP11_SG90_Saddle_L", 49.0, 59.7, 195.1, 207.9, 111.5, 115.2, mats["pla_mount"], parent=arch, bevel_mm=0.25)
+    add_box_house("SUP11_SG90_Saddle_R", 83.3, 93.0, 195.1, 207.9, 111.5, 115.2, mats["pla_mount"], parent=arch, bevel_mm=0.25)
+    add_box_house("SUP11_SG90_Saddle_B", 49.0, 93.0, 207.9, 211.5, 111.5, 115.2, mats["pla_mount"], parent=arch, bevel_mm=0.25)
+
+    # Cable_Servo_D1 visual pass-through grommet ring on P05 (X=48.0, Y=193.5, Z=110.0)
+    gx, gy, gz = house_to_three_mm(48.0, 193.5, 110.0)
+    add_cyl("P05_CableServoGrommet", gx, gy, gz, 5.2, 3.6, mats["plastic_blk"], parent=arch, axis="Z", segs=20)
+
+    # SUP10 fixed door-jamb hinge brackets on P05 at Z=18.0 and Z=78.0 -> coaxial pivot (77.0, 201.5)
+    for htag, hz in [("Bot", 18.0), ("Top", 78.0)]:
+        add_box_house(f"SUP10_FixedArm_{htag}", 70.0, 77.0, 195.0, 201.5, hz - 8.0, hz - 4.0, mats["pla_mount"], parent=arch, bevel_mm=0.2)
+        add_box_house(f"SUP10_FixedArmU_{htag}", 70.0, 77.0, 195.0, 201.5, hz + 4.0, hz + 8.0, mats["pla_mount"], parent=arch, bevel_mm=0.2)
+        kx, ky_l, kz = house_to_three_mm(77.0, 201.5, hz - 6.0)
+        add_cyl(f"SUP10_FixedKnuckleL_{htag}", kx, ky_l, kz, 2.8, 4.0, mats["pla_mount"], parent=arch, segs=16)
+        add_cyl(f"SUP10_FixedKnuckleU_{htag}", kx, hz + 6.0, kz, 2.8, 4.0, mats["pla_mount"], parent=arch, segs=16)
+        add_cyl(f"SUP10_HingePin_{htag}", kx, hz, kz, 1.35, 17.0, mats["silver_mtl"], parent=arch, segs=14)
+
+    # SUP18_BUZZER_SNAP_COLLAR behind P05_WALL_FRONT CenterPillar (strictly inside P06 relief zone Y<214, Z>112)
+    add_box_house("SUP18_BuzzerSnapCollar_L", 193.0, 195.5, 195.0, 201.0, 116.5, 141.5, mats["pla_mount"], parent=arch, bevel_mm=0.2)
+    add_box_house("SUP18_BuzzerSnapCollar_R", 204.5, 207.0, 195.0, 201.0, 116.5, 141.5, mats["pla_mount"], parent=arch, bevel_mm=0.2)
+    add_box_house("SUP18_BuzzerSnapCollar_T", 193.0, 207.0, 195.0, 201.0, 134.0, 141.5, mats["pla_mount"], parent=arch, bevel_mm=0.2)
+    add_box_house("SUP18_BuzzerSnapCollar_B", 193.0, 207.0, 195.0, 201.0, 116.5, 120.5, mats["pla_mount"], parent=arch, bevel_mm=0.2)
+
+    # Exterior 5V 2A power cord stub exiting DC-022 barrel plug in front of P15_TECH_FASCIA
+    add_tube(
+        "DC022_ExtPowerCord",
+        [
+            (-173.0, 22.0, 241.5),
+            (-173.5, 21.5, 248.0),
+            (-178.0, 16.0, 253.5),
+            (-186.0,  7.0, 256.0),
+            (-196.0,  2.5, 256.0),
+        ],
+        radius_mm=1.9,
+        mat=mats["plastic_blk"],
+        parent=arch,
+        res=6,
+        bevel_res=3,
+    )
 
     # P15_TECH_FASCIA: Front Technical Bay Power & Speaker Fascia (X in [8..254], Y in [10..13])
     add_box_house("P15_PowerZone",     8.0,  64.0, 10.0, 13.0, 0.0, 42.0, mats["wall_trim"], parent=arch, bevel_mm=0.2)
@@ -654,24 +710,44 @@ def build_hardware_devices_and_sensors(mats: dict[str, bpy.types.Material]) -> N
         return house_to_three_mm(hx, hy, hz)
 
     # ------------------------------------------------------------------
-    # DEVICE 1: main_door (`door_pivot` / `main_door_leaf`) + Servo SG90 (D1)
-    # Door opening X=[76..136] (tx=[-127..-67]), Y=[192..195] (tz=41.5), Z=[0..104]
+    # DEVICE 1: main_door (`door_pivot` / `main_door_leaf`) + Coaxial Top-Jamb Servo SG90 (D1)
+    # Unified coaxial hinge & servo axis: House (77.0, 201.5) -> Three.js (tx=-126.0, tz=+33.5)
+    # Door opening X=[76..136], Y=[192..195], Z=[0..104]; leaf 56x100x3 at X=[78..134], Z=[2..102]
     # ------------------------------------------------------------------
-    door_pivot = make_group("door_pivot", -125.0, 0.0, 41.5)
-    add_box("main_door_leaf", 28.0, 52.0, 0.0, 56.0, 100.0, 3.0, mats["door_wood"], parent=door_pivot, bevel_mm=0.4)
-    add_box("MainDoorWindow", 28.0, 71.0, 0.0, 26.0, 30.0, 3.6, mats["glass"], parent=door_pivot)
-    add_box("MainDoorHandle", 48.0, 48.0, 2.8, 4.0, 10.0, 2.6, mats["brass"], parent=door_pivot, bevel_mm=0.3)
+    door_pivot = make_group("door_pivot", -126.0, 0.0, 33.5)
+    add_box("main_door_leaf", 29.0, 52.0, 8.0, 56.0, 100.0, 3.0, mats["door_wood"], parent=door_pivot, bevel_mm=0.4)
+    add_box("MainDoorWindow", 29.0, 71.0, 8.0, 26.0, 30.0, 3.6, mats["glass"], parent=door_pivot)
+    add_box("MainDoorHandle", 49.0, 48.0, 10.8, 4.0, 10.0, 2.6, mats["brass"], parent=door_pivot, bevel_mm=0.3)
 
-    # SG90 Micro Servo at HW_SG90 (51.0, 218.1, 24.0) -> Three.js (-152.0, 24.0, +16.9)
-    # Mounted in P07_SERVO_SHELF: body 12.2 (X) x 22.5 (Y) x 22.8 (Z), tab span 32.2 (Z), overall H 31.0 (Y)
+    # Moving SUP10 door hinges at Z=18.0 and Z=78.0 (coaxial at local (0, Z, 0))
+    for htag, hz in [("Bot", 18.0), ("Top", 78.0)]:
+        add_cyl(f"SUP10_DoorKnuckle_{htag}", 0.0, hz, 0.0, 2.8, 7.6, mats["pla_mount"], parent=door_pivot, segs=16)
+        add_box(f"SUP10_DoorArm_{htag}", 3.5, hz, 4.0, 7.0, 7.2, 6.2, mats["pla_mount"], parent=door_pivot, bevel_mm=0.2)
+        add_box(f"SUP10_DoorTab_{htag}", 6.5, hz, 6.4, 5.0, 7.2, 2.0, mats["pla_mount"], parent=door_pivot, bevel_mm=0.15)
+
+    # SUP10B_DoorHornCoupler: mounts at P08 MORT_DOOR_LINK (X=88, Y=195, Z=97 -> local (+11, 97, +6.5))
+    # Extends back to coaxial horn plane Y=201.5 (local tz=0.0) forming open-top U-channel fork (inner W=4.9mm)
+    add_box("SUP10B_CouplerBase",   11.0,  97.2,  5.7, 8.0, 6.8, 1.8, mats["pla_coupler"], parent=door_pivot, bevel_mm=0.2)
+    add_box("SUP10B_CouplerBridge", 11.0,  97.8,  2.5, 6.5, 2.2, 6.4, mats["pla_coupler"], parent=door_pivot, bevel_mm=0.2)
+    add_box("SUP10B_ForkFloor",     10.5,  98.2,  0.0, 7.2, 1.4, 8.5, mats["pla_coupler"], parent=door_pivot, bevel_mm=0.15)
+    add_box("SUP10B_ForkWallF",     10.5, 100.3,  3.35, 7.2, 3.6, 1.8, mats["pla_coupler"], parent=door_pivot, bevel_mm=0.15)
+    add_box("SUP10B_ForkWallB",     10.5, 100.3, -3.35, 7.2, 3.6, 1.8, mats["pla_coupler"], parent=door_pivot, bevel_mm=0.15)
+
+    # Inverted Coaxial Top-Jamb SG90 Micro Servo at HW_SG90 (71.5, 201.5, 118.65) -> Three.js (-131.5, 118.65, +33.5)
+    # Body 22.8 (X) x 22.5 (Y/up) x 12.2 (Z/depth), tab span 32.2 (X), overall H 31.0 (Y: Z=98.9..129.9)
+    # Blue body rises proudly above P07 (Z=111.5..129.9); shaft descends coaxially at (X=77.0, Y=201.5)
     sgx, sgy, sgz = C("HW_SG90")
     sg90 = make_group("SG90_DoorServo", sgx, sgy, sgz)
-    add_box("SG90_Body", 0.0, 0.0, 0.0, 12.2, 22.5, 22.8, mats["sg90_blue"], parent=sg90, bevel_mm=0.35)
-    add_box("SG90_Flange", 0.0, 5.9, 0.0, 12.2, 2.5, 32.2, mats["sg90_blue"], parent=sg90)
-    add_box("SG90_Sticker", 6.05, -1.0, 0.0, 0.1, 11.0, 11.0, mats["sg90_label"], parent=sg90)
-    add_cyl("SG90_GearHub", 0.0, 13.35, 5.4, 5.9, 4.2, mats["sg90_blue"], parent=sg90)
-    add_cyl("SG90_OutputShaft", 0.0, 16.6, 5.4, 2.4, 2.3, mats["plastic_wht"], parent=sg90)
-    add_box("SG90_WhiteHorn", 0.0, 18.75, 9.1, 4.5, 2.0, 14.0, mats["plastic_wht"], parent=sg90, bevel_mm=0.25)
+    add_box("SG90_Body", 0.0, 0.0, 0.0, 22.8, 22.5, 12.2, mats["sg90_blue"], parent=sg90, bevel_mm=0.35)
+    add_box("SG90_Flange", 0.0, -5.9, 0.0, 32.2, 2.5, 12.2, mats["sg90_blue"], parent=sg90)
+    add_box("SG90_Sticker_In",  0.0, 1.5, -6.06, 12.0, 10.0, 0.08, mats["sg90_label"], parent=sg90)
+    add_box("SG90_Sticker_Out", 0.0, 1.5,  6.06, 12.0, 10.0, 0.08, mats["sg90_label"], parent=sg90)
+    add_cyl("SG90_GearHub", 5.5, -13.35, 0.0, 5.9, 4.2, mats["sg90_blue"], parent=sg90)
+    add_cyl("SG90_OutputShaft", 5.5, -16.60, 0.0, 2.4, 2.3, mats["plastic_wht"], parent=sg90)
+    # Dedicated coaxial rotating horn pivot at exact world (tx=-126.0, ty=100.1, tz=+33.5)
+    sg90_horn_pivot = make_group("sg90_horn_pivot", 5.5, -18.55, 0.0, parent=sg90)
+    add_cyl("SG90_HornHub", 0.0, 0.0, 0.0, 3.0, 2.4, mats["plastic_wht"], parent=sg90_horn_pivot, segs=18)
+    add_box("SG90_WhiteHorn", 3.35, 0.0, 0.0, 14.5, 1.6, 4.5, mats["plastic_wht"], parent=sg90_horn_pivot, bevel_mm=0.25)
 
     # ------------------------------------------------------------------
     # DEVICE 2: led_living_room (5mm T-1 3/4 LED on D0, relocated to P06_WALL_MID -X face)
@@ -679,9 +755,11 @@ def build_hardware_devices_and_sensors(mats: dict[str, bpy.types.Material]) -> N
     # ------------------------------------------------------------------
     lrx, lry, lrz = C("HW_LED_LR")
     led_lr = make_group("led_living_room", -4.5, lry, lrz)
+    add_box("SUP17_LED_LR_Collar", -0.80, 0.0, 0.0, 1.8, 10.0, 14.0, mats["pla_mount"], parent=led_lr, bevel_mm=0.25)
     add_cyl("LED_LR_Flange", -0.50, 0.0, 0.0, 2.9, 1.0, mats["led_lr"], parent=led_lr, axis="X", segs=24)
     add_cyl("LED_LR_Body",   -3.55, 0.0, 0.0, 2.5, 5.1, mats["led_lr"], parent=led_lr, axis="X", segs=24)
     add_sphere("LED_LR_Dome",-6.10, 0.0, 0.0, 2.5, mats["led_lr"], parent=led_lr, segs=20)
+    add_sphere("LED_LR_GlowHalo", -5.2, 0.0, 0.0, 6.8, mats["led_lr_halo"], parent=led_lr, segs=18)
     add_box("LED_LR_LeadA",   1.50,  1.27, 0.0, 3.0, 0.5, 0.5, mats["silver_mtl"], parent=led_lr)
     add_box("LED_LR_LeadK",   1.50, -1.27, 0.0, 3.0, 0.5, 0.5, mats["silver_mtl"], parent=led_lr)
 
@@ -691,9 +769,11 @@ def build_hardware_devices_and_sensors(mats: dict[str, bpy.types.Material]) -> N
     # ------------------------------------------------------------------
     brx, bry, brz = C("HW_LED_BR")
     led_br = make_group("led_bedroom", -1.5, bry, brz)
+    add_box("SUP17_LED_BR_Collar",  0.80, 0.0, 0.0, 1.8, 10.0, 14.0, mats["pla_mount"], parent=led_br, bevel_mm=0.25)
     add_cyl("LED_BR_Flange",  0.50, 0.0, 0.0, 2.9, 1.0, mats["led_br"], parent=led_br, axis="X", segs=24)
     add_cyl("LED_BR_Body",    3.55, 0.0, 0.0, 2.5, 5.1, mats["led_br"], parent=led_br, axis="X", segs=24)
     add_sphere("LED_BR_Dome", 6.10, 0.0, 0.0, 2.5, mats["led_br"], parent=led_br, segs=20)
+    add_sphere("LED_BR_GlowHalo", 5.2, 0.0, 0.0, 6.8, mats["led_br_halo"], parent=led_br, segs=18)
     add_box("LED_BR_LeadA",  -1.50,  1.27, 0.0, 3.0, 0.5, 0.5, mats["silver_mtl"], parent=led_br)
     add_box("LED_BR_LeadK",  -1.50, -1.27, 0.0, 3.0, 0.5, 0.5, mats["silver_mtl"], parent=led_br)
 
@@ -787,13 +867,17 @@ def build_hardware_devices_and_sensors(mats: dict[str, bpy.types.Material]) -> N
     add_cyl("Speaker_InnerCone", 0.0, 0.0,  2.3, 11.5, 0.6, mats["plastic_blk"], parent=spk, axis="Z", segs=24)
     add_cyl("Speaker_CenterCap", 0.0, 0.0, -2.3,  5.2, 0.6, mats["silver_mtl"], parent=spk, axis="Z", segs=20)
 
-    # DC-022 5V 2A Panel-Mount Barrel Power Jack & 3mm Power LED on P15_TECH_FASCIA
+    # DC-022 5V 2A Panel-Mount Barrel Power Jack + SUP16 Strain-Relief Collar + Exterior 5V Barrel Plug
     dcx, dcy, dcz = C("HW_DC_JACK")
     dcj = make_group("psu_5v_dc_jack", dcx, dcy, dcz)
-    add_cyl("DC022_BarrelBody",  0.0, 0.0, -1.5, 6.0, 18.0, mats["plastic_blk"], parent=dcj, axis="Z", segs=20)
-    add_cyl("DC022_FrontFlange", 0.0, 0.0,  9.0, 7.0,  3.0, mats["silver_mtl"],  parent=dcj, axis="Z", segs=20)
-    add_box("DC022_TermPos",     0.0, 2.5, -10.5, 2.2, 1.0, 3.0, mats["copper"], parent=dcj)
-    add_box("DC022_TermNeg",     0.0,-2.5, -10.5, 2.2, 1.0, 3.0, mats["silver_mtl"], parent=dcj)
+    add_cyl("DC022_BarrelBody",     0.0,  0.0, -1.5, 6.0, 18.0, mats["plastic_blk"], parent=dcj, axis="Z", segs=20)
+    add_cyl("DC022_FrontFlange",    0.0,  0.0,  9.0, 7.0,  3.0, mats["silver_mtl"],  parent=dcj, axis="Z", segs=20)
+    add_box("SUP16_DC022_Collar",   0.0,  0.0,  3.8, 22.0, 15.0, 4.2, mats["pla_mount"], parent=dcj, bevel_mm=0.3)
+    add_cyl("DC022_ExtPlug_Tip",    0.0,  0.0, 11.2, 4.6,  2.2, mats["plug_yellow"], parent=dcj, axis="Z", segs=18)
+    add_cyl("DC022_ExtPlug_Barrel", 0.0,  0.0, 17.5, 4.9, 11.0, mats["plastic_blk"], parent=dcj, axis="Z", segs=18)
+    add_cyl("DC022_ExtPlug_Boot",   0.0,  0.0, 25.0, 2.8,  5.5, mats["plastic_blk"], parent=dcj, axis="Z", segs=16)
+    add_box("DC022_TermPos",        0.0,  2.5, -10.5, 2.2, 1.0, 3.0, mats["copper"],     parent=dcj)
+    add_box("DC022_TermNeg",        0.0, -2.5, -10.5, 2.2, 1.0, 3.0, mats["silver_mtl"], parent=dcj)
 
     plx, ply, plz = C("HW_LED_PWR")
     pled = make_group("led_power_3mm", plx, ply, plz)
@@ -909,6 +993,21 @@ def build_routed_40_wires(mats: dict[str, bpy.types.Material]) -> tuple[bpy.type
         tag = _wire_node_suffix(conn.ref, "")
         add_box(f"DupontPlug_{tag}", tx, ty, tz, sx, 9.0, sz, mats["plastic_blk"], parent=harness, bevel_mm=0.1)
 
+    # 1b. Subtle colored collar markers on PCB J1 (5V input) & switched outputs (J2 Pump, J8/J10 Relays, J11 Amp)
+    callout_specs = [
+        ("J1",  "callout_j1",  13.2),
+        ("J2",  "callout_j2",  13.2),
+        ("J8",  "callout_sw",  14.2),
+        ("J10", "callout_sw",  14.2),
+        ("J11", "callout_amp", 14.2),
+    ]
+    for cref, mkey, z_off in callout_specs:
+        conn = HUB_CONNECTOR_MAP[cref]
+        cx_rel = sum(p[1] for p in conn.pins) / len(conn.pins)
+        cy_rel = sum(p[2] for p in conn.pins) / len(conn.pins)
+        tx, ty, tz = pcb_pin_three_mm(cx_rel, cy_rel, z_top_offset_mm=z_off)
+        add_cyl(f"PCB_CalloutMarker_{cref}", tx, ty, tz, 2.1, 0.9, mats[mkey], parent=harness, segs=16)
+
     # 2. All 40 routed 3D wire polylines colored by exact `color_hex`
     WR = 0.72  # ~1.44 mm OD realistic 22-26AWG Dupont insulation
     color_mats: dict[str, bpy.types.Material] = {}
@@ -956,9 +1055,13 @@ def setup_studio_lighting() -> None:
         lobj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
 
     add_light("KeyLight",  "AREA", (280.0, 390.0, 340.0),  (0.0, 40.0, 40.0),   1600.0, (1.00, 0.96, 0.90), 240.0)
-    add_light("FillLight", "AREA", (-340.0, 260.0, 280.0), (-40.0, 30.0, 80.0),  680.0, (0.84, 0.91, 1.00), 260.0)
-    add_light("RimLight",  "AREA", (40.0, 280.0, -340.0),  (0.0, 40.0, 20.0),    580.0, (0.88, 0.94, 1.00), 240.0)
-    add_light("TechSpot",  "AREA", (-40.0, 210.0, 260.0),  (-35.0, 20.0, 130.0), 420.0, (1.00, 0.98, 0.95), 140.0)
+    add_light("FillLight", "AREA", (-340.0, 260.0, 280.0), (-40.0, 30.0, 80.0),  720.0, (0.86, 0.92, 1.00), 260.0)
+    add_light("RimLight",  "AREA", (40.0, 280.0, -340.0),  (0.0, 40.0, 20.0),    620.0, (0.88, 0.94, 1.00), 240.0)
+    add_light("TechSpot",  "AREA", (-40.0, 210.0, 260.0),  (-35.0, 20.0, 130.0), 460.0, (1.00, 0.98, 0.95), 140.0)
+    add_light("DoorInteriorFill", "AREA", (-15.0, 180.0, -90.0), (-115.0, 85.0, 32.0), 220.0, (0.98, 0.98, 1.00), 110.0)
+    # Warm local point lights right next to the 5mm Living Room & Bedroom LEDs so both glow unmistakably
+    add_light("Light_LED_Living",  "POINT", (-14.0, 126.0,   3.0), (-20.0, 120.0,   3.0), 38.0, (1.00, 0.88, 0.48))
+    add_light("Light_LED_Bedroom", "POINT", (  8.0, 126.0, -23.0), ( 16.0, 120.0, -23.0), 34.0, (1.00, 0.78, 0.36))
 
 
 def create_camera(name: str, eye_mm: tuple[float, float, float], target_mm: tuple[float, float, float], lens_mm: float = 38.0) -> bpy.types.Object:
@@ -998,6 +1101,8 @@ def collect_contract_nodes() -> list[str]:
     return [
         "door_pivot",
         "main_door_leaf",
+        "SG90_DoorServo",
+        "sg90_horn_pivot",
         "led_living_room",
         "led_bedroom",
         "pump_unit",
@@ -1009,7 +1114,9 @@ def collect_contract_nodes() -> list[str]:
         "pam8403_module",
         "sensor_dht11",
         "sensor_soil",
+        "soil_lm393_board",
         "sensor_mic_ky037",
+        "psu_5v_dc_jack",
         "kicad_pcb_hub",
         "nodemcu_esp8266",
     ]
@@ -1042,10 +1149,15 @@ def write_scene_spec(wire_count: int) -> None:
             }
 
     spec = {
-        "schema_version": "3.0",
+        "schema_version": "3.1",
         "architecture": "pcb_direct_no_breadboard",
         "breadboard_used": False,
         "routed_wires_count": wire_count,
+        "authoritative_module_count": 14,
+        "contract_node_count": len(node_positions),
+        "door_servo_mechanism": SG90_MECHANICAL_SPECS["drive_mechanism"],
+        "door_hinge_pivot_three_mm": [-126.0, 0.0, 33.5],
+        "sg90_horn_pivot_three_mm": [-126.0, 100.1, 33.5],
         "model_file": "web/models/smarthome_villa.glb",
         "blend_file": "hardware/blender/smarthome_open_house.blend",
         "kicad_pcb_source": "hardware/kicad/smarthome_hub/3d/smarthome_hub.glb",
@@ -1064,8 +1176,9 @@ def write_scene_spec(wire_count: int) -> None:
             "open_cutaway_house": [386.0, 149.5, 190.0],
             "kicad_pcb_hub": [100.0, 17.3, 80.0],
             "nodemcu_esp8266": [25.4, 7.14, 49.4],
-            "sg90_servo_body": [12.2, 22.5, 22.8],
-            "sg90_servo_envelope": [12.2, 31.0, 32.2],
+            "sg90_servo_body": [22.8, 22.5, 12.2],
+            "sg90_servo_envelope": [32.2, 31.0, 12.2],
+            "psu_5v_dc_jack": [14.0, 14.0, 21.0],
             "relay1_pump": [50.0, 18.5, 26.0],
             "relay2_speaker": [50.0, 18.5, 26.0],
             "pam8403_module": [21.0, 3.1, 18.0],
@@ -1087,7 +1200,7 @@ def write_scene_spec(wire_count: int) -> None:
             "overview": spherical_from_eye_target((235.0, 360.0, 520.0), (0.0, 38.0, 42.0)),
             "living":   spherical_from_eye_target((-15.0, 220.0, 225.0), (-95.0, 52.0, -50.0)),
             "bedroom":  spherical_from_eye_target((165.0, 220.0, 225.0), (95.0, 48.0, -52.0)),
-            "door":     spherical_from_eye_target((-70.0, 120.0, 220.0), (-97.0, 52.0, 41.5)),
+            "door":     spherical_from_eye_target((-68.0, 130.0, 220.0), (-108.0, 72.0, 36.0)),
             "garden":   spherical_from_eye_target((180.0, 150.0, 310.0), (125.0, 30.0, 140.0)),
             "board":    spherical_from_eye_target((-60.0, 175.0, 305.0), (-55.0, 25.0, 131.0)),
         },
@@ -1141,10 +1254,131 @@ def render_presentation_views(
         print(f"[RENDER] Saved {out_png} ({out_png.stat().st_size} bytes)")
 
 
+def _collect_callout_anchors_blender() -> dict[str, Vector]:
+    """Return exact Blender world positions of all 14 modules + PCB + NodeMCU + key door/power parts."""
+    bpy.context.view_layer.update()
+    anchors: dict[str, Vector] = {}
+    obj_targets = {
+        "SG90_DoorServo":     ("SG90_Body", Vector((0.0, 0.0, 0.0))),
+        "sg90_horn_pivot":    ("SG90_WhiteHorn", Vector((0.0, 0.0, 0.0))),
+        "SUP11_Saddle":       ("SUP11_SG90_Saddle_B", Vector((0.0, 0.0, 0.0))),
+        "P07_ServoShelf":     ("P07_ServoShelf_R", Vector((0.0, 0.0, 0.0))),
+        "SUP10B_Coupler":     ("SUP10B_ForkWallF", Vector((0.0, 0.0, 0.0))),
+        "SUP10_HingeTop":     ("SUP10_DoorKnuckle_Top", Vector((0.0, 0.0, 0.0))),
+        "SUP10_HingeBot":     ("SUP10_DoorKnuckle_Bot", Vector((0.0, 0.0, 0.0))),
+        "P07_EndStop_Closed": ("P07_EndStop_Closed", Vector((0.0, 0.0, 0.0))),
+        "P07_EndStop_Open":   ("P07_EndStop_Open", Vector((0.0, 0.0, 0.0))),
+        "main_door_leaf":     ("main_door_leaf", Vector((0.0, 0.0, 0.0))),
+        "psu_5v_dc_jack":     ("DC022_ExtPlug_Barrel", Vector((0.0, 0.0, 0.0))),
+        "kicad_pcb_hub":      ("kicad_pcb_hub", Vector((0.0, 0.0, 4.0 * MM))),
+        "nodemcu_esp8266":    ("NodeMCU_ESP12_Shield", Vector((0.0, 0.0, 0.0))),
+        "led_living_room":    ("LED_LR_Dome", Vector((0.0, 0.0, 0.0))),
+        "led_bedroom":        ("LED_BR_Dome", Vector((0.0, 0.0, 0.0))),
+        "buzzer_alarm":       ("Buzzer_CylBody", Vector((0.0, 0.0, 0.0))),
+        "sensor_mic_ky037":   ("KY037_RedPCB", Vector((0.0, 0.0, 0.0))),
+        "sensor_dht11":       ("DHT11_BlueGridBox", Vector((0.0, 0.0, 0.0))),
+        "soil_lm393_board":   ("Soil_LM393_PCB", Vector((0.0, 0.0, 0.0))),
+        "sensor_soil":        ("SoilProbe_Head", Vector((0.0, 0.0, 0.0))),
+        "pump_unit":          ("Pump_WhiteBody", Vector((0.0, 0.0, 0.0))),
+        "water_tube":         ("water_tube", Vector((0.0, 0.0, 0.0))),
+        "speaker_mini":       ("Speaker_SilverRim", Vector((0.0, 0.0, 0.0))),
+        "pam8403_module":     ("PAM8403_GreenPCB", Vector((0.0, 0.0, 0.0))),
+        "relay1_pump":        ("Rly1_SongleCube", Vector((0.0, 0.0, 0.0))),
+        "relay2_speaker":     ("Rly2_SongleCube", Vector((0.0, 0.0, 0.0))),
+        "PCB_J1_Input":       ("PCB_CalloutMarker_J1", Vector((0.0, 0.0, 0.0))),
+        "PCB_J2_PumpOut":     ("PCB_CalloutMarker_J2", Vector((0.0, 0.0, 0.0))),
+        "PCB_J8_Rly1Sw":      ("PCB_CalloutMarker_J8", Vector((0.0, 0.0, 0.0))),
+        "PCB_J10_Rly2Sw":     ("PCB_CalloutMarker_J10", Vector((0.0, 0.0, 0.0))),
+        "PCB_J11_AmpPwr":     ("PCB_CalloutMarker_J11", Vector((0.0, 0.0, 0.0))),
+    }
+    for key, (oname, offset) in obj_targets.items():
+        obj = bpy.data.objects.get(oname)
+        if obj is None:
+            continue
+        if obj.type == "MESH":
+            # World-space bounding box center
+            pts = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
+            ctr = sum(pts, Vector((0.0, 0.0, 0.0))) / len(pts)
+            anchors[key] = ctr + offset
+        else:
+            anchors[key] = obj.matrix_world.translation + offset
+    return anchors
+
+
+def render_hw13_views(raw_dir: pathlib.Path, proj_json: pathlib.Path) -> None:
+    """Sequentially render all 6 hw13 views (1600x1000 Eevee) and export exact 2D pixel projections."""
+    scene = bpy.context.scene
+    scene.render.engine = "BLENDER_EEVEE"
+    scene.render.resolution_x = 1600
+    scene.render.resolution_y = 1000
+    scene.render.resolution_percentage = 100
+    scene.render.image_settings.file_format = "PNG"
+    vt_items = [i.identifier for i in scene.view_settings.bl_rna.properties["view_transform"].enum_items]
+    scene.view_settings.view_transform = "AgX" if "AgX" in vt_items else "Filmic"
+    scene.view_settings.exposure = -0.15
+
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    W, H = scene.render.resolution_x, scene.render.resolution_y
+
+    views = [
+        ("overview",          "Cam_HW13_Overview",       (220.0, 368.0, 545.0), ( -8.0,  42.0,  48.0), 36.0, 0.0),
+        ("topdown_cutaway",   "Cam_HW13_Topdown",        (-14.0, 625.0, 195.0), (  2.0,  34.0,  58.0), 33.0, 0.0),
+        ("front_techbay",     "Cam_HW13_FrontTechBay",   (-24.0, 232.0, 535.0), (  4.0,  46.0, 118.0), 32.0, 0.0),
+        ("interior_rooms",    "Cam_HW13_InteriorRooms",  (-78.0, 250.0, 248.0), ( 18.0,  76.0, -24.0), 28.0, 0.0),
+        ("servo_door_closed", "Cam_HW13_ServoDoor",      (-10.0, 152.0,-112.0), (-108.0, 74.0,  28.0), 35.0, 0.0),
+        ("servo_door_open",   "Cam_HW13_ServoDoorOpen",  (-10.0, 152.0,-112.0), (-108.0, 74.0,  28.0), 35.0, 90.0),
+    ]
+
+    door_pivot = bpy.data.objects.get("door_pivot")
+    horn_pivot = bpy.data.objects.get("sg90_horn_pivot")
+
+    projections: dict[str, dict] = {"resolution": [W, H], "views": {}}
+    for vkey, cname, eye_mm, tgt_mm, lens_mm, door_deg in views:
+        if door_pivot is not None:
+            door_pivot.rotation_euler = Euler((0.0, 0.0, math.radians(door_deg)), "XYZ")
+        if horn_pivot is not None:
+            horn_pivot.rotation_euler = Euler((0.0, 0.0, math.radians(door_deg)), "XYZ")
+        bpy.context.view_layer.update()
+
+        cam = create_camera(cname, eye_mm, tgt_mm, lens_mm=lens_mm)
+        scene.camera = cam
+        out_png = raw_dir / f"raw_{vkey}.png"
+        scene.render.filepath = str(out_png)
+        bpy.ops.render.render(write_still=True)
+        print(f"[HW13 RENDER] {vkey} (door={door_deg:.0f} deg) -> {out_png} ({out_png.stat().st_size} bytes)")
+
+        # Record exact 2D pixel projections for every callout anchor
+        anchors = _collect_callout_anchors_blender()
+        pts_2d: dict[str, list[float]] = {}
+        for akey, wpos in anchors.items():
+            co = world_to_camera_view(scene, cam, wpos)
+            px = round(float(co.x) * W, 1)
+            py = round((1.0 - float(co.y)) * H, 1)
+            pts_2d[akey] = [px, py, round(float(co.z), 3)]
+        projections["views"][vkey] = {
+            "raw_png": str(out_png),
+            "door_angle_deg": door_deg,
+            "points": pts_2d,
+        }
+
+    # Restore door to 0 deg cleanly
+    if door_pivot is not None:
+        door_pivot.rotation_euler = Euler((0.0, 0.0, 0.0), "XYZ")
+    if horn_pivot is not None:
+        horn_pivot.rotation_euler = Euler((0.0, 0.0, 0.0), "XYZ")
+    bpy.context.view_layer.update()
+
+    proj_json.parent.mkdir(parents=True, exist_ok=True)
+    proj_json.write_text(json.dumps(projections, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"[HW13 PROJ] Saved exact 2D label projections to {proj_json}")
+
+
 def main() -> None:
     render_dir = None
     overview_png = None
     interior_png = None
+    hw13_raw_dir = None
+    render_only = False
     if "--" in sys.argv:
         args = sys.argv[sys.argv.index("--") + 1:]
         if "--render-dir" in args:
@@ -1159,6 +1393,20 @@ def main() -> None:
             idx = args.index("--interior-png")
             if idx + 1 < len(args):
                 interior_png = pathlib.Path(args[idx + 1])
+        if "--hw13-raw-dir" in args:
+            idx = args.index("--hw13-raw-dir")
+            if idx + 1 < len(args):
+                hw13_raw_dir = pathlib.Path(args[idx + 1])
+        if "--render-only" in args:
+            render_only = True
+
+    if render_only and hw13_raw_dir is not None and OUT_BLEND.exists():
+        bpy.ops.wm.open_mainfile(filepath=str(OUT_BLEND))
+        render_hw13_views(
+            raw_dir=hw13_raw_dir,
+            proj_json=REPO_ROOT / "hardware" / "blender" / "render_projections.json",
+        )
+        return
 
     clear_scene()
     mats = build_materials()
@@ -1169,7 +1417,7 @@ def main() -> None:
     convert_curves_to_meshes()
     setup_studio_lighting()
 
-    cam_default = create_camera("Camera", (235.0, 360.0, 520.0), (0.0, 38.0, 42.0), lens_mm=38.0)
+    cam_default = create_camera("Camera", (240.0, 355.0, 520.0), (0.0, 42.0, 45.0), lens_mm=38.0)
     bpy.context.scene.camera = cam_default
 
     OUT_BLEND.parent.mkdir(parents=True, exist_ok=True)
@@ -1199,6 +1447,12 @@ def main() -> None:
 
     if render_dir is not None or overview_png is not None or interior_png is not None:
         render_presentation_views(render_dir=render_dir, overview_png=overview_png, interior_png=interior_png)
+
+    if hw13_raw_dir is not None:
+        render_hw13_views(
+            raw_dir=hw13_raw_dir,
+            proj_json=REPO_ROOT / "hardware" / "blender" / "render_projections.json",
+        )
 
 
 if __name__ == "__main__":
