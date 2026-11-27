@@ -58,6 +58,7 @@ from backend.automation_repo import (
     list_household_members,
     list_pending_timers,
     list_schedules,
+    match_custom_command_with_ambiguity,
     normalize_phrase,
     resolve_target_user_by_query,
     reset_custom_commands_scoped,
@@ -813,8 +814,8 @@ def _classify_confirmation_utterance(
         r"xác\s+nhận|đồng\s+ý|nhất\s+trí|chắc\s+chắn|"
         r"ừ(?:\s+ừ){0,2}|ừm(?:\s+ừm){0,2}|ư|ờ|"
         r"ok(?:\s+ok){0,2}|okay(?:\s+okay){0,2}|oke(?:\s+oke){0,2}|okie|ô\s*kê|"
-        r"đc|được(?:\s+được){0,2}|được\s+(?:rồi|đấy)|yes|"
-        r"vâng(?:\s+vâng){0,2}|dạ(?:\s+dạ){0,2}|dạ\s+(?:vâng|được|đúng|ok|oke|chốt|đồng\s+ý|nhất\s+trí)|có(?:\s+có){0,2}|"
+        r"đc|được(?:\s+được){0,2}|được\s+(?:rồi|đấy)|rồi(?:\s+rồi)?|yes|"
+        r"vâng(?:\s+vâng){0,2}|dạ(?:\s+dạ){0,2}|dạ\s+(?:vâng|được|đúng|ok|oke|chốt|đồng\s+ý|nhất\s+trí|rồi)|có(?:\s+có){0,2}|"
         r"thực\s+hiện|tiến\s+hành|triển\s+khai|tiếp\s+tục|"
         rf"{confirm_verbs_vi}"
         rf"){polite_vi}\s*$",
@@ -827,9 +828,9 @@ def _classify_confirmation_utterance(
         rf"^{lead_en}(?:"
         r"xac\s+nhan|dong\s+y|nhat\s+tri|chac\s+chan|chuan(?:\s+(?:roi|luon|day))?|chot(?:\s+(?:don|di|luon|ngay|nhe|nha))?|"
         r"ok(?:\s+ok){0,2}|okay(?:\s+okay){0,2}|oke(?:\s+oke){0,2}|okie|o\s*ke|dc|yes|confirm|"
-        r"u(?:\s+u){0,2}|uh|um(?:\s+um){0,2}|duoc(?:\s+duoc){0,2}|duoc\s+(?:roi|day)|"
+        r"u(?:\s+u){0,2}|uh|um(?:\s+um){0,2}|duoc(?:\s+duoc){0,2}|duoc\s+(?:roi|day)|roi(?:\s+roi)?|"
         r"dung(?:\s+dung){0,2}|dung\s+(?:roi|vay|y|the)|"
-        r"vang(?:\s+vang){0,2}|da(?:\s+da){0,2}|da\s+(?:vang|duoc|dung|ok|oke|chot|dong\s+y|nhat\s+tri)|co(?:\s+co){0,2}|"
+        r"vang(?:\s+vang){0,2}|da(?:\s+da){0,2}|da\s+(?:vang|duoc|dung|ok|oke|chot|dong\s+y|nhat\s+tri|roi)|co(?:\s+co){0,2}|"
         r"thuc\s+hien|tien\s+hanh|trien\s+khai|tiep\s+tuc|"
         rf"{confirm_verbs_en}"
         rf"){polite_en}\s*$",
@@ -2445,14 +2446,15 @@ async def execute_confirmed_mutation(
     if action_kind == "run_custom_command":
         cid = str(payload.get("command_id") or "").strip()
         phrase_q = str(payload.get("phrase") or "").strip()
+        owner_q = None if tier == 1 else user_id
         matched_cmd = None
         if cid:
             matched_cmd = next(
-                (c for c in list_custom_commands(include_disabled=False, owner_user_id=user_id) if c["command_id"] == cid),
+                (c for c in list_custom_commands(include_disabled=False, owner_user_id=owner_q) if c["command_id"] == cid),
                 None,
             )
         if matched_cmd is None and phrase_q:
-            matched_cmd = find_custom_command_by_text(phrase_q, owner_user_id=user_id)
+            matched_cmd = find_custom_command_by_text(phrase_q, owner_user_id=owner_q)
         if matched_cmd is None:
             return _deny_mutation_error(
                 session=session,
@@ -2462,143 +2464,13 @@ async def execute_confirmed_mutation(
                 status_code=404,
                 target=cid or phrase_q or "custom_command",
             )
-        steps = list(matched_cmd.get("steps") or [])
-        ok_steps_run, err_steps_run = check_steps_rbac(steps, tier)
-        if not ok_steps_run:
-            return _deny_mutation_error(
-                session=session,
-                source=source,
-                category="rbac_deny_custom_command_step",
-                msg=err_steps_run,
-                status_code=403,
-                target=str(matched_cmd.get("phrase") or "custom_command"),
-            )
-        control_steps = [st for st in steps if not is_custom_query_step(str(st.get("device_id") or ""), str(st.get("action") or ""))]
-        query_steps = [st for st in steps if is_custom_query_step(str(st.get("device_id") or ""), str(st.get("action") or ""))]
-        results: list[dict[str, Any]] = []
-        exec_items: list[dict[str, Any]] = []
-        prev_uid = getattr(engine, "_current_user_id", user_id)
-        prev_role = getattr(engine, "_current_role", role)
-        try:
-            engine._current_user_id = user_id
-            engine._current_role = role
-            for st in control_steps:
-                dev_id = str(st.get("device_id") or "")
-                action = str(st.get("action") or "")
-                for td in _expand_targets(dev_id):
-                    prev_st = str((engine.devices.get(td) or {}).get("state") or "")
-                    res = await engine.execute_device_action(
-                        td,
-                        action,
-                        request_tier=tier,
-                        request_user_name=user_name,
-                        request_role=role,
-                        request_user_id=user_id,
-                        source=source,
-                    )
-                    results.append(res)
-                    if not res.get("ok") and res.get("rbac_blocked"):
-                        err_msg = str(res.get("exact_spoken_reply") or res.get("error") or "Xin lỗi, bạn không có quyền thực hiện lệnh này.")
-                        return _deny_mutation_error(
-                            session=session,
-                            source=source,
-                            category="rbac_deny_custom_command_step",
-                            msg=err_msg,
-                            status_code=403,
-                            target=td,
-                            extra={"results": results},
-                        )
-                    if not res.get("ok") and res.get("board_offline"):
-                        bh_off = res.get("board_health") or (
-                            engine.get_board_health() if hasattr(engine, "get_board_health") else {}
-                        )
-                        err_msg = str(
-                            res.get("exact_spoken_reply")
-                            or res.get("error")
-                            or "Mạch điều khiển hiện đang mất kết nối."
-                        )
-                        return {
-                            "handled": True,
-                            "status_code": 503,
-                            "payload": {
-                                "ok": False,
-                                "confirmed": False,
-                                "executed": False,
-                                "board_offline": True,
-                                "delivery_status": "BOARD_OFFLINE",
-                                "kind": "custom_command_board_offline",
-                                "command": matched_cmd,
-                                "results": results,
-                                "last_seen": res.get("last_seen", bh_off.get("last_seen")),
-                                "last_seen_vi": res.get("last_seen_vi", bh_off.get("last_seen_vi", "")),
-                                "board_health": bh_off,
-                                "error": err_msg,
-                                "reply": err_msg,
-                                "exact_spoken_reply": err_msg,
-                                "rejection_speech": err_msg,
-                                "snapshot": engine.get_snapshot(session=session, sync=False),
-                            },
-                        }
-                    new_st = str((engine.devices.get(td) or {}).get("state") or "")
-                    exec_items.append({
-                        "device_id": td,
-                        "action": action,
-                        "previous_state": prev_st,
-                        "state": new_st,
-                    })
-        finally:
-            engine._current_user_id = prev_uid
-            engine._current_role = prev_role
-
-        from backend.voice.vietnamese_policy import (
-            execute_custom_command_query_steps,
-            format_short_action_reply_vi,
+        return await execute_saved_custom_command(
+            matched_cmd=matched_cmd,
+            engine=engine,
+            session=session,
+            source=source,
+            confirmed=True,
         )
-
-        query_spoken = ""
-        query_data: dict[str, Any] = {}
-        if query_steps:
-            q_ok, q_rbac, q_err, query_spoken, query_data = execute_custom_command_query_steps(
-                query_steps, engine, tier
-            )
-            if not q_ok and q_rbac:
-                return _deny_mutation_error(
-                    session=session,
-                    source=source,
-                    category="rbac_deny_custom_command_step",
-                    msg=q_err,
-                    status_code=403,
-                    target=str(matched_cmd.get("phrase") or "custom_command"),
-                )
-
-        if control_steps:
-            await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
-
-        ctrl_spoken = format_short_action_reply_vi(exec_items, engine.devices) if exec_items else ""
-        if ctrl_spoken and query_spoken:
-            spoken_exec = f"{ctrl_spoken} {query_spoken}"
-        elif query_spoken:
-            spoken_exec = query_spoken
-        elif ctrl_spoken:
-            spoken_exec = ctrl_spoken
-        else:
-            spoken_exec = f"Đã chạy lệnh '{matched_cmd['phrase']}'."
-        return {
-            "handled": True,
-            "status_code": 200,
-            "payload": {
-                "ok": True,
-                "confirmed": True,
-                "executed": True,
-                "kind": "custom_command_executed",
-                "command": matched_cmd,
-                "results": results,
-                **query_data,
-                "reply": spoken_exec,
-                "exact_spoken_reply": spoken_exec,
-                "snapshot": engine.get_snapshot(session=session, sync=False),
-            },
-        }
 
     if action_kind == "reset_devices":
         if tier != 1:
@@ -4085,12 +3957,19 @@ async def process_automation_nlu_command(
     # ------------------------------------------------------------------
     # STEP 6. CANCEL / DELETE SINGLE TIMER, SCHEDULE, RULE, CUSTOM COMMAND
     # ------------------------------------------------------------------
+    # Distinguish accented 'dùng' (use/execute a saved command) from 'dừng' (stop/cancel)
+    _is_accented_use_cmd = bool(
+        re.match(
+            r"^(?:(?:tôi|mình|em|anh|chị)\s+muốn\s+|giúp\s+(?:tôi|mình|anh|chị|em)\s+|bạn\s+|hãy\s+|xin\s+|vui\s+lòng\s+|làm\s+ơn\s+)*dùng\b",
+            raw.strip().lower(),
+        )
+    )
     norm_del = re.sub(
         r"^(?:(?:toi|minh|em)\s+muon\s+|giup\s+(?:toi|minh|anh|chi|em)\s+|ban\s+|hay\s+|xin\s+|vui\s+long\s+|lam\s+on\s+)+",
         "",
         norm,
     ).strip()
-    if re.match(
+    if not _is_accented_use_cmd and re.match(
         r"^(?:huy(?:\s+bo)?|xoa(?:\s+(?:bo|di))?|go(?:\s+bo)?|dep(?:\s+bo)?|loai\s+bo|bo(?:\s+di)?|tat|dung)\s+"
         r"(?:(?:giup|gium|dum|ho|cho)\s+(?:toi|minh|anh|chi|em)\s+)?"
         r"(?:(?:cai|mot)\s+)?"
@@ -4482,46 +4361,19 @@ async def process_automation_nlu_command(
         }
 
     # ------------------------------------------------------------------
-    # STEP 9. RUN PER-USER CUSTOM COMMAND FROM SQLITE POOL (stages short confirmation)
+    # STEP 9. RUN PER-USER CUSTOM COMMAND FROM SQLITE POOL (immediate execution; clarify on ambiguity)
     # ------------------------------------------------------------------
-    matched_cmd = find_custom_command_by_text(raw, owner_user_id=user_id)
-    if matched_cmd is None:
+    from backend.voice.vietnamese_policy import is_no_action_safety_blocked_vi
+
+    if is_no_action_safety_blocked_vi(raw):
+        return None
+    match_res = match_custom_command_with_ambiguity(raw, owner_user_id=user_id)
+    if match_res.get("status") == "none":
         raw_punct_clean = re.sub(r"[?!.,;:\"'`]+", " ", raw).strip()
         if raw_punct_clean and raw_punct_clean != raw:
-            matched_cmd = find_custom_command_by_text(raw_punct_clean, owner_user_id=user_id)
-        if matched_cmd is None and raw_punct_clean:
-            q_norm = normalize_phrase(raw_punct_clean)
-            q_toks = q_norm.split()
-            if q_toks:
-                from backend.voice.vietnamese_policy import (
-                    _UNSUPPORTED_DEVICE_RE,
-                    is_foreign_or_nonsense_input,
-                )
+            match_res = match_custom_command_with_ambiguity(raw_punct_clean, owner_user_id=user_id)
 
-                is_bad_q, _ = is_foreign_or_nonsense_input(raw_punct_clean)
-                if not is_bad_q and not _UNSUPPORTED_DEVICE_RE.search(f" {q_norm} "):
-                    scored_cmds: list[tuple[float, dict[str, Any]]] = []
-                    suffix_cmds: list[dict[str, Any]] = []
-                    for cmd in list_custom_commands(include_disabled=False, owner_user_id=user_id):
-                        c_norm = str(cmd.get("phrase_norm") or normalize_phrase(str(cmd.get("phrase") or ""))).strip()
-                        c_toks = c_norm.split()
-                        if not c_toks:
-                            continue
-                        if len(c_toks) == len(q_toks):
-                            sc = _fuzzy_ratio(q_norm, c_norm)
-                            if sc >= 88.0:
-                                scored_cmds.append((sc, cmd))
-                        elif len(q_toks) >= 2 and len(q_norm) >= 5 and len(c_toks) == len(q_toks) + 1 and c_norm.endswith(f" {q_norm}"):
-                            suffix_cmds.append(cmd)
-                    if scored_cmds:
-                        scored_cmds.sort(key=lambda pair: pair[0], reverse=True)
-                        best_sc, best_cmd = scored_cmds[0]
-                        second_sc = scored_cmds[1][0] if len(scored_cmds) > 1 else 0.0
-                        if len(scored_cmds) == 1 or (best_sc - second_sc) >= 5.0:
-                            matched_cmd = best_cmd
-                    elif len(suffix_cmds) == 1:
-                        matched_cmd = suffix_cmds[0]
-    if matched_cmd:
+    if match_res.get("status") == "ambiguous":
         if tier >= 3:
             return _deny_mutation_error(
                 session=session,
@@ -4529,34 +4381,211 @@ async def process_automation_nlu_command(
                 category="rbac_deny_run_custom_command",
                 msg=GUEST_ONLY_TOGGLE_MSG_VI,
                 status_code=403,
-                target=str(matched_cmd.get("phrase") or "custom_command"),
+                target="custom_command",
             )
-        steps = matched_cmd.get("steps") or []
-        ok_steps, err_steps = check_steps_rbac(steps, tier)
-        if not ok_steps:
+        clar_q = str(match_res.get("clarification_question") or "Bạn muốn chạy lệnh tùy chỉnh nào ạ?")
+        return {
+            "handled": True,
+            "status_code": 200,
+            "payload": {
+                "ok": True,
+                "executed": False,
+                "requires_confirmation": False,
+                "needs_clarification": True,
+                "kind": "clarify_ambiguous_custom_command",
+                "candidates": match_res.get("candidates") or [],
+                "reply": clar_q,
+                "exact_spoken_reply": clar_q,
+            },
+        }
+
+    matched_cmd = match_res.get("command") if match_res.get("status") == "match" else None
+    if matched_cmd:
+        if tier < 3:
+            await handle_pending_interruption_if_any(
+                raw_text=raw,
+                engine=engine,
+                session=session,
+                source=source,
+                session_key=skey,
+                is_new_valid_intent=True,
+            )
+        return await execute_saved_custom_command(
+            matched_cmd=matched_cmd,
+            engine=engine,
+            session=session,
+            source=source,
+            confirmed=False,
+        )
+
+    return None
+
+
+async def execute_saved_custom_command(
+    *,
+    matched_cmd: dict[str, Any],
+    engine: Any,
+    session: Any,
+    source: str,
+    confirmed: bool = False,
+) -> dict[str, Any]:
+    """Canonical immediate executor for a saved custom command (RBAC + per-step check + board-offline 503 + concise reply)."""
+    user_id, tier, user_name, role = _session_actor(session)
+    if tier >= 3:
+        return _deny_mutation_error(
+            session=session,
+            source=source,
+            category="rbac_deny_run_custom_command",
+            msg=GUEST_ONLY_TOGGLE_MSG_VI,
+            status_code=403,
+            target=str(matched_cmd.get("phrase") or "custom_command"),
+        )
+    steps = list(matched_cmd.get("steps") or [])
+    ok_steps_run, err_steps_run = check_steps_rbac(steps, tier)
+    if not ok_steps_run:
+        return _deny_mutation_error(
+            session=session,
+            source=source,
+            category="rbac_deny_custom_command_step",
+            msg=err_steps_run,
+            status_code=403,
+            target=str(matched_cmd.get("phrase") or "custom_command"),
+        )
+    control_steps = [
+        st for st in steps
+        if not is_custom_query_step(str(st.get("device_id") or ""), str(st.get("action") or ""))
+    ]
+    query_steps = [
+        st for st in steps
+        if is_custom_query_step(str(st.get("device_id") or ""), str(st.get("action") or ""))
+    ]
+    results: list[dict[str, Any]] = []
+    exec_items: list[dict[str, Any]] = []
+    prev_uid = getattr(engine, "_current_user_id", user_id)
+    prev_role = getattr(engine, "_current_role", role)
+    try:
+        engine._current_user_id = user_id
+        engine._current_role = role
+        for st in control_steps:
+            dev_id = str(st.get("device_id") or "")
+            action = str(st.get("action") or "")
+            for td in _expand_targets(dev_id):
+                prev_st = str((engine.devices.get(td) or {}).get("state") or "")
+                res = await engine.execute_device_action(
+                    td,
+                    action,
+                    request_tier=tier,
+                    request_user_name=user_name,
+                    request_role=role,
+                    request_user_id=user_id,
+                    source=source,
+                )
+                results.append(res)
+                if not res.get("ok") and res.get("rbac_blocked"):
+                    err_msg = str(
+                        res.get("exact_spoken_reply")
+                        or res.get("error")
+                        or "Xin lỗi, bạn không có quyền thực hiện lệnh này."
+                    )
+                    return _deny_mutation_error(
+                        session=session,
+                        source=source,
+                        category="rbac_deny_custom_command_step",
+                        msg=err_msg,
+                        status_code=403,
+                        target=td,
+                        extra={"results": results},
+                    )
+                if not res.get("ok") and res.get("board_offline"):
+                    bh_off = res.get("board_health") or (
+                        engine.get_board_health() if hasattr(engine, "get_board_health") else {}
+                    )
+                    err_msg = str(
+                        res.get("exact_spoken_reply")
+                        or res.get("error")
+                        or "Mạch điều khiển hiện đang mất kết nối."
+                    )
+                    return {
+                        "handled": True,
+                        "status_code": 503,
+                        "payload": {
+                            "ok": False,
+                            "confirmed": False,
+                            "executed": False,
+                            "requires_confirmation": False,
+                            "board_offline": True,
+                            "delivery_status": "BOARD_OFFLINE",
+                            "kind": "custom_command_board_offline",
+                            "command": matched_cmd,
+                            "results": results,
+                            "last_seen": res.get("last_seen", bh_off.get("last_seen")),
+                            "last_seen_vi": res.get("last_seen_vi", bh_off.get("last_seen_vi", "")),
+                            "board_health": bh_off,
+                            "error": err_msg,
+                            "reply": err_msg,
+                            "exact_spoken_reply": err_msg,
+                            "rejection_speech": err_msg,
+                            "snapshot": engine.get_snapshot(session=session, sync=False),
+                        },
+                    }
+                new_st = str((engine.devices.get(td) or {}).get("state") or "")
+                exec_items.append({
+                    "device_id": td,
+                    "action": action,
+                    "previous_state": prev_st,
+                    "state": new_st,
+                })
+    finally:
+        engine._current_user_id = prev_uid
+        engine._current_role = prev_role
+
+    from backend.voice.vietnamese_policy import (
+        execute_custom_command_query_steps,
+        format_short_action_reply_vi,
+    )
+
+    query_spoken = ""
+    query_data: dict[str, Any] = {}
+    if query_steps:
+        q_ok, q_rbac, q_err, query_spoken, query_data = execute_custom_command_query_steps(
+            query_steps, engine, tier
+        )
+        if not q_ok and q_rbac:
             return _deny_mutation_error(
                 session=session,
                 source=source,
                 category="rbac_deny_custom_command_step",
-                msg=err_steps,
+                msg=q_err,
                 status_code=403,
                 target=str(matched_cmd.get("phrase") or "custom_command"),
             )
-        steps_summary = str(
-            matched_cmd.get("steps_summary")
-            or ", ".join(format_device_action_vi(s.get("device_id", ""), s.get("action", "")) for s in steps)
-        )
-        return await prepare_pending_mutation(
-            engine=engine,
-            session=session,
-            source=source,
-            session_key=skey,
-            action_kind="run_custom_command",
-            payload={
-                "command_id": matched_cmd["command_id"],
-                "phrase": matched_cmd["phrase"],
-            },
-            prompt_summary=f"Chạy lệnh '{matched_cmd['phrase']}' ({steps_summary})",
-        )
 
-    return None
+    if control_steps:
+        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
+
+    ctrl_spoken = format_short_action_reply_vi(exec_items, engine.devices) if exec_items else ""
+    if ctrl_spoken and query_spoken:
+        spoken_exec = f"{ctrl_spoken} {query_spoken}"
+    elif query_spoken:
+        spoken_exec = query_spoken
+    elif ctrl_spoken:
+        spoken_exec = ctrl_spoken
+    else:
+        spoken_exec = f"Đã chạy lệnh '{matched_cmd['phrase']}'."
+    return {
+        "handled": True,
+        "status_code": 200,
+        "payload": {
+            "ok": True,
+            "confirmed": bool(confirmed),
+            "executed": True,
+            "requires_confirmation": False,
+            "kind": "custom_command_executed",
+            "command": matched_cmd,
+            "results": results,
+            **query_data,
+            "reply": spoken_exec,
+            "exact_spoken_reply": spoken_exec,
+            "snapshot": engine.get_snapshot(session=session, sync=False),
+        },
+    }

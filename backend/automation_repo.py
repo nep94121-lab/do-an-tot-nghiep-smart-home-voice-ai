@@ -1628,64 +1628,380 @@ def delete_custom_command(command_id: str, *, db_path: pathlib.Path | None = Non
     return deleted
 
 
+_CUSTOM_CMD_INVOCATION_PREFIXES: tuple[str, ...] = (
+    "kich hoat khau lenh ",
+    "kich hoat cau lenh ",
+    "kich hoat phim tat ",
+    "kich hoat kich ban ",
+    "kich hoat lenh ",
+    "thuc hien khau lenh ",
+    "thuc hien cau lenh ",
+    "thuc hien phim tat ",
+    "thuc hien kich ban ",
+    "thuc hien lenh ",
+    "chay khau lenh ",
+    "chay cau lenh ",
+    "chay phim tat ",
+    "chay kich ban ",
+    "chay lenh ",
+    "goi lenh ",
+    "kich hoat ",
+    "chay ",
+    "bat ",
+    "mo ",
+    "thuc hien ",
+    "dung ",
+)
+
+_CUSTOM_CMD_FILLER_PHRASES: tuple[str, ...] = (
+    "cho toi",
+    "cho minh",
+    "cho anh",
+    "cho chi",
+    "cho em",
+    "giup toi",
+    "giup minh",
+    "giup anh",
+    "giup chi",
+    "giup em",
+    "ho toi",
+    "ho minh",
+    "ho anh",
+    "ho chi",
+    "ho em",
+    "gium toi",
+    "gium minh",
+    "gium anh",
+    "gium chi",
+    "gium em",
+    "dum toi",
+    "dum minh",
+    "dum anh",
+    "dum chi",
+    "dum em",
+    "lam on",
+    "vui long",
+    "xin chao",
+    "tro ly oi",
+)
+
+_CUSTOM_CMD_FILLER_TOKENS: frozenset[str] = frozenset({
+    "oi", "nhe", "nha", "di", "giup", "ho", "gium", "dum", "a",
+    "um", "uh", "uhm", "o", "voi", "nao", "luon", "ngay", "ne",
+    "da", "vang", "nay", "e", "alo", "hay", "cai", "thu", "xem", "nua",
+})
+
+_CUSTOM_CMD_MANAGEMENT_GUARD_RE = re.compile(
+    r"^(?:(?:hay|vui\s+long|lam\s+on|toi\s+muon|minh\s+muon|anh\s+muon|chi\s+muon|em\s+muon|"
+    r"cho\s+(?:toi|minh|anh|chi|em)|giup\s+(?:toi|minh|anh|chi|em)|muon)\s+){0,2}(?:"
+    r"(?:tao|luu|them|dat|gan|sua|chinh\s+sua|doi|xoa|huy|bo|liet\s+ke|reset)\s+"
+    r"(?:lenh|cau\s+lenh|khau\s+lenh|ngu\s+canh|kich\s+ban|phim\s+tat|lich|hen\s+gio|luat|lien\s+ket)\b|"
+    r"(?:hen\s+gio|dat\s+lich|len\s+lich|tao\s+lich|tao\s+luat|tao\s+lien\s+ket|xem\s+danh\s+sach)\b"
+    r")"
+)
+
+_STANDARD_DEVICE_VOCAB: frozenset[str] = frozenset({
+    "bat", "tat", "mo", "dong", "khoa", "chot", "khep", "gai", "ngat", "dung", "ngung", "chay",
+    "cua", "chinh", "chanh", "cong", "den", "bong", "phong", "khach", "ngu", "buong",
+    "may", "bom", "tuoi", "cay", "vuon", "nuoc", "coi", "bao", "dong", "hu",
+    "nguon", "mach", "loa", "pam8403", "tat", "ca", "hai", "2", "het", "toan", "bo", "thiet", "bi",
+    "nha", "trong", "ngoai", "len", "xuong", "lai", "ra", "kin",
+})
+
+
+def _custom_cmd_char_sim(a: str, b: str) -> float:
+    if a == b:
+        return 1.0
+    if not a or not b:
+        return 0.0
+    try:
+        from rapidfuzz import fuzz as _rf_fuzz
+
+        return float(_rf_fuzz.ratio(a, b)) / 100.0
+    except Exception:
+        from difflib import SequenceMatcher
+
+        return float(SequenceMatcher(None, a, b).ratio())
+
+
+def _semantic_tokens_for_custom_command(norm_text: str) -> list[str]:
+    s = f" {norm_text} "
+    for phrase in _CUSTOM_CMD_FILLER_PHRASES:
+        s = s.replace(f" {phrase} ", " ")
+    toks = [t for t in s.split() if t and t not in _CUSTOM_CMD_FILLER_TOKENS]
+    if not toks:
+        return [t for t in norm_text.split() if t]
+    return toks
+
+
+def _format_ambiguous_custom_command_question_vi(candidates: list[dict[str, Any]]) -> str:
+    phrases = [str(c.get("phrase") or "").strip() for c in candidates if str(c.get("phrase") or "").strip()]
+    if len(phrases) >= 2:
+        if len(phrases) == 2:
+            return f"Bạn muốn chạy lệnh '{phrases[0]}' hay '{phrases[1]}' ạ?"
+        head = ", ".join(f"'{p}'" for p in phrases[:-1])
+        return f"Bạn muốn chạy lệnh {head} hay '{phrases[-1]}' ạ?"
+    return "Bạn muốn chạy lệnh tùy chỉnh nào ạ?"
+
+
+def match_custom_command_with_ambiguity(
+    text: str,
+    *,
+    owner_user_id: str | None = None,
+    db_path: pathlib.Path | None = None,
+    ambiguity_margin: float = 0.06,
+) -> dict[str, Any]:
+    """State-based semantic matcher over the user's saved SQLite custom commands.
+
+    Returns one of:
+      - {"status": "match", "command": cmd, "score": float, "match_type": str, "candidates": [cmd]}
+      - {"status": "ambiguous", "command": None, "candidates": [...], "clarification_question": str}
+      - {"status": "none", "command": None, "candidates": []}
+    """
+    raw_text = str(text or "").strip()
+    norm_text = normalize_phrase(raw_text)
+    if not norm_text:
+        return {"status": "none", "command": None, "candidates": []}
+    try:
+        from backend.voice.vietnamese_policy import is_no_action_safety_blocked_vi
+
+        if is_no_action_safety_blocked_vi(raw_text):
+            return {"status": "none", "command": None, "candidates": []}
+    except Exception:
+        pass
+    commands = list_custom_commands(include_disabled=False, owner_user_id=owner_user_id, db_path=db_path)
+    if not commands:
+        return {"status": "none", "command": None, "candidates": []}
+
+    # 1. Exact normalized match
+    for cmd in commands:
+        if cmd["phrase_norm"] == norm_text:
+            return {
+                "status": "match",
+                "command": cmd,
+                "score": 1.0,
+                "match_type": "exact",
+                "candidates": [cmd],
+            }
+
+    # 2. Invocation prefix stripped exact match
+    for prefix in _CUSTOM_CMD_INVOCATION_PREFIXES:
+        if norm_text.startswith(prefix):
+            cand = norm_text[len(prefix):].strip()
+            cand_no_polite = re.sub(
+                r"\s+(?:(?:giup|ho|gium|dum|cho)\s+(?:toi|minh|anh|chi|em)|di|nhe|nha|a|luon|ngay|voi|nao)+$",
+                "",
+                cand,
+            ).strip()
+            for cmd in commands:
+                if cmd["phrase_norm"] == cand or (cand_no_polite and cmd["phrase_norm"] == cand_no_polite):
+                    return {
+                        "status": "match",
+                        "command": cmd,
+                        "score": 0.99,
+                        "match_type": "prefix_exact",
+                        "candidates": [cmd],
+                    }
+
+    # Do not fuzzy/containment-hijack automation management commands (create/edit/delete/schedule/reset)
+    if _CUSTOM_CMD_MANAGEMENT_GUARD_RE.match(norm_text):
+        return {"status": "none", "command": None, "candidates": []}
+
+    # Strip invocation prefix if present for semantic scoring while keeping full norm_text too
+    stripped_query = norm_text
+    for prefix in _CUSTOM_CMD_INVOCATION_PREFIXES:
+        if norm_text.startswith(prefix):
+            tail = norm_text[len(prefix):].strip()
+            if tail:
+                stripped_query = tail
+                break
+
+    q_sem = _semantic_tokens_for_custom_command(stripped_query)
+    q_sem_full = _semantic_tokens_for_custom_command(norm_text)
+    if not q_sem:
+        return {"status": "none", "command": None, "candidates": []}
+
+    # Guard against matching foreign/nonsense/unsupported device queries via fuzzy scoring
+    is_bad_q = False
+    has_unsupported_dev = False
+    is_pure_standard_device_cmd = False
+    try:
+        from backend.voice.vietnamese_policy import (
+            _UNSUPPORTED_DEVICE_RE,
+            is_foreign_or_nonsense_input,
+            parse_direct_device_intents_vi,
+        )
+
+        is_bad_q, _ = is_foreign_or_nonsense_input(raw_text)
+        has_unsupported_dev = bool(_UNSUPPORTED_DEVICE_RE.search(f" {norm_text} "))
+        if not is_bad_q and not has_unsupported_dev and all(t in _STANDARD_DEVICE_VOCAB for t in q_sem_full):
+            is_pure_standard_device_cmd = bool(parse_direct_device_intents_vi(raw_text))
+    except Exception:
+        pass
+
+    if is_bad_q or has_unsupported_dev:
+        return {"status": "none", "command": None, "candidates": []}
+
+    q_sem_str = " ".join(q_sem)
+    q_sem_sorted_str = " ".join(sorted(q_sem))
+    q_full_str = " ".join(q_sem_full)
+    q_full_sorted_str = " ".join(sorted(q_sem_full))
+    padded_norm = f" {norm_text} "
+    padded_q_sem = f" {q_sem_str} "
+    padded_q_full = f" {q_full_str} "
+
+    scored: list[tuple[float, int, dict[str, Any], str]] = []
+
+    for cmd in commands:
+        pn = str(cmd.get("phrase_norm") or normalize_phrase(str(cmd.get("phrase") or ""))).strip()
+        if not pn:
+            continue
+        c_sem = _semantic_tokens_for_custom_command(pn)
+        if not c_sem:
+            continue
+        c_sem_str = " ".join(c_sem)
+        c_sem_sorted_str = " ".join(sorted(c_sem))
+
+        best_cmd_score = 0.0
+        best_cmd_kind = ""
+
+        # 3a. Exact filler-stripped semantic match
+        if c_sem_str == q_sem_str or c_sem_str == q_full_str:
+            best_cmd_score = 0.98
+            best_cmd_kind = "semantic_exact"
+        # 3b. Order-insensitive exact semantic token-set match (e.g. reordered natural phrasing)
+        elif (
+            len(c_sem) >= 2
+            and (
+                (len(c_sem) == len(q_sem) and sorted(c_sem) == sorted(q_sem))
+                or (len(c_sem) == len(q_sem_full) and sorted(c_sem) == sorted(q_sem_full))
+            )
+        ):
+            best_cmd_score = 0.95
+            best_cmd_kind = "semantic_reordered"
+        else:
+            # Skip fuzzy/partial matches if the user clearly issued a pure standard device command
+            if is_pure_standard_device_cmd:
+                continue
+
+            # 3c. Whole-word phrase containment
+            if len(pn) >= 3 and f" {pn} " in padded_norm:
+                cov = len(c_sem) / max(len(q_sem_full), len(c_sem))
+                sc_cont = 0.88 + 0.06 * cov
+                if sc_cont > best_cmd_score:
+                    best_cmd_score = sc_cont
+                    best_cmd_kind = "contained_exact"
+            elif len(c_sem) >= 2 and (f" {c_sem_str} " in padded_q_sem or f" {c_sem_str} " in padded_q_full):
+                cov = len(c_sem) / max(len(q_sem_full), len(c_sem))
+                if cov >= 0.5:
+                    sc_cont = 0.86 + 0.06 * cov
+                    if sc_cont > best_cmd_score:
+                        best_cmd_score = sc_cont
+                        best_cmd_kind = "contained_semantic"
+
+            # 3d. Token-order-insensitive soft overlap + Jaccard + fuzzy character similarity
+            for q_toks, q_s, q_sorted_s in (
+                (q_sem, q_sem_str, q_sem_sorted_str),
+                (q_sem_full, q_full_str, q_full_sorted_str),
+            ):
+                if not q_toks:
+                    continue
+                char_sim = _custom_cmd_char_sim(q_s, c_sem_str)
+                sorted_char_sim = _custom_cmd_char_sim(q_sorted_s, c_sem_sorted_str)
+                best_char = max(char_sim, sorted_char_sim)
+
+                if len(c_sem) == 1:
+                    if len(q_toks) == 1 and best_char >= 0.88:
+                        if best_char * 0.92 > best_cmd_score:
+                            best_cmd_score = best_char * 0.92
+                            best_cmd_kind = "fuzzy_single"
+                    continue
+
+                # Soft recall & precision across semantic tokens
+                c_best_sims = [max(_custom_cmd_char_sim(ct, qt) for qt in q_toks) for ct in c_sem]
+                q_best_sims = [max(_custom_cmd_char_sim(qt, ct) for ct in c_sem) for qt in q_toks]
+                recall = sum(c_best_sims) / len(c_sem)
+                precision = sum(q_best_sims) / len(q_toks)
+                matched_c = sum(1 for s in c_best_sims if s >= 0.80)
+                union_size = len(set(q_toks) | set(c_sem))
+                soft_jaccard = (
+                    min(len(c_sem), sum(1 for s in c_best_sims if s >= 0.80))
+                    / max(1, union_size)
+                )
+                combined = 0.40 * recall + 0.25 * precision + 0.15 * soft_jaccard + 0.20 * best_char
+
+                min_needed_tokens = 2 if len(c_sem) >= 2 else 1
+                is_strong_overlap = (
+                    matched_c >= min_needed_tokens
+                    and recall >= 0.72
+                    and precision >= 0.55
+                    and combined >= 0.74
+                )
+                is_strong_fuzzy_same_len = (
+                    len(q_toks) == len(c_sem)
+                    and best_char >= 0.86
+                )
+                is_clean_suffix = (
+                    len(q_toks) >= 2
+                    and len(q_s) >= 5
+                    and len(c_sem) == len(q_toks) + 1
+                    and c_sem_str.endswith(f" {q_s}")
+                )
+
+                if is_strong_overlap or is_strong_fuzzy_same_len:
+                    sc_val = min(0.94, max(combined, best_char * 0.94 if is_strong_fuzzy_same_len else combined))
+                    if sc_val > best_cmd_score:
+                        best_cmd_score = sc_val
+                        best_cmd_kind = "semantic_fuzzy"
+                elif is_clean_suffix:
+                    if 0.80 > best_cmd_score:
+                        best_cmd_score = 0.80
+                        best_cmd_kind = "suffix"
+
+        if best_cmd_score > 0.0:
+            scored.append((best_cmd_score, len(pn), cmd, best_cmd_kind))
+
+    if not scored:
+        return {"status": "none", "command": None, "candidates": []}
+
+    scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    best_score, _, best_cmd, best_kind = scored[0]
+
+    if len(scored) > 1 and best_score < 1.0:
+        second_score = scored[1][0]
+        if (best_score - second_score) < float(ambiguity_margin):
+            tied_cmds = [item[2] for item in scored if (best_score - item[0]) < float(ambiguity_margin)][:3]
+            return {
+                "status": "ambiguous",
+                "command": None,
+                "score": round(best_score, 4),
+                "candidates": tied_cmds,
+                "clarification_question": _format_ambiguous_custom_command_question_vi(tied_cmds),
+            }
+
+    return {
+        "status": "match",
+        "command": best_cmd,
+        "score": round(best_score, 4),
+        "match_type": best_kind,
+        "candidates": [best_cmd],
+    }
+
+
 def find_custom_command_by_text(
     text: str,
     *,
     owner_user_id: str | None = None,
     db_path: pathlib.Path | None = None,
 ) -> dict[str, Any] | None:
-    norm_text = normalize_phrase(text)
-    if not norm_text:
-        return None
-    commands = list_custom_commands(include_disabled=False, owner_user_id=owner_user_id, db_path=db_path)
-    for cmd in commands:
-        if cmd["phrase_norm"] == norm_text:
-            return cmd
-    stripped = norm_text
-    for prefix in (
-        "kich hoat khau lenh ",
-        "kich hoat cau lenh ",
-        "kich hoat phim tat ",
-        "kich hoat kich ban ",
-        "kich hoat lenh ",
-        "thuc hien khau lenh ",
-        "thuc hien cau lenh ",
-        "thuc hien phim tat ",
-        "thuc hien kich ban ",
-        "thuc hien lenh ",
-        "chay khau lenh ",
-        "chay cau lenh ",
-        "chay phim tat ",
-        "chay kich ban ",
-        "chay lenh ",
-        "goi lenh ",
-        "kich hoat ",
-        "chay ",
-        "bat ",
-        "mo ",
-        "thuc hien ",
-        "dung ",
-    ):
-        if stripped.startswith(prefix):
-            cand = stripped[len(prefix):].strip()
-            cand_no_polite = re.sub(
-                r"\s+(?:giup\s+(?:toi|minh|anh|chi|em)|ho\s+(?:toi|minh|anh|chi|em)|(?:gium|dum)\s+(?:toi|minh|anh|chi|em)|di|nhe|nha|a|luon|ngay)+$",
-                "",
-                cand,
-            ).strip()
-            for cmd in commands:
-                if cmd["phrase_norm"] == cand or (cand_no_polite and cmd["phrase_norm"] == cand_no_polite):
-                    return cmd
-    # Fallback: longer phrase contained as whole words
-    best: dict[str, Any] | None = None
-    best_len = 0
-    padded = f" {norm_text} "
-    for cmd in commands:
-        pn = cmd["phrase_norm"]
-        if len(pn) >= 3 and f" {pn} " in padded and len(pn) > best_len:
-            best = cmd
-            best_len = len(pn)
-    return best
+    res = match_custom_command_with_ambiguity(
+        text,
+        owner_user_id=owner_user_id,
+        db_path=db_path,
+    )
+    if res.get("status") == "match":
+        return res.get("command")
+    return None
 
 
 def clear_all_rules_and_commands(*, db_path: pathlib.Path | None = None) -> None:

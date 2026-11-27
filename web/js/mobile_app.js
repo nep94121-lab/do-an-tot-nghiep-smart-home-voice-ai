@@ -2696,15 +2696,80 @@
         })
       : null;
 
+    const MOBILE_AUDIO_INITIAL_PREROLL_SEC = 0.09;
+    const MOBILE_SILENCE_END_MS = 1450;
+    const MOBILE_MAX_UTTERANCE_MS = 20000;
+    const mobileActiveAudioSources = new Set();
+
+    const mobileVoiceAudioTelemetry = {
+      surface: 'mobile',
+      turnId: 0,
+      turnActive: false,
+      speechEndPerfMs: null,
+      firstChunkPerfMs: null,
+      lastChunkPerfMs: null,
+      ttfaMs: null,
+      chunkCount: 0,
+      chunkGapsMs: [],
+      maxWithinReplyGapMs: 0,
+      underrunCount: 0,
+      stutterCount: 0,
+      serverMaxChunkGapMs: null,
+      serverStutterCount: null,
+      history: [],
+    };
+    if (typeof window !== 'undefined') {
+      window.__voiceAudioTelemetry = mobileVoiceAudioTelemetry;
+    }
+
+    function markMobileVoiceTurnSpeechEnded() {
+      mobileVoiceAudioTelemetry.speechEndPerfMs = performance.now();
+    }
+
+    function finalizeMobileVoiceAudioTurn(serverMsg) {
+      if (serverMsg && typeof serverMsg === 'object') {
+        if (typeof serverMsg.max_chunk_gap_ms === 'number') {
+          mobileVoiceAudioTelemetry.serverMaxChunkGapMs = serverMsg.max_chunk_gap_ms;
+        }
+        if (typeof serverMsg.stutter_count === 'number') {
+          mobileVoiceAudioTelemetry.serverStutterCount = serverMsg.stutter_count;
+        }
+      }
+      if (mobileVoiceAudioTelemetry.turnActive || mobileVoiceAudioTelemetry.chunkCount > 0) {
+        mobileVoiceAudioTelemetry.history.push({
+          turnId: mobileVoiceAudioTelemetry.turnId,
+          ttfaMs: mobileVoiceAudioTelemetry.ttfaMs,
+          chunkCount: mobileVoiceAudioTelemetry.chunkCount,
+          chunkGapsMs: mobileVoiceAudioTelemetry.chunkGapsMs.slice(),
+          maxWithinReplyGapMs: mobileVoiceAudioTelemetry.maxWithinReplyGapMs,
+          underrunCount: mobileVoiceAudioTelemetry.underrunCount,
+          stutterCount: mobileVoiceAudioTelemetry.stutterCount,
+          serverMaxChunkGapMs: mobileVoiceAudioTelemetry.serverMaxChunkGapMs,
+          serverStutterCount: mobileVoiceAudioTelemetry.serverStutterCount,
+        });
+        if (mobileVoiceAudioTelemetry.history.length > 20) {
+          mobileVoiceAudioTelemetry.history.shift();
+        }
+      }
+      mobileVoiceAudioTelemetry.turnActive = false;
+    }
+
     function clearMobileAudioQueue() {
       if (mobileEchoGuard) {
         mobileEchoGuard.clearPlayback();
       }
-      if (mobileOutAudioCtx) {
-        try { mobileOutAudioCtx.close(); } catch (_) {}
-        mobileOutAudioCtx = null;
-        mobileNextPlayTime = 0;
+      for (const src of mobileActiveAudioSources) {
+        try {
+          src.onended = null;
+          src.stop(0);
+        } catch (_) {}
+        try {
+          src.disconnect();
+        } catch (_) {}
       }
+      mobileActiveAudioSources.clear();
+      mobileNextPlayTime = 0;
+      finalizeMobileVoiceAudioTurn(null);
     }
 
     function playMobilePcm24kOrSpeakVi(pcm24kB64, fallbackText) {
@@ -2732,23 +2797,65 @@
             for (let i = 0; i < int16Arr.length; i++) {
               float32Arr[i] = int16Arr[i] / 32768.0;
             }
+
+            const nowPerf = performance.now();
+            if (!mobileVoiceAudioTelemetry.turnActive) {
+              mobileVoiceAudioTelemetry.turnId += 1;
+              mobileVoiceAudioTelemetry.turnActive = true;
+              mobileVoiceAudioTelemetry.firstChunkPerfMs = nowPerf;
+              mobileVoiceAudioTelemetry.lastChunkPerfMs = nowPerf;
+              mobileVoiceAudioTelemetry.ttfaMs = mobileVoiceAudioTelemetry.speechEndPerfMs
+                ? Math.max(0, Math.round((nowPerf - mobileVoiceAudioTelemetry.speechEndPerfMs) * 10) / 10)
+                : null;
+              mobileVoiceAudioTelemetry.chunkCount = 1;
+              mobileVoiceAudioTelemetry.chunkGapsMs = [];
+              mobileVoiceAudioTelemetry.maxWithinReplyGapMs = 0;
+              mobileVoiceAudioTelemetry.underrunCount = 0;
+              mobileVoiceAudioTelemetry.stutterCount = 0;
+              mobileVoiceAudioTelemetry.serverMaxChunkGapMs = null;
+              mobileVoiceAudioTelemetry.serverStutterCount = null;
+            } else {
+              const gapMs = Math.max(0, Math.round((nowPerf - mobileVoiceAudioTelemetry.lastChunkPerfMs) * 10) / 10);
+              mobileVoiceAudioTelemetry.chunkGapsMs.push(gapMs);
+              if (gapMs > mobileVoiceAudioTelemetry.maxWithinReplyGapMs) {
+                mobileVoiceAudioTelemetry.maxWithinReplyGapMs = gapMs;
+              }
+              if (gapMs > 300) {
+                mobileVoiceAudioTelemetry.stutterCount += 1;
+              }
+              mobileVoiceAudioTelemetry.lastChunkPerfMs = nowPerf;
+              mobileVoiceAudioTelemetry.chunkCount += 1;
+            }
+
             const audioBuffer = mobileOutAudioCtx.createBuffer(1, float32Arr.length, 24000);
             audioBuffer.getChannelData(0).set(float32Arr);
             const source = mobileOutAudioCtx.createBufferSource();
             source.buffer = audioBuffer;
             source.connect(mobileOutAudioCtx.destination);
-            if (mobileEchoGuard) {
-              source.onended = () => {
+            mobileActiveAudioSources.add(source);
+            source.onended = () => {
+              mobileActiveAudioSources.delete(source);
+              if (mobileEchoGuard) {
                 mobileEchoGuard.noteSourceEnded();
-              };
-            }
+              }
+            };
             const now = mobileOutAudioCtx.currentTime;
-            if (mobileNextPlayTime < now) {
-              mobileNextPlayTime = now + 0.02;
+            if (mobileNextPlayTime <= now) {
+              if (mobileVoiceAudioTelemetry.chunkCount > 1 && mobileNextPlayTime > 0) {
+                mobileVoiceAudioTelemetry.underrunCount += 1;
+                const audibleGapMs = Math.round((now - mobileNextPlayTime) * 10000) / 10;
+                if (audibleGapMs > mobileVoiceAudioTelemetry.maxWithinReplyGapMs) {
+                  mobileVoiceAudioTelemetry.maxWithinReplyGapMs = audibleGapMs;
+                }
+              }
+              const mobileLeadSec = audioBuffer.duration >= 0.8
+                ? (now > 0 ? 0.02 : 0.0)
+                : MOBILE_AUDIO_INITIAL_PREROLL_SEC;
+              mobileNextPlayTime = now + mobileLeadSec;
             }
             const scheduledMobileStartSec = mobileNextPlayTime;
             source.start(scheduledMobileStartSec);
-            mobileNextPlayTime += audioBuffer.duration;
+            mobileNextPlayTime = scheduledMobileStartSec + audioBuffer.duration;
             if (mobileEchoGuard) {
               mobileEchoGuard.notePlaybackQueued(audioBuffer.duration * 1000.0, undefined, {
                 samples: float32Arr,
@@ -3003,6 +3110,10 @@
         mobileAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
         const source = mobileAudioContext.createMediaStreamSource(mobileMediaStream);
         mobileAudioProcessor = mobileAudioContext.createScriptProcessor(1024, 1, 1);
+        let mobileNoiseFloorRms = 0.003;
+        let mobileWasSpeaking = false;
+        let mobileSpeechStartMs = 0;
+        let mobileSilenceStartMs = 0;
         mobileAudioProcessor.onaudioprocess = (e) => {
           if (!isMobileListening) return;
           const rawInput = e.inputBuffer.getChannelData(0);
@@ -3038,9 +3149,44 @@
           ) {
             return;
           }
+          const mobileSpeechThreshold = Math.min(0.04, Math.max(0.0045, mobileNoiseFloorRms * 2.2));
+          const isMobileSpeech = rms > mobileSpeechThreshold || bargeInTriggered;
+          if (!isMobileSpeech) {
+            mobileNoiseFloorRms = Math.min(0.006, mobileNoiseFloorRms * 0.92 + rms * 0.08);
+          }
+          const nowMs = performance.now();
+          if (isMobileSpeech) {
+            if (!mobileWasSpeaking) {
+              mobileSpeechStartMs = nowMs;
+            }
+            mobileWasSpeaking = true;
+            mobileSilenceStartMs = 0;
+            if (mobileSpeechStartMs > 0 && nowMs - mobileSpeechStartMs > MOBILE_MAX_UTTERANCE_MS) {
+              mobileWasSpeaking = false;
+              mobileSpeechStartMs = 0;
+              mobileSilenceStartMs = 0;
+              markMobileVoiceTurnSpeechEnded();
+              if (isMobileGeminiLiveReady()) {
+                ws.send(JSON.stringify({ type: 'mic_speech_ended' }));
+              }
+            }
+          } else if (mobileWasSpeaking) {
+            if (mobileSilenceStartMs === 0) {
+              mobileSilenceStartMs = nowMs - (input.length / 16000.0) * 1000.0;
+            }
+            if (nowMs - mobileSilenceStartMs >= MOBILE_SILENCE_END_MS) {
+              mobileWasSpeaking = false;
+              mobileSpeechStartMs = 0;
+              mobileSilenceStartMs = 0;
+              markMobileVoiceTurnSpeechEnded();
+              if (isMobileGeminiLiveReady()) {
+                ws.send(JSON.stringify({ type: 'mic_speech_ended' }));
+              }
+            }
+          }
           const bytes = new Uint8Array(pcm16.buffer.slice(0));
           mobileMicPcmChunks.push(bytes);
-          if (mobileMicPcmChunks.length > 100) {
+          if (mobileMicPcmChunks.length > 320) {
             mobileMicPcmChunks.shift();
           }
           if (isMobileGeminiLiveReady()) {
@@ -3051,7 +3197,7 @@
             ws.send(JSON.stringify({
               type: 'mic_chunk',
               pcm16k_b64: window.btoa(binary),
-              is_speech: true,
+              is_speech: isMobileSpeech,
               barge_in: bargeInTriggered,
             }));
           }
@@ -3903,6 +4049,12 @@
         if (msg.type === 'audio_chunk' && msg.pcm24k_b64) {
           window._lastMobileGeminiAudioChunkTs = performance.now();
           playMobilePcm24kOrSpeakVi(msg.pcm24k_b64, '');
+        }
+        if (msg.type === 'interrupted') {
+          clearMobileAudioQueue();
+        }
+        if (msg.type === 'turn_complete') {
+          finalizeMobileVoiceAudioTurn(msg);
         }
         if (msg.type === 'voice_auth_rejected') {
           const rejText = msg.rejection_speech || 'Xin lỗi, bạn không có quyền thực hiện lệnh này.';

@@ -325,6 +325,7 @@ def silent_echo_suppressed_response(*, session: UserSession | None = None) -> di
     payload["reason"] = "echo_suppressed"
     payload["error"] = "echo_suppressed"
     payload["echo_suppressed"] = True
+    payload["requires_confirmation"] = False
     return payload
 
 
@@ -364,7 +365,7 @@ async def execute_session_voice_intents(
         handle_pending_interruption_if_any,
         process_automation_nlu_command,
     )
-    from backend.automation_repo import find_custom_command_by_text
+    from backend.automation_repo import match_custom_command_with_ambiguity
     from backend.engine.voice_rbac_mixin import FIXED_REJECTION_PHRASE_VI
     from backend.voice.vietnamese_policy import (
         classify_ambiguous_or_unsupported_vi,
@@ -443,8 +444,13 @@ async def execute_session_voice_intents(
             })
 
     # 1. Friendly Vietnamese small talk BEFORE any automation/permission checks (unless saved custom command)
-    saved_custom = find_custom_command_by_text(transcript, owner_user_id=user_id) if actor_tier < 3 else None
-    if saved_custom is None:
+    saved_custom_match = (
+        match_custom_command_with_ambiguity(transcript, owner_user_id=user_id)
+        if actor_tier < 3
+        else {"status": "none", "command": None}
+    )
+    has_saved_custom = saved_custom_match.get("status") in ("match", "ambiguous")
+    if not has_saved_custom:
         small_talk = classify_small_talk_vi(transcript, user_name=str(session.display_name or ""))
         if small_talk is not None:
             await handle_pending_interruption_if_any(
@@ -487,7 +493,7 @@ async def execute_session_voice_intents(
             })
 
     # 2. Sensor & device status queries execute immediately with real values (unless user invoked a saved custom command)
-    query_info = handle_sensor_or_status_query_vi(transcript, engine, session) if saved_custom is None else None
+    query_info = handle_sensor_or_status_query_vi(transcript, engine, session) if not has_saved_custom else None
     if query_info is not None:
         await handle_pending_interruption_if_any(
             raw_text=transcript,

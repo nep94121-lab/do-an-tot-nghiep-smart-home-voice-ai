@@ -622,14 +622,14 @@ def classify_small_talk_vi(
         return {
             "kind": "small_talk",
             "subkind": "thanks",
-            "reply": "Không có gì! Cần điều khiển gì bạn cứ nói nhé.",
+            "reply": "Dạ không có gì ạ.",
         }
 
     # Goodbye
     if norm in ("tam biet", "tam biet ban", "tam biet nhe", "gap lai sau", "hen gap lai", "ket thuc", "ngu ngon", "chuc ngu ngon") or any(
         p in norm for p in ("tam biet", "gap lai sau", "hen gap lai", "chuc ngu ngon")
     ):
-        reply = "Chúc bạn ngủ ngon!" if "ngu ngon" in norm else "Tạm biệt bạn! Hẹn gặp lại."
+        reply = "Chúc bạn ngủ ngon ạ." if "ngu ngon" in norm else "Dạ chào tạm biệt, hẹn gặp lại ạ."
         return {
             "kind": "small_talk",
             "subkind": "goodbye",
@@ -641,25 +641,25 @@ def classify_small_talk_vi(
         return {
             "kind": "small_talk",
             "subkind": "greeting",
-            "reply": "Chào buổi sáng! Tôi có thể giúp gì cho bạn?",
+            "reply": "Dạ chào buổi sáng ạ.",
         }
     if any(p in norm for p in ("chao buoi trua",)):
         return {
             "kind": "small_talk",
             "subkind": "greeting",
-            "reply": "Chào buổi trưa! Tôi có thể giúp gì cho bạn?",
+            "reply": "Dạ chào buổi trưa ạ.",
         }
     if any(p in norm for p in ("chao buoi chieu",)):
         return {
             "kind": "small_talk",
             "subkind": "greeting",
-            "reply": "Chào buổi chiều! Tôi có thể giúp gì cho bạn?",
+            "reply": "Dạ chào buổi chiều ạ.",
         }
     if any(p in norm for p in ("chao buoi toi",)):
         return {
             "kind": "small_talk",
             "subkind": "greeting",
-            "reply": "Chào buổi tối! Tôi có thể giúp gì cho bạn?",
+            "reply": "Dạ chào buổi tối ạ.",
         }
 
     greeting_exact = {
@@ -674,7 +674,7 @@ def classify_small_talk_vi(
         return {
             "kind": "small_talk",
             "subkind": "greeting",
-            "reply": "Xin chào! Tôi có thể giúp gì cho bạn?",
+            "reply": "Dạ chào bạn ạ.",
         }
 
     return None
@@ -1324,7 +1324,7 @@ def _is_status_question_vi(raw_text: str) -> bool:
         return True
     if re.search(r"\b(?:chưa|chua)\s*[.!?]*$", raw):
         return True
-    if re.search(r"\b(?:bao\s+nhiêu|bao\s+nhieu|mấy\s+độ|may\s+do|thế\s+nào|the\s+nao|ra\s+sao)\b", raw):
+    if re.search(r"\b(?:bao\s+nhiêu|bao\s+nhieu|mấy\s+độ|may\s+do|thế\s+nào|the\s+nao|ra\s+sao|thì\s+sao|thi\s+sao)\b", raw):
         return True
     if re.search(r"\b(?:đang|dang)\b.+\b(?:hay|hoặc|hoac)\b", raw):
         return True
@@ -1396,7 +1396,9 @@ def is_no_action_safety_blocked_vi(raw_text: str) -> bool:
 
 _SELF_CORRECTION_RE = re.compile(
     r"^(?P<before>.+?)\s*(?:(?:\.{2,}|…)\s*(?:à|ờ)\s+(?=(?:bật|tắt|mở|đóng|bat|tat|mo|dong)\b)|"
-    r"(?:[.,…;!?-]+\s*|\s+)(?:à\s+không|a\s+khong|à\s+nhầm|a\s+nham|nhầm\s+rồi|nham\s+roi|nhầm|nham|ý\s+mình\s+là|ý\s+tôi\s+là)\s*[,;:.!?…-]*\s*)(?P<after>.+)$",
+    r"(?:[.,…;!?-]+\s*|\s+)(?:à\s+không|a\s+khong|à\s+thôi|a\s+thoi|ờ\s+thôi|o\s+thoi|"
+    r"thôi\s+(?:đổi|chuyển)\s+(?:sang|thành)|thoi\s+(?:doi|chuyen)\s+(?:sang|thanh)|"
+    r"à\s+nhầm|a\s+nham|nhầm\s+rồi|nham\s+roi|nhầm|nham|ý\s+mình\s+là|ý\s+tôi\s+là)\s*[,;:.!?…-]*\s*)(?P<after>.+)$",
     re.IGNORECASE,
 )
 
@@ -1751,7 +1753,7 @@ def parse_direct_device_intents_vi(
 
     # Split into punctuation/sentence/contrast segments so negated/keep-unchanged clauses exclude only their target device;
     # a pure utterance-wide cancellation/deferral clause with no target device aborts the whole utterance.
-    pre_segments = re.split(r"\s*(?:,|;|\.(?=\s)|\bchứ\b|\bnhưng\b)\s*", seg_prep, flags=re.IGNORECASE)
+    pre_segments = re.split(r"\s*(?:,|;|\.{2,}|…|\.(?=\s)|\bchứ\b|\bnhưng\b)\s*", seg_prep, flags=re.IGNORECASE)
     kept_segments: list[str] = []
     for seg in pre_segments:
         seg_s = seg.strip(" .!?…")
@@ -1767,7 +1769,7 @@ def parse_direct_device_intents_vi(
             elif neg_dev is not None:
                 excluded_devs.add(neg_dev)
             elif re.fullmatch(
-                r"(?:khoan(?:\s+(?:da|hang|hay|voi))?|"
+                r"(?:(?:a|o|um|u)\s+)?(?:khoan(?:\s+(?:da|hang|hay|voi))?|"
                 r"(?:cho|doi)\s+(?:chut|da|xiu|mot\s+(?:chut|lat|xiu)|ty|ti)|"
                 r"tu\s+tu(?:\s+da)?|de\s+sau|lat\s+nua|"
                 r"dung\s+voi|chua\s+(?:can|muon)(?:\s+dau)?|"
@@ -2200,8 +2202,12 @@ def handle_sensor_or_status_query_vi(
         if not has_explicit_sensor_read:
             return None
 
-    if (
+    has_thi_conditional_q = bool(
         " thi " in padded_no_air
+        and not re.search(r"\bthi\s+(?:sao|the\s+nao|ra\s+sao)\b", norm_no_air)
+    )
+    if (
+        has_thi_conditional_q
         or has_cond_he_q
         or has_reset_or_macro_q
         or any(
@@ -2490,7 +2496,7 @@ def handle_sensor_or_status_query_vi(
                 " co bat khong ", " co dong khong ", " co tat khong ",
                 " dang mo khong ", " dang bat khong ", " dang dong khong ",
                 " dang tat khong ", " dang keu khong ", " co dang keu ",
-                " dang the nao ", " thiet bi nao dang ", " nhung thiet bi nao ",
+                " dang the nao ", " thi sao ", " the nao ", " ra sao ", " thiet bi nao dang ", " nhung thiet bi nao ",
                 " dang bat gi ", " dang mo gi ", " co gi dang bat ", " co gi dang mo ",
                 " nha minh dang bat ", " nha dang bat ",
             )

@@ -338,6 +338,64 @@
     silenceStartMs = 0;
   }
 
+  const AUDIO_INITIAL_PREROLL_SEC = 0.09;
+  const CLIENT_SILENCE_END_MS = 1450;
+  const CLIENT_MAX_UTTERANCE_MS = 20000;
+  const activeAudioSources = new Set();
+
+  const voiceAudioTelemetry = {
+    surface: "desktop",
+    turnId: 0,
+    turnActive: false,
+    speechEndPerfMs: null,
+    firstChunkPerfMs: null,
+    lastChunkPerfMs: null,
+    ttfaMs: null,
+    chunkCount: 0,
+    chunkGapsMs: [],
+    maxWithinReplyGapMs: 0,
+    underrunCount: 0,
+    stutterCount: 0,
+    serverMaxChunkGapMs: null,
+    serverStutterCount: null,
+    history: [],
+  };
+  if (typeof window !== "undefined") {
+    window.__voiceAudioTelemetry = voiceAudioTelemetry;
+  }
+
+  function markVoiceTurnSpeechEnded() {
+    voiceAudioTelemetry.speechEndPerfMs = performance.now();
+  }
+
+  function finalizeVoiceAudioTurn(serverMsg) {
+    if (serverMsg && typeof serverMsg === "object") {
+      if (typeof serverMsg.max_chunk_gap_ms === "number") {
+        voiceAudioTelemetry.serverMaxChunkGapMs = serverMsg.max_chunk_gap_ms;
+      }
+      if (typeof serverMsg.stutter_count === "number") {
+        voiceAudioTelemetry.serverStutterCount = serverMsg.stutter_count;
+      }
+    }
+    if (voiceAudioTelemetry.turnActive || voiceAudioTelemetry.chunkCount > 0) {
+      voiceAudioTelemetry.history.push({
+        turnId: voiceAudioTelemetry.turnId,
+        ttfaMs: voiceAudioTelemetry.ttfaMs,
+        chunkCount: voiceAudioTelemetry.chunkCount,
+        chunkGapsMs: voiceAudioTelemetry.chunkGapsMs.slice(),
+        maxWithinReplyGapMs: voiceAudioTelemetry.maxWithinReplyGapMs,
+        underrunCount: voiceAudioTelemetry.underrunCount,
+        stutterCount: voiceAudioTelemetry.stutterCount,
+        serverMaxChunkGapMs: voiceAudioTelemetry.serverMaxChunkGapMs,
+        serverStutterCount: voiceAudioTelemetry.serverStutterCount,
+      });
+      if (voiceAudioTelemetry.history.length > 20) {
+        voiceAudioTelemetry.history.shift();
+      }
+    }
+    voiceAudioTelemetry.turnActive = false;
+  }
+
   function playPcm24kChunk(base64Data) {
     if (chkPlayAiVoice && chkPlayAiVoice.checked === false) return;
     if (!base64Data) return;
@@ -352,6 +410,35 @@
       const float32Arr = new Float32Array(int16Arr.length);
       for (let i = 0; i < int16Arr.length; i++) {
         float32Arr[i] = int16Arr[i] / 32768.0;
+      }
+
+      const nowPerf = performance.now();
+      if (!voiceAudioTelemetry.turnActive) {
+        voiceAudioTelemetry.turnId += 1;
+        voiceAudioTelemetry.turnActive = true;
+        voiceAudioTelemetry.firstChunkPerfMs = nowPerf;
+        voiceAudioTelemetry.lastChunkPerfMs = nowPerf;
+        voiceAudioTelemetry.ttfaMs = voiceAudioTelemetry.speechEndPerfMs
+          ? Math.max(0, Math.round((nowPerf - voiceAudioTelemetry.speechEndPerfMs) * 10) / 10)
+          : null;
+        voiceAudioTelemetry.chunkCount = 1;
+        voiceAudioTelemetry.chunkGapsMs = [];
+        voiceAudioTelemetry.maxWithinReplyGapMs = 0;
+        voiceAudioTelemetry.underrunCount = 0;
+        voiceAudioTelemetry.stutterCount = 0;
+        voiceAudioTelemetry.serverMaxChunkGapMs = null;
+        voiceAudioTelemetry.serverStutterCount = null;
+      } else {
+        const gapMs = Math.max(0, Math.round((nowPerf - voiceAudioTelemetry.lastChunkPerfMs) * 10) / 10);
+        voiceAudioTelemetry.chunkGapsMs.push(gapMs);
+        if (gapMs > voiceAudioTelemetry.maxWithinReplyGapMs) {
+          voiceAudioTelemetry.maxWithinReplyGapMs = gapMs;
+        }
+        if (gapMs > 300) {
+          voiceAudioTelemetry.stutterCount += 1;
+        }
+        voiceAudioTelemetry.lastChunkPerfMs = nowPerf;
+        voiceAudioTelemetry.chunkCount += 1;
       }
 
       if (typeof window !== "undefined") {
@@ -381,19 +468,32 @@
       const source = audioCtxOut.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioCtxOut.destination);
-      if (desktopEchoGuard) {
-        source.onended = () => {
+      activeAudioSources.add(source);
+      source.onended = () => {
+        activeAudioSources.delete(source);
+        if (desktopEchoGuard) {
           desktopEchoGuard.noteSourceEnded();
-        };
-      }
+        }
+      };
 
       const now = audioCtxOut.currentTime;
-      if (nextPlayTime < now) {
-        nextPlayTime = now + 0.02;
+      if (nextPlayTime <= now) {
+        if (voiceAudioTelemetry.chunkCount > 1 && nextPlayTime > 0) {
+          voiceAudioTelemetry.underrunCount += 1;
+          const audibleGapMs = Math.round((now - nextPlayTime) * 10000) / 10;
+          if (audibleGapMs > voiceAudioTelemetry.maxWithinReplyGapMs) {
+            voiceAudioTelemetry.maxWithinReplyGapMs = audibleGapMs;
+          }
+        }
+        // Streaming Live API chunks (<0.8s) get 90ms jitter-buffer pre-roll; pre-rendered full clips (>=0.8s) start immediately without extra lag
+        const leadSec = audioBuffer.duration >= 0.8
+          ? (now > 0 ? 0.02 : 0.0)
+          : AUDIO_INITIAL_PREROLL_SEC;
+        nextPlayTime = now + leadSec;
       }
       const scheduledStartSec = nextPlayTime;
       source.start(scheduledStartSec);
-      nextPlayTime += audioBuffer.duration;
+      nextPlayTime = scheduledStartSec + audioBuffer.duration;
       if (desktopEchoGuard) {
         desktopEchoGuard.notePlaybackQueued(audioBuffer.duration * 1000.0, undefined, {
           samples: float32Arr,
@@ -412,13 +512,18 @@
     if (desktopEchoGuard) {
       desktopEchoGuard.clearPlayback();
     }
-    if (audioCtxOut) {
+    for (const src of activeAudioSources) {
       try {
-        audioCtxOut.close();
+        src.onended = null;
+        src.stop(0);
       } catch (_) {}
-      audioCtxOut = null;
-      nextPlayTime = 0;
+      try {
+        src.disconnect();
+      } catch (_) {}
     }
+    activeAudioSources.clear();
+    nextPlayTime = 0;
+    finalizeVoiceAudioTurn(null);
   }
 
   function requestAoedeSpokenPhrase(text) {
@@ -2344,6 +2449,7 @@
 
         case "turn_complete":
           awaitingTurnAfterSpeech = false;
+          finalizeVoiceAudioTurn(msg);
           updateLatencyUI(msg.tool_ms, msg.audio_ms, msg.lead_ms);
           break;
 
@@ -2745,15 +2851,16 @@
           wasSpeaking = true;
           silenceStartMs = 0;
           activeMicPcmChunks.push(chunkBytes);
-          if (activeMicPcmChunks.length > 100) {
+          if (activeMicPcmChunks.length > 320) {
             activeMicPcmChunks.shift();
           }
           micStateLabel.textContent = "Đang nghe";
-          if (speechStartMs > 0 && nowMs - speechStartMs > 6500) {
+          if (speechStartMs > 0 && nowMs - speechStartMs > CLIENT_MAX_UTTERANCE_MS) {
             wasSpeaking = false;
             speechStartMs = 0;
             silenceStartMs = 0;
             awaitingTurnAfterSpeech = true;
+            markVoiceTurnSpeechEnded();
             micStateLabel.textContent = "Đang xử lý";
             if (isGeminiLiveReady()) {
               sendWs({ type: "mic_speech_ended" });
@@ -2763,17 +2870,18 @@
           }
         } else if (wasSpeaking) {
           activeMicPcmChunks.push(chunkBytes);
-          if (activeMicPcmChunks.length > 100) {
+          if (activeMicPcmChunks.length > 320) {
             activeMicPcmChunks.shift();
           }
           if (silenceStartMs === 0) {
             silenceStartMs = nowMs - (input.length / 16000) * 1000;
           }
-          if (nowMs - silenceStartMs >= 420) {
+          if (nowMs - silenceStartMs >= CLIENT_SILENCE_END_MS) {
             wasSpeaking = false;
             speechStartMs = 0;
             silenceStartMs = 0;
             awaitingTurnAfterSpeech = true;
+            markVoiceTurnSpeechEnded();
             micStateLabel.textContent = "Đang xử lý";
             if (isGeminiLiveReady()) {
               sendWs({ type: "mic_speech_ended" });

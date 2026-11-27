@@ -535,6 +535,14 @@ async def hardware_asm_report_doc() -> Response:
     return FileResponse(doc_path, media_type="text/markdown; charset=utf-8")
 
 
+@app.get("/docs/phan_cung/HUONG_DAN_NAP_FIRMWARE_USB.md")
+async def hardware_usb_flash_guide_doc() -> Response:
+    doc_path = ROOT / "docs" / "phan_cung" / "HUONG_DAN_NAP_FIRMWARE_USB.md"
+    if not doc_path.exists() or not doc_path.is_file():
+        return JSONResponse({"ok": False, "error": "HUONG_DAN_NAP_FIRMWARE_USB.md not found"}, status_code=404)
+    return FileResponse(doc_path, media_type="text/markdown; charset=utf-8")
+
+
 @app.get("/favicon.ico")
 async def favicon() -> Response:
     return Response(status_code=204)

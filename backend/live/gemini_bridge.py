@@ -65,6 +65,7 @@ from backend.api.deps import (
     safe_str,
 )
 from backend.auth.session_store import UserSession, resolve_strict_ws_session, session_is_current, get_session_store
+from backend.auth.tier_permissions import filter_ws_event_for_session
 from backend.knowledge_rag import SmartHomeKnowledgeRAG
 from backend.live.echo_and_speech_guard import (
     ServerEchoGuard,
@@ -260,6 +261,10 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         self.speech_end_ts: float | None = None
         self.turn_first_tool_ts: float | None = None
         self.turn_first_audio_ts: float | None = None
+        self.turn_audio_chunk_ts: list[float] = []
+        self.turn_chunk_gaps_ms: list[float] = []
+        self.turn_max_chunk_gap_ms: float = 0.0
+        self.turn_stutter_count: int = 0
         self.turn_in_tx: list[str] = []
         self.turn_out_tx: list[str] = []
         self.turn_tools_called: list[str] = []
@@ -413,13 +418,33 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             if self in _ACTIVE_BRIDGES:
                 _ACTIVE_BRIDGES.remove(self)
             return
-        from backend.auth.tier_permissions import filter_ws_event_for_session
 
-        ws_sess = (
-            self._cached_ws_actor
-            if self._is_cached_actor_fresh()
-            else await asyncio.to_thread(self._resolve_ws_session)
-        )
+        ptype = str(payload.get("type", ""))
+        if ptype == "audio_chunk":
+            revoked_sids = get_session_store()._revoked_sids
+            cached_actor = self._cached_ws_actor
+            if (
+                cached_actor is not None
+                and cached_actor.is_authenticated
+                and not cached_actor.is_expired()
+                and cached_actor.session_id not in revoked_sids
+            ):
+                ws_sess = cached_actor
+            elif (
+                self.ws_session is not None
+                and self.ws_session.is_authenticated
+                and not self.ws_session.is_expired()
+                and self.ws_session.session_id not in revoked_sids
+            ):
+                ws_sess = self.ws_session
+            else:
+                ws_sess = await asyncio.to_thread(self._resolve_ws_session)
+        else:
+            ws_sess = (
+                self._cached_ws_actor
+                if self._is_cached_actor_fresh()
+                else await asyncio.to_thread(self._resolve_ws_session)
+            )
         filtered = filter_ws_event_for_session(payload, ws_sess, broadcast=broadcast)
         if filtered is None:
             return
@@ -469,6 +494,10 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         self.speech_end_ts = anchor_ts or time.perf_counter()
         self.turn_first_tool_ts = None
         self.turn_first_audio_ts = None
+        self.turn_audio_chunk_ts.clear()
+        self.turn_chunk_gaps_ms.clear()
+        self.turn_max_chunk_gap_ms = 0.0
+        self.turn_stutter_count = 0
         self.turn_in_tx.clear()
         self.turn_out_tx.clear()
         self.turn_tools_called.clear()
@@ -707,11 +736,21 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                             if part.inline_data and part.inline_data.data:
                                                 if self._current_turn_echo_suppressed:
                                                     continue
+                                                chunk_ts = time.perf_counter()
+                                                if self.turn_audio_chunk_ts:
+                                                    gap_ms = round((chunk_ts - self.turn_audio_chunk_ts[-1]) * 1000.0, 1)
+                                                    self.turn_chunk_gaps_ms.append(gap_ms)
+                                                    if gap_ms > self.turn_max_chunk_gap_ms:
+                                                        self.turn_max_chunk_gap_ms = gap_ms
+                                                    if gap_ms > 300.0:
+                                                        self.turn_stutter_count += 1
+                                                self.turn_audio_chunk_ts.append(chunk_ts)
                                                 self.echo_guard.note_ai_audio_chunk(len(part.inline_data.data), sample_rate=24000, pcm_bytes=part.inline_data.data)
+                                                first_metrics_ev: dict[str, Any] | None = None
                                                 if self.turn_first_audio_ts is None:
-                                                    self.turn_first_audio_ts = now
-                                                    t_anchor = self.speech_end_ts or now
-                                                    audio_ms = max(1, round((now - t_anchor) * 1000))
+                                                    self.turn_first_audio_ts = chunk_ts
+                                                    t_anchor = self.speech_end_ts or chunk_ts
+                                                    audio_ms = max(1, round((chunk_ts - t_anchor) * 1000))
                                                     tool_ms = (
                                                         max(1, round((self.turn_first_tool_ts - t_anchor) * 1000))
                                                         if self.turn_first_tool_ts
@@ -722,17 +761,19 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                                         if self.turn_first_tool_ts
                                                         else None
                                                     )
-                                                    await self.send_ws_json({
+                                                    first_metrics_ev = {
                                                         "type": "first_audio_metrics",
                                                         "tool_ms": tool_ms,
                                                         "audio_ms": audio_ms,
                                                         "lead_ms": lead_ms,
-                                                    })
+                                                    }
                                                 b64_pcm = base64.b64encode(part.inline_data.data).decode("ascii")
                                                 await self.send_ws_json({
                                                     "type": "audio_chunk",
                                                     "pcm24k_b64": b64_pcm,
                                                 })
+                                                if first_metrics_ev is not None:
+                                                    await self.send_ws_json(first_metrics_ev)
 
                                     if sc.interrupted:
                                         self.echo_guard.clear_ai_playback()
@@ -782,6 +823,10 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                             "tool_ms": tool_ms,
                                             "audio_ms": audio_ms,
                                             "lead_ms": lead_ms,
+                                            "audio_chunks": len(self.turn_audio_chunk_ts),
+                                            "chunk_gaps_ms": list(self.turn_chunk_gaps_ms),
+                                            "max_chunk_gap_ms": round(self.turn_max_chunk_gap_ms, 1),
+                                            "stutter_count": int(self.turn_stutter_count),
                                         })
                 except asyncio.CancelledError:
                     raise
@@ -1271,6 +1316,10 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                     "tool_ms": tool_ms,
                                     "audio_ms": None,
                                     "lead_ms": None,
+                                    "audio_chunks": 0,
+                                    "chunk_gaps_ms": [],
+                                    "max_chunk_gap_ms": 0.0,
+                                    "stutter_count": 0,
                                 })
                                 await _broadcast_rest_state_to_bridges()
                             elif self.gemini_session is not None:
@@ -1546,7 +1595,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         raw_req_text = str(msg.get("text", "")).strip()
                         if raw_req_text == FIXED_SAFE_DENY_REPEAT_PHRASE_VI:
                             req_phrase = FIXED_SAFE_DENY_REPEAT_PHRASE_VI
-                        elif raw_req_text and "mất kết nối" in raw_req_text.lower() and len(raw_req_text) <= 220:
+                        elif raw_req_text and len(raw_req_text) <= 220:
                             from backend.voice.vietnamese_policy import ensure_vietnamese_reply
 
                             req_phrase = ensure_vietnamese_reply(raw_req_text, fallback=FIXED_REJECTION_PHRASE_VI)

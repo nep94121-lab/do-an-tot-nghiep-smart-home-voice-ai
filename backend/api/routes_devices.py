@@ -878,7 +878,7 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         handle_pending_interruption_if_any,
         process_automation_nlu_command,
     )
-    from backend.automation_repo import find_custom_command_by_text
+    from backend.automation_repo import match_custom_command_with_ambiguity
     from backend.engine.voice_rbac_mixin import FIXED_REJECTION_PHRASE_VI
     from backend.voice.vietnamese_policy import (
         classify_ambiguous_or_unsupported_vi,
@@ -910,12 +910,13 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         return JSONResponse(c_payload, status_code=int(conf_res.get("status_code") or 200))
 
     # 1. Small talk BEFORE any automation/permission rejections (unless saved custom command)
-    saved_custom_txt = (
-        find_custom_command_by_text(text, owner_user_id=str(session.user_id))
+    saved_custom_txt_match = (
+        match_custom_command_with_ambiguity(text, owner_user_id=str(session.user_id))
         if effective_tier < 3
-        else None
+        else {"status": "none", "command": None}
     )
-    if saved_custom_txt is None:
+    has_saved_custom_txt = saved_custom_txt_match.get("status") in ("match", "ambiguous")
+    if not has_saved_custom_txt:
         small_talk = classify_small_talk_vi(text, user_name=str(effective_user or ""))
         if small_talk is not None:
             await handle_pending_interruption_if_any(
@@ -999,8 +1000,8 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
             ui_pl.setdefault("snapshot", _REST_ENGINE.get_snapshot(session=session, sync=False))
             return JSONResponse(ui_pl, status_code=int(ui_res.get("status_code") or 200))
 
-    # 2b. Sensor & device status queries (immediate, no confirmation)
-    q_info = handle_sensor_or_status_query_vi(text, _REST_ENGINE, session)
+    # 2b. Sensor & device status queries (immediate, no confirmation, unless saved custom command)
+    q_info = handle_sensor_or_status_query_vi(text, _REST_ENGINE, session) if not has_saved_custom_txt else None
     if q_info is not None:
         await handle_pending_interruption_if_any(
             raw_text=text,

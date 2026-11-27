@@ -546,10 +546,8 @@ async def process_compound_nlu_command(
     # 2. Polite refusal for removed / unsupported devices (let explicit macro creation return 400 in automation_nlu)
     norm_safe = _norm_protect_air(raw)
     if _REMOVED_OR_UNSUPPORTED_DEVICE_RE.search(padded) and not _MACRO_CREATION_PREFIX_RE.match(norm_safe):
-        # Allow legitimate queries about what devices exist; refuse commands targeting removed devices
-        msg = (
-            f"Xin lỗi, thiết bị bạn vừa nhắc không có trong hệ thống và chưa được hỗ trợ. {REMOVED_DEVICE_HINT_VI}"
-        )
+        # Short, exact, polite Vietnamese refusal (R2 concise speech policy)
+        msg = "Xin lỗi, thiết bị này không có trong hệ thống ạ."
         return {
             "handled": True,
             "status_code": 200,
@@ -564,12 +562,21 @@ async def process_compound_nlu_command(
             },
         }
 
-    # 3. Direct house presence mode commands (skip if it's a rule or matches an existing custom command)
+    # 3. Direct house presence mode commands (skip if it's a rule, custom-command CRUD, or matches an existing custom command)
+    is_custom_cmd_mgmt = bool(
+        _MACRO_CREATION_PREFIX_RE.match(norm_safe)
+        or re.match(
+            r"^(?:(?:hay|vui\s+long|lam\s+on|toi\s+muon|minh\s+muon|giup\s+(?:toi|minh))\s+){0,2}"
+            r"(?:sua|chinh\s+sua|doi|cap\s+nhat|xoa|huy|bo|go|dep)\s+"
+            r"(?:lenh|cau\s+lenh|khau\s+lenh|ngu\s+canh|kich\s+ban|phim\s+tat)\b",
+            norm_safe,
+        )
+    )
     is_rule_phrase = bool(
         (_has_explicit_rule_cue(raw, norm_safe) or re.search(r"\b(?:thi|luat|quy\s+tac)\b", norm_safe))
         and not (_MACRO_CREATION_PREFIX_RE.match(norm_safe) and not _MACRO_CONDITIONAL_BODY_RE.match(norm_safe))
     )
-    if not is_rule_phrase:
+    if not is_rule_phrase and not is_custom_cmd_mgmt:
         saved_custom = find_custom_command_by_text(raw, owner_user_id=user_id) if tier < 3 else None
         if saved_custom is None:
             if any(

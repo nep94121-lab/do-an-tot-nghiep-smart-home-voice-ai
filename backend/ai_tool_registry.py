@@ -29,6 +29,7 @@ from backend.automation_nlu import (
     _expand_targets,
     _resolve_session_key,
     _session_actor,
+    execute_saved_custom_command,
     handle_confirmation_reply,
     parse_multi_steps_from_text,
     prepare_pending_mutation,
@@ -49,6 +50,7 @@ from backend.automation_repo import (
     list_custom_commands,
     list_pending_timers,
     list_schedules,
+    match_custom_command_with_ambiguity,
     normalize_phrase,
     reset_custom_commands_scoped,
     reset_links_scoped,
@@ -411,7 +413,10 @@ TOOL_REGISTRY: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         name="run_custom_command",
-        description="Chạy một lệnh tùy chỉnh đã lưu theo tên khẩu lệnh hoặc mã lệnh; hỏi xác nhận trước khi thực thi.",
+        description=(
+            "Chạy NGAY LẬP TỨC một lệnh tùy chỉnh đã lưu theo tên khẩu lệnh hoặc mã lệnh sau khi kiểm tra phân quyền "
+            "(KHÔNG hỏi xác nhận trước); chỉ báo ngắn gọn kết quả sau khi thực thi."
+        ),
         parameters={
             "type": "OBJECT",
             "properties": {
@@ -419,7 +424,7 @@ TOOL_REGISTRY: tuple[ToolSpec, ...] = (
                 "phrase": {"type": "STRING"},
             },
         },
-        requires_confirmation=True,
+        requires_confirmation=False,
         category="custom_commands",
     ),
     ToolSpec(
@@ -1214,7 +1219,7 @@ async def dispatch_tool(
 
     # --- Confirmation ---
     if name == "confirm_or_cancel_pending_action":
-        confirmed = bool(tool_args.get("confirmed", False))
+        confirmed = tool_args.get("confirmed") is True
         conf_res = await handle_confirmation_reply(
             raw_text="xác nhận" if confirmed else "hủy",
             engine=engine,
@@ -1735,27 +1740,40 @@ async def dispatch_tool(
         return _wrap_payload(dict(staged["payload"]), status_code=int(staged["status_code"]))
 
     if name == "run_custom_command":
+        if tier >= 3:
+            return _err_resp(GUEST_ONLY_TOGGLE_MSG_VI, status_code=403, rbac_blocked=True)
         cid = str(tool_args.get("command_id") or "").strip()
         phrase = str(tool_args.get("phrase") or "").strip()
         all_cmds = list_custom_commands(include_disabled=False, owner_user_id=owner_filter)
         cmd_hit = next((c for c in all_cmds if c["command_id"] == cid), None) if cid else None
         if cmd_hit is None and phrase:
-            cmd_hit = find_custom_command_by_text(phrase, owner_user_id=owner_filter)
+            match_res = match_custom_command_with_ambiguity(phrase, owner_user_id=owner_filter)
+            if match_res.get("status") == "ambiguous":
+                clar_q = str(match_res.get("clarification_question") or "Bạn muốn chạy lệnh tùy chỉnh nào ạ?")
+                return _wrap_payload(
+                    {
+                        "ok": True,
+                        "executed": False,
+                        "requires_confirmation": False,
+                        "needs_clarification": True,
+                        "kind": "clarify_ambiguous_custom_command",
+                        "candidates": match_res.get("candidates") or [],
+                        "reply": clar_q,
+                        "exact_spoken_reply": clar_q,
+                    },
+                    status_code=200,
+                )
+            cmd_hit = match_res.get("command")
         if cmd_hit is None:
             return _err_resp(f"Không tìm thấy lệnh tùy chỉnh '{phrase or cid}'.", status_code=404)
-        ok_rb, rb_msg = check_steps_rbac(cmd_hit.get("steps") or [], tier)
-        if not ok_rb:
-            return _err_resp(rb_msg, status_code=403, rbac_blocked=True)
-        staged = await prepare_pending_mutation(
+        exec_res = await execute_saved_custom_command(
+            matched_cmd=cmd_hit,
             engine=engine,
             session=session,
             source=source,
-            session_key=skey,
-            action_kind="run_custom_command",
-            payload={"command_id": cmd_hit["command_id"], "phrase": cmd_hit["phrase"]},
-            prompt_summary=f"Chạy lệnh '{cmd_hit['phrase']}' ({cmd_hit['steps_summary']})",
+            confirmed=False,
         )
-        return _wrap_payload(dict(staged["payload"]), status_code=int(staged["status_code"]))
+        return _wrap_payload(dict(exec_res["payload"]), status_code=int(exec_res["status_code"]))
 
     if name == "edit_custom_command":
         cid = str(tool_args.get("command_id") or "").strip()

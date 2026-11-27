@@ -17,6 +17,7 @@ from backend.api.deps import (
 from backend.automation_nlu import (
     _deny_mutation_error,
     _parse_clock_hhmm_vi,
+    execute_saved_custom_command,
     format_pool_items_summary,
     handle_confirmation_reply,
     parse_multi_steps_from_text,
@@ -31,6 +32,8 @@ from backend.automation_repo import (
     find_custom_command_by_text,
     format_device_action_vi,
     format_duration_vi,
+    list_custom_commands,
+    match_custom_command_with_ambiguity,
     resolve_target_user_by_query,
 )
 from backend.live.prompt_builder import FIXED_REJECTION_PHRASE_VI
@@ -1441,30 +1444,39 @@ class LiveToolDispatcherMixin:
                     )
                 )
             phrase_q = str(args.get("phrase", "")).strip()
-            cmd_hit = find_custom_command_by_text(phrase_q, owner_user_id=actor_uid)
+            owner_q = None if actor_tier == 1 else actor_uid
+            match_res = match_custom_command_with_ambiguity(phrase_q, owner_user_id=owner_q)
+            if match_res.get("status") == "ambiguous":
+                clar_q = str(match_res.get("clarification_question") or "Bạn muốn chạy lệnh tùy chỉnh nào ạ?")
+                return self._wrap_nlu_tool_result(
+                    {
+                        "handled": True,
+                        "status_code": 200,
+                        "payload": {
+                            "ok": True,
+                            "executed": False,
+                            "requires_confirmation": False,
+                            "needs_clarification": True,
+                            "kind": "clarify_ambiguous_custom_command",
+                            "candidates": match_res.get("candidates") or [],
+                            "reply": clar_q,
+                            "exact_spoken_reply": clar_q,
+                        },
+                    }
+                )
+            cmd_hit = match_res.get("command")
             if cmd_hit is not None:
-                ok_steps, err_steps = check_steps_rbac(cmd_hit.get("steps") or [], actor_tier)
-                if not ok_steps:
-                    return self._wrap_nlu_tool_result(
-                        _deny_mutation_error(
-                            session=actor_sess,
-                            source="gemini_live",
-                            category="rbac_deny_run_alias_step",
-                            msg=err_steps,
-                            status_code=403,
-                            target="custom_commands",
-                        )
-                    )
-                nlu_res = await prepare_pending_mutation(
+                nlu_res = await execute_saved_custom_command(
+                    matched_cmd=cmd_hit,
                     engine=self.engine,
                     session=actor_sess,
                     source="gemini_live",
-                    session_key=live_session_key,
-                    action_kind="run_custom_command",
-                    payload={"command_id": cmd_hit["command_id"], "phrase": cmd_hit["phrase"]},
-                    prompt_summary=f"Chạy lệnh '{cmd_hit['phrase']}' ({cmd_hit['steps_summary']})",
+                    confirmed=False,
                 )
-                return self._wrap_nlu_tool_result(nlu_res)
+                wrapped = self._wrap_nlu_tool_result(nlu_res)
+                if wrapped.get("ok") and wrapped.get("executed"):
+                    await _broadcast_rest_state_to_bridges()
+                return wrapped
             return await self.engine.execute_alias_rule(phrase=phrase_q)
 
         if name in ("set_if_else_rule", "create_chain_rule"):
@@ -1686,31 +1698,43 @@ class LiveToolDispatcherMixin:
                     )
                 )
             phrase_or_id = str(args.get("phrase_or_id", "")).strip()
-            cmd_hit = find_custom_command_by_text(phrase_or_id, owner_user_id=actor_uid)
+            owner_q = None if actor_tier == 1 else actor_uid
+            all_cmds = list_custom_commands(include_disabled=False, owner_user_id=owner_q)
+            cmd_hit = next((c for c in all_cmds if c["command_id"] == phrase_or_id), None) if phrase_or_id else None
+            if cmd_hit is None:
+                match_res = match_custom_command_with_ambiguity(phrase_or_id, owner_user_id=owner_q)
+                if match_res.get("status") == "ambiguous":
+                    clar_q = str(match_res.get("clarification_question") or "Bạn muốn chạy lệnh tùy chỉnh nào ạ?")
+                    return self._wrap_nlu_tool_result(
+                        {
+                            "handled": True,
+                            "status_code": 200,
+                            "payload": {
+                                "ok": True,
+                                "executed": False,
+                                "requires_confirmation": False,
+                                "needs_clarification": True,
+                                "kind": "clarify_ambiguous_custom_command",
+                                "candidates": match_res.get("candidates") or [],
+                                "reply": clar_q,
+                                "exact_spoken_reply": clar_q,
+                            },
+                        }
+                    )
+                cmd_hit = match_res.get("command")
             if cmd_hit is None:
                 return {"ok": False, "status_code": 404, "error": f"Không tìm thấy lệnh '{phrase_or_id}'."}
-            ok_steps, err_steps = check_steps_rbac(cmd_hit.get("steps") or [], actor_tier)
-            if not ok_steps:
-                return self._wrap_nlu_tool_result(
-                    _deny_mutation_error(
-                        session=actor_sess,
-                        source="gemini_live",
-                        category="rbac_deny_run_custom_command_step",
-                        msg=err_steps,
-                        status_code=403,
-                        target="custom_commands",
-                    )
-                )
-            nlu_res = await prepare_pending_mutation(
+            nlu_res = await execute_saved_custom_command(
+                matched_cmd=cmd_hit,
                 engine=self.engine,
                 session=actor_sess,
                 source="gemini_live",
-                session_key=live_session_key,
-                action_kind="run_custom_command",
-                payload={"command_id": cmd_hit["command_id"], "phrase": cmd_hit["phrase"]},
-                prompt_summary=f"Chạy lệnh '{cmd_hit['phrase']}' ({cmd_hit['steps_summary']})",
+                confirmed=False,
             )
-            return self._wrap_nlu_tool_result(nlu_res)
+            wrapped = self._wrap_nlu_tool_result(nlu_res)
+            if wrapped.get("ok") and wrapped.get("executed"):
+                await _broadcast_rest_state_to_bridges()
+            return wrapped
 
         if name == "delete_automation_item":
             if actor_tier >= 3:
@@ -1970,7 +1994,10 @@ class LiveToolDispatcherMixin:
                 "soil": cur_soil,
                 "sound": cur_sound,
                 "exact_spoken_reply": spoken,
-                "instruction_for_ai": f"BẮT BUỘC trả lời ngắn gọn đúng câu: '{spoken}'",
+                "instruction_for_ai": (
+                    "Chỉ trả lời ngắn gọn đúng thông số cảm biến người dùng vừa hỏi bằng tiếng Việt "
+                    "(không liệt kê thêm các cảm biến không được hỏi trừ khi người dùng hỏi tất cả)."
+                ),
                 "message": spoken,
             }
 
