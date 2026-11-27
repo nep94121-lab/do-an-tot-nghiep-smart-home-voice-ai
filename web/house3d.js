@@ -148,11 +148,15 @@ window.SmartHome3D = (() => {
     pinBindings: [],
   };
 
-  // Hệ thống Đường Dây Điện 3D nối từ Hộp Mạch Trung Tâm
+  // Hệ thống Đường Dây Điện 3D nối từ PCB Hub DIY v3 (40 dây thực tế từ wiring_contract.json — KHÔNG Breadboard)
   let wireConduitGroup = null;
+  let contractWiresGroup = null;
   let onWireClickCallback = null;
   const wireConduitMeshes = {};
   const glbWireEntries = [];
+  const contractWireEntries = [];
+  const contractWireMetaById = {};
+  let contractWiresLoaded = false;
   const wiringDisplayState = {
     visible: true,
     selectedModuleId: "all",
@@ -218,6 +222,10 @@ window.SmartHome3D = (() => {
     glbHandles.ky037Mats = [];
     glbHandles.pinBindings = [];
     glbWireEntries.length = 0;
+    contractWireEntries.length = 0;
+    Object.keys(contractWireMetaById).forEach((k) => delete contractWireMetaById[k]);
+    contractWiresLoaded = false;
+    contractWiresGroup = null;
   }
 
   function inferGlbWireMeta(nodeName) {
@@ -242,14 +250,189 @@ window.SmartHome3D = (() => {
     return null;
   }
 
+  function parseHexColorInt(hexStr, fallbackHex = 0x38bdf8) {
+    if (typeof hexStr === "number" && Number.isFinite(hexStr)) return hexStr;
+    const clean = String(hexStr || "").trim().replace(/^#/, "");
+    if (/^[0-9a-fA-F]{6}$/.test(clean)) {
+      return parseInt(clean, 16);
+    }
+    return fallbackHex;
+  }
+
+  function buildContractWires3D(contract) {
+    if (!scene || !window.THREE || !contract || !Array.isArray(contract.wires)) return 0;
+    if (contractWiresGroup && scene.remove) {
+      scene.remove(contractWiresGroup);
+    }
+    contractWireEntries.length = 0;
+    Object.keys(contractWireMetaById).forEach((k) => delete contractWireMetaById[k]);
+
+    contractWiresGroup = new THREE.Group();
+    contractWiresGroup.name = "pcb_direct_40_wires";
+
+    contract.wires.forEach((w) => {
+      if (!w || !w.wire_id) return;
+      contractWireMetaById[w.wire_id] = w;
+      const pts = Array.isArray(w.waypoints_threejs) ? w.waypoints_threejs : [];
+      if (pts.length < 2) return;
+
+      const vecs = [];
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        if (!Array.isArray(p) || p.length < 3) continue;
+        const vx = Number(p[0]);
+        const vy = Number(p[1]);
+        const vz = Number(p[2]);
+        if (!Number.isFinite(vx) || !Number.isFinite(vy) || !Number.isFinite(vz)) continue;
+        if (vecs.length > 0) {
+          const prev = vecs[vecs.length - 1];
+          if (Math.hypot(vx - prev.x, vy - prev.y, vz - prev.z) < 1e-4) continue;
+        }
+        vecs.push(new THREE.Vector3(vx, vy, vz));
+      }
+      if (vecs.length < 2) return;
+
+      const colorHex = parseHexColorInt(w.color_hex, 0x38bdf8);
+      const isDarkBlack = colorHex === 0x18181b || String(w.color || "").toLowerCase() === "black";
+      const displayColor = isDarkBlack ? 0x27272a : colorHex;
+      const baseEmissive = isDarkBlack ? 0x0f172a : colorHex;
+      const radius = w.wire_type && /22AWG/i.test(w.wire_type) ? 0.017 : 0.0135;
+
+      let wireObj = null;
+      let mat = null;
+      if (typeof THREE.CatmullRomCurve3 === "function" && typeof THREE.TubeGeometry === "function") {
+        const curve = new THREE.CatmullRomCurve3(vecs, false, "catmullrom", 0.06);
+        const tubularSegments = Math.max(18, Math.min(72, vecs.length * 5));
+        const geo = new THREE.TubeGeometry(curve, tubularSegments, radius, 6, false);
+        mat = new THREE.MeshStandardMaterial({
+          color: displayColor,
+          emissive: baseEmissive,
+          emissiveIntensity: isDarkBlack ? 0.12 : 0.22,
+          roughness: 0.38,
+          metalness: 0.12,
+        });
+        wireObj = new THREE.Mesh(geo, mat);
+        wireObj.castShadow = false;
+      } else if (typeof THREE.BufferGeometry === "function" && typeof THREE.Line === "function") {
+        const geo = new THREE.BufferGeometry().setFromPoints(vecs);
+        mat = new THREE.LineBasicMaterial({ color: displayColor });
+        wireObj = new THREE.Line(geo, mat);
+      }
+      if (!wireObj) return;
+
+      wireObj.name = `ContractWire_${w.wire_id}`;
+      wireObj.userData = {
+        wireId: w.wire_id,
+        moduleId: w.module_id,
+        hubRef: w.hub_ref,
+        wireKey: w.house3d_wire_key || "power",
+        lengthCm: typeof w.length_cm === "number" ? w.length_cm : null,
+        recommendedStdCm: w.recommended_std_cm || null,
+        routeChannel: w.route_channel || "",
+      };
+      clickableMeshes.push(wireObj);
+      contractWiresGroup.add(wireObj);
+
+      contractWireEntries.push({
+        wireId: w.wire_id,
+        moduleId: w.module_id,
+        hubRef: w.hub_ref,
+        wireKey: w.house3d_wire_key || "power",
+        lengthCm: typeof w.length_cm === "number" ? w.length_cm : null,
+        recommendedStdCm: w.recommended_std_cm || null,
+        routeChannel: w.route_channel || "",
+        colorHex: displayColor,
+        baseEmissive,
+        isDarkBlack,
+        mesh: wireObj,
+        mat,
+      });
+    });
+
+    if (contractWireEntries.length > 0) {
+      contractWiresLoaded = true;
+      scene.add(contractWiresGroup);
+      applyWiringDisplayState();
+    }
+    return contractWireEntries.length;
+  }
+
+  function loadWiringContract3D() {
+    if (typeof fetch !== "function") {
+      return Promise.resolve(null);
+    }
+    const urls = ["/static/data/wiring_contract.json", "/data/wiring_contract.json"];
+    const tryUrl = (idx) => {
+      if (idx >= urls.length) return Promise.resolve(null);
+      return fetch(urls[idx], { cache: "no-cache" })
+        .then((res) => {
+          if (!res || !res.ok) return tryUrl(idx + 1);
+          return res.json().catch(() => tryUrl(idx + 1));
+        })
+        .then((data) => {
+          if (data && Array.isArray(data.wires) && data.wires.length > 0) {
+            buildContractWires3D(data);
+            return data;
+          }
+          return tryUrl(idx + 1);
+        })
+        .catch(() => tryUrl(idx + 1));
+    };
+    try {
+      return tryUrl(0);
+    } catch (_) {
+      return Promise.resolve(null);
+    }
+  }
+
   function applyWiringDisplayState() {
     const visible = Boolean(wiringDisplayState.visible);
     const selMod = wiringDisplayState.selectedModuleId || "all";
     const allowedKeys = wiringDisplayState.allowedKeys;
     const active = wiringDisplayState.activeWire;
+    const hasContractWires = contractWiresLoaded && contractWireEntries.length > 0;
+
+    if (contractWiresGroup) {
+      contractWiresGroup.visible = visible && hasContractWires;
+    }
+
+    if (hasContractWires) {
+      contractWireEntries.forEach((entry) => {
+        if (!entry || !entry.mesh) return;
+        const inFilter =
+          selMod === "all" ||
+          entry.moduleId === selMod ||
+          (allowedKeys && allowedKeys.has(entry.wireKey));
+        entry.mesh.visible = visible && inFilter;
+
+        const m = entry.mat;
+        if (!m) return;
+        if (!active) {
+          m.transparent = false;
+          m.opacity = 1.0;
+          if (m.emissive && typeof m.emissive.setHex === "function") {
+            m.emissive.setHex(entry.baseEmissive);
+          }
+          if (m.emissiveIntensity !== undefined) {
+            m.emissiveIntensity = entry.isDarkBlack ? 0.12 : 0.22;
+          }
+        } else {
+          const isMatch = entry.wireId === active.wire_id;
+          m.transparent = !isMatch;
+          m.opacity = isMatch ? 1.0 : 0.12;
+          if (m.emissive && typeof m.emissive.setHex === "function") {
+            m.emissive.setHex(isMatch ? 0x38bdf8 : entry.baseEmissive);
+          }
+          if (m.emissiveIntensity !== undefined) {
+            m.emissiveIntensity = isMatch ? 1.65 : 0.02;
+          }
+        }
+        m.needsUpdate = true;
+      });
+    }
 
     if (wireConduitGroup) {
-      wireConduitGroup.visible = visible;
+      wireConduitGroup.visible = visible && !hasContractWires;
     }
 
     Object.entries(wireConduitMeshes).forEach(([key, mesh]) => {
@@ -258,7 +441,7 @@ window.SmartHome3D = (() => {
         selMod === "all" ||
         !allowedKeys ||
         allowedKeys.has(key);
-      mesh.visible = visible && inFilter;
+      mesh.visible = visible && !hasContractWires && inFilter;
       const mat = wireMats[key];
       if (!mat) return;
       if (!active) {
@@ -276,6 +459,11 @@ window.SmartHome3D = (() => {
 
     glbWireEntries.forEach((entry) => {
       if (!entry || !entry.mesh) return;
+      const isGlbWireCurve = /^Wire_/i.test(String(entry.mesh.name || ""));
+      if (hasContractWires && isGlbWireCurve) {
+        entry.mesh.visible = false;
+        return;
+      }
       const inFilter =
         selMod === "all" ||
         entry.moduleId === selMod ||
@@ -376,6 +564,7 @@ window.SmartHome3D = (() => {
     buildGroundAndLoadBlenderVilla();
     buildSmartDevices();
     buildHardwareKit3D();
+    loadWiringContract3D();
     buildFloatingPins();
     syncLabelsVisibilityUi();
     bindMouseControls();
@@ -1645,11 +1834,10 @@ window.SmartHome3D = (() => {
     scene.add(dhtGroup);
 
     // =========================================================================
-    // C. TRẠM MẠCH TRUNG TÂM (-0.25, 1.18, 2.45):
-    //    - Breadboard 400 lỗ + NodeMCU v2 Amica 0.9" (2x15) cắm giữa rãnh
-    //    - Relay 1 xanh (D6 Bơm) + Diode 1N4007 + Tụ 470uF 16V xanh
-    //    - Relay 2 opto đỏ (D7) + PAM8403 xanh + Loa tròn bạc mini (D3 PWM)
-    //    - Cảm biến âm thanh KY-037 PCB đỏ (D5 DO)
+    // C. TRẠM MẠCH TRUNG TÂM PCB-DIRECT (KHÔNG BREADBOARD):
+    //    - PCB Hub DIY v3 (100x80mm FR4 xanh) + NodeMCU v2 Amica 0.9" (2x15)
+    //    - Hàn trực tiếp C1-C9 (gồm C8, C9), D1-D2 (1N4007), Q1 (S8050), R1-R10
+    //    - Relay 1 xanh (D6 Bơm) + Relay 2 opto đỏ (D7) + PAM8403 + Loa + KY-037
     // =========================================================================
     const centralHubGroup = new THREE.Group();
     centralHubGroup.position.set(-0.25, 1.18, 2.45);
@@ -1662,83 +1850,68 @@ window.SmartHome3D = (() => {
     hubCabinet.castShadow = true;
     centralHubGroup.add(hubCabinet);
 
-    // Breadboard 400 lỗ trắng + dải nguồn đỏ/xanh + rãnh giữa
-    const bbGroup = new THREE.Group();
-    fallbackHandles.hubBreadboard = bbGroup;
-    bbGroup.position.set(-0.16, 0.145, 0.04);
+    // Mạch PCB Hub DIY v3 (100x80mm FR4 xanh lá, KHÔNG dùng breadboard trắng)
+    const pcbHubGroup = new THREE.Group();
+    fallbackHandles.hubBreadboard = pcbHubGroup;
+    pcbHubGroup.position.set(-0.16, 0.145, 0.04);
 
-    const bbMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(0.56, 0.045, 0.34),
-      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.32 })
+    const pcbBoardMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.56, 0.032, 0.44),
+      new THREE.MeshStandardMaterial({ color: 0x065f46, roughness: 0.38, metalness: 0.12 })
     );
-    bbGroup.add(bbMesh);
+    pcbHubGroup.add(pcbBoardMesh);
 
-    const bbGroove = new THREE.Mesh(
-      new THREE.BoxGeometry(0.52, 0.008, 0.03),
-      new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.7 })
+    const pcbCopperRail = new THREE.Mesh(
+      new THREE.BoxGeometry(0.52, 0.004, 0.012),
+      new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.75, roughness: 0.3 })
     );
-    bbGroove.position.set(0, 0.022, 0);
-    bbGroup.add(bbGroove);
+    pcbCopperRail.position.set(0, 0.018, 0.17);
+    pcbHubGroup.add(pcbCopperRail);
 
-    const railRedMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
-    const railBlueMat = new THREE.MeshBasicMaterial({ color: 0x2563eb });
-    const railFrontRed = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.004, 0.008), railRedMat);
-    railFrontRed.position.set(0, 0.024, 0.145);
-    bbGroup.add(railFrontRed);
-    const railFrontBlue = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.004, 0.008), railBlueMat);
-    railFrontBlue.position.set(0, 0.024, 0.125);
-    bbGroup.add(railFrontBlue);
-    const railBackRed = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.004, 0.008), railRedMat);
-    railBackRed.position.set(0, 0.024, -0.145);
-    bbGroup.add(railBackRed);
-    const railBackBlue = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.004, 0.008), railBlueMat);
-    railBackBlue.position.set(0, 0.024, -0.125);
-    bbGroup.add(railBackBlue);
-
-    // Linh kiện thụ động khớp ảnh tham chiếu: 3x Diode 1N4007, 2x Tụ 470uF 16V xanh, trở 1/4W, LED D0/D4
+    // Linh kiện bảo vệ hàn trên PCB Hub DIY v3: D1-D2 (1N4007), C1-C9, LED báo nguồn D3
     const diodeBodyMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.45 });
     const diodeBandMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.8 });
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       const dBody = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.045, 10), diodeBodyMat);
       dBody.rotation.z = Math.PI / 2;
-      dBody.position.set(-0.2 + i * 0.06, 0.036, 0.105);
-      bbGroup.add(dBody);
+      dBody.position.set(-0.2 + i * 0.08, 0.032, 0.12);
+      pcbHubGroup.add(dBody);
       const dBand = new THREE.Mesh(new THREE.CylinderGeometry(0.0125, 0.0125, 0.01, 10), diodeBandMat);
       dBand.rotation.z = Math.PI / 2;
-      dBand.position.set(-0.185 + i * 0.06, 0.036, 0.105);
-      bbGroup.add(dBand);
+      dBand.position.set(-0.185 + i * 0.08, 0.032, 0.12);
+      pcbHubGroup.add(dBand);
     }
 
     const capGreenMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.35, metalness: 0.25 });
     const capTopMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.85 });
-    [-0.08, 0.21].forEach((cx) => {
+    [-0.14, 0.18, 0.23].forEach((cx) => {
       const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.065, 14), capGreenMat);
-      cap.position.set(cx, 0.055, -0.095);
-      bbGroup.add(cap);
+      cap.position.set(cx, 0.048, -0.11);
+      pcbHubGroup.add(cap);
       const capTop = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.006, 14), capTopMat);
-      capTop.position.set(cx, 0.09, -0.095);
-      bbGroup.add(capTop);
+      capTop.position.set(cx, 0.082, -0.11);
+      pcbHubGroup.add(capTop);
     });
 
-    // Đèn LED 5mm D0 (Phòng khách), D4 (Phòng ngủ) & Buzzer D8 trên Breadboard
+    // Đèn LED chỉ báo D0, D4 & Buzzer D8 trên khối mạch dự phòng
     boardLedMats.d0_living = new THREE.MeshBasicMaterial({ color: 0x450a0a });
     const ledD0 = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 10), boardLedMats.d0_living);
-    ledD0.position.set(0.14, 0.042, 0.085);
-    bbGroup.add(ledD0);
+    ledD0.position.set(0.14, 0.036, 0.1);
+    pcbHubGroup.add(ledD0);
 
     boardLedMats.d4_bedroom = new THREE.MeshBasicMaterial({ color: 0x422006 });
     const ledD4 = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 10), boardLedMats.d4_bedroom);
-    ledD4.position.set(0.2, 0.042, 0.085);
-    bbGroup.add(ledD4);
+    ledD4.position.set(0.2, 0.036, 0.1);
+    pcbHubGroup.add(ledD4);
 
     boardLedMats.d8_buzzer = new THREE.MeshBasicMaterial({ color: 0x1f2937 });
-    const buzOnBb = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.036, 14), boardLedMats.d8_buzzer);
-    buzOnBb.position.set(0.24, 0.04, 0.01);
-    bbGroup.add(buzOnBb);
+    const buzOnPcb = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.036, 14), boardLedMats.d8_buzzer);
+    buzOnPcb.position.set(0.24, 0.036, 0.01);
+    pcbHubGroup.add(buzOnPcb);
 
-    centralHubGroup.add(bbGroup);
+    centralHubGroup.add(pcbHubGroup);
 
-    // NodeMCU v2 Amica hẹp 0.9" (2x15 header) cắm trùm qua rãnh giữa Breadboard
+    // NodeMCU v2 Amica hẹp 0.9" (48.26x25.40mm, 2x15 header) cắm trực tiếp vào đế U1/U2 trên PCB Hub
     const nodemcuGroup = new THREE.Group();
     fallbackHandles.nodemcu = nodemcuGroup;
     nodemcuGroup.position.set(-0.24, 0.195, 0.04);
@@ -2104,7 +2277,7 @@ window.SmartHome3D = (() => {
         if (m.id === "sensor_soil_a0") initVal = `${sensorState.soil_moisture_pct}%`;
         else if (m.id === "sensor_dht11_d2") initVal = `${sensorState.temp_c}°C | ${sensorState.humidity_pct}%`;
         else if (m.id === "sensor_ky037_d5") initVal = sensorState.sound_detected ? "CÓ TIẾNG ĐỘNG!" : "Yên tĩnh";
-        else if (m.id === "board_esp8266") initVal = "9 DÂY ĐI TRONG NHÀ";
+        else if (m.id === "board_esp8266") initVal = "40 DÂY PCB-DIRECT";
         if (!el.dataset) el.dataset = {};
         el.dataset.hasValue = "true";
         el.setAttribute("data-has-value", "true");
@@ -2521,13 +2694,25 @@ window.SmartHome3D = (() => {
     onWireClickCallback = typeof cb === "function" ? cb : null;
   }
 
+  function getWireInfo(wireId) {
+    if (!wireId) return null;
+    return contractWireMetaById[wireId] || null;
+  }
+
   function getWiringDisplayState() {
     return {
       visible: Boolean(wiringDisplayState.visible),
       selectedModuleId: wiringDisplayState.selectedModuleId,
       activeWireId: wiringDisplayState.activeWire ? wiringDisplayState.activeWire.wire_id : null,
+      activeWireLengthCm:
+        wiringDisplayState.activeWire && typeof wiringDisplayState.activeWire.length_cm === "number"
+          ? wiringDisplayState.activeWire.length_cm
+          : null,
+      contractWireCount: contractWireEntries.length,
       glbWireCount: glbWireEntries.length,
       conduitCount: Object.keys(wireConduitMeshes).length,
+      totalWires: contractWireEntries.length || glbWireEntries.length || Object.keys(wireConduitMeshes).length,
+      breadboardUsed: false,
     };
   }
 
@@ -2968,6 +3153,8 @@ window.SmartHome3D = (() => {
     highlightWiringStep,
     setWireClickCallback,
     getWiringDisplayState,
+    getWireInfo,
+    loadWiringContract3D,
     setCameraView,
     setLabelsVisible,
     toggleLabelsVisible,

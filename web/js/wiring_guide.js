@@ -335,6 +335,31 @@
              </div>`
           : "";
 
+        const lengthHtml =
+          typeof wire.length_cm === "number" && Number.isFinite(wire.length_cm)
+            ? `<div class="wg-length-row">
+                 <span class="wg-length-pill">Chiều dài thực tế: <strong>${wire.length_cm.toFixed(2)} cm</strong></span>
+                 ${
+                   wire.recommended_std_cm
+                     ? `<span class="wg-std-pill">Khuyến nghị mua dây chuẩn: <strong>${escHtml(
+                         wire.recommended_std_cm
+                       )} cm</strong></span>`
+                     : ""
+                 }
+                 <span class="wg-pass-pill">${wire.within_30cm === false ? "Cần chú ý > 30 cm" : "Đạt ≤ 30 cm"}</span>
+               </div>`
+            : "";
+        const routeVi = wire.route_channel ? (WG_ROUTE_VI_MAP[wire.route_channel] || wire.route_channel) : "";
+        const routeHtml = routeVi
+          ? `<div class="wg-route-line"><strong>Đường đi dây 3D:</strong> ${escHtml(routeVi)}</div>`
+          : "";
+        const pcbXyHtml =
+          Array.isArray(wire.hub_pin_xy_mm) && wire.hub_pin_xy_mm.length >= 2
+            ? `<span>Tọa độ PCB: <code>X=${Number(wire.hub_pin_xy_mm[0]).toFixed(2)} mm, Y=${Number(
+                wire.hub_pin_xy_mm[1]
+              ).toFixed(2)} mm</code></span>`
+            : "";
+
         bodyEl.innerHTML = `
           ${hiddenNotice}
           <div class="wg-meta-row">
@@ -346,21 +371,24 @@
             <span class="wg-type-chip">${escHtml(wire.wire_type_vi)}</span>
           </div>
 
+          ${lengthHtml}
+
           <div class="wg-endpoint-flow">
             <div class="wg-endpoint-box">
-              <span class="wg-endpoint-tag">Mô-đun &amp; Chân mô-đun</span>
-              <strong class="wg-endpoint-name">${escHtml(wire.module_label_vi)}</strong>
-              <code class="wg-pin-code">${escHtml(wire.module_pin)}</code>
+              <span class="wg-endpoint-tag">Đầu PCB Hub / ESP8266</span>
+              <strong class="wg-endpoint-name">${escHtml(wire.hub_label)}</strong>
+              <code class="wg-pin-code">${escHtml(wire.nodemcu_pin)} · ${escHtml(wire.gpio)}</code>
             </div>
             <div class="wg-endpoint-arrow" aria-hidden="true">→</div>
             <div class="wg-endpoint-box">
-              <span class="wg-endpoint-tag">Chân Hub / ESP8266</span>
-              <strong class="wg-endpoint-name">${escHtml(wire.hub_label)}</strong>
-              <code class="wg-pin-code">${escHtml(wire.nodemcu_pin)} · ${escHtml(wire.gpio)}</code>
+              <span class="wg-endpoint-tag">Mô-đun &amp; Chân đích</span>
+              <strong class="wg-endpoint-name">${escHtml(wire.module_label_vi)}</strong>
+              <code class="wg-pin-code">${escHtml(wire.module_pin)}</code>
             </div>
           </div>
 
           <p class="wg-instruction">${escHtml(wire.instruction_vi)}</p>
+          ${routeHtml}
 
           <div class="wg-note-box${warnClass}">
             <strong>Lưu ý nguồn / GND &amp; tín hiệu:</strong> ${escHtml(wire.power_gnd_note_vi)}
@@ -368,6 +396,7 @@
           ${protHtml}
           <div class="wg-tech-meta">
             <span>Mạng PCB: <code>${escHtml(wire.net)}</code></span>
+            ${pcbXyHtml}
             <span>Firmware: <code>${escHtml(wire.fw_ref)}</code></span>
           </div>
         `;
@@ -378,6 +407,22 @@
         }
       }
     }
+
+    const WG_ROUTE_VI_MAP = {
+      "Tech Bay front channel (PAM8403 -> P15 Speaker)": "Rãnh trước khoang kỹ thuật (PAM8403 → Loa trên mặt nạ P15)",
+      "Garden rim channel (LM393 -> YL-69 Probe)": "Mép trên vách vườn (LM393 → Đầu dò đất YL-69)",
+      "Tech Bay left power channel (J1 -> DC-022)": "Rãnh nguồn trái khoang kỹ thuật (Cầu vít J1 → Giắc DC-022)",
+      "Tech Bay -> P05 front cable slot -> P07 SG90 shelf": "Khoang kỹ thuật → Lỗ dây mặt tiền P05 → Kệ Servo SG90 (P07)",
+      "P05 open front cutaway (Z=56 above KY037 ledge) -> P06_WALL_MID Living Room chase": "Khoảng mở mặt tiền P05 (Z=56 mm trên bệ KY-037) → Vách giữa P06 phía phòng khách",
+      "P05 Cable_Front_BR (X=224) -> P06_WALL_MID Bedroom vertical chase": "Lỗ dây P05 (X=224 mm) → Rãnh dọc vách giữa P06 phía phòng ngủ",
+      "Tech Bay -> P05 center pillar vertical chase -> Buzzer": "Khoang kỹ thuật → Trụ giữa mặt tiền P05 → Còi báo động 5V",
+      "Tech Bay -> P05 front wall KY-037 cradle": "Khoang kỹ thuật → Giá đỡ cảm biến KY-037 trên vách trước P05",
+      "Tech Bay direct inter-board harness": "Bó dây trực tiếp trong khoang kỹ thuật (PCB Hub ↔ Rơ-le 1/2)",
+      "Tech Bay front audio/power tray (J11/J12 -> PAM8403)": "Khay dây âm thanh & nguồn phía trước (J11/J12 → PAM8403)",
+      "Tech Bay center channel -> P09 water tank wire notch (Y=99) -> Pump": "Rãnh giữa khoang kỹ thuật → Khe dây bể nước P09 (Y=99 mm) → Bơm tưới cây",
+      "Tech Bay rear dry tray -> P13 dry rear LM393 cradle": "Rãnh khô phía sau khoang kỹ thuật → Giá đỡ khô LM393 sau vách P13",
+      "Direct routed path": "Đường dây đi thẳng trong khoang kỹ thuật",
+    };
 
     function syncInspectUi() {
       if (!dom.inspectBox) return;
@@ -392,6 +437,12 @@
         return;
       }
       const colorBorder = wire.color === "White" ? "border:1.5px solid #475569;" : "";
+      const lenBadge =
+        typeof wire.length_cm === "number" && Number.isFinite(wire.length_cm)
+          ? `<span class="wg-length-pill"><strong>${wire.length_cm.toFixed(2)} cm</strong>${
+              wire.recommended_std_cm ? ` · Chuẩn ${escHtml(wire.recommended_std_cm)} cm` : ""
+            }</span>`
+          : "";
       dom.inspectBox.hidden = false;
       dom.inspectBox.innerHTML = `
         <div class="wg-inspect-head">
@@ -400,14 +451,17 @@
             <span class="wg-color-dot" style="background:${escHtml(wire.color_hex)};${colorBorder}"></span>
             <span>${escHtml(wire.color_vi)}</span>
           </span>
-          <strong class="wg-inspect-title">${escHtml(wire.module_label_vi)} (${escHtml(wire.module_pin)}) → ${escHtml(wire.hub_label)}</strong>
+          ${lenBadge}
+          <strong class="wg-inspect-title">${escHtml(wire.hub_label)} → ${escHtml(wire.module_label_vi)} (${escHtml(wire.module_pin)})</strong>
           <div class="wg-inspect-actions">
-            <button type="button" class="wg-mini-link" data-wg-action="open-inspected-step">Xem trong hướng dẫn</button>
+            <button type="button" class="wg-mini-link" data-wg-action="open-inspected-step">Xem từng bước</button>
             <button type="button" class="wg-close-mini" data-wg-action="close-inspect" aria-label="Đóng thông tin dây">×</button>
           </div>
         </div>
         <div class="wg-inspect-sub">
-          <span>ESP8266: <code>${escHtml(wire.nodemcu_pin)}</code> (${escHtml(wire.gpio)}) · Mạng: <code>${escHtml(wire.net)}</code></span>
+          <span>ESP8266: <code>${escHtml(wire.nodemcu_pin)}</code> (${escHtml(wire.gpio)}) · Mạng: <code>${escHtml(wire.net)}</code>${
+            wire.route_channel ? ` · Đường dây: ${escHtml(WG_ROUTE_VI_MAP[wire.route_channel] || wire.route_channel)}` : ""
+          }</span>
           <span>${escHtml(wire.power_gnd_note_vi)}</span>
         </div>
       `;
@@ -587,6 +641,12 @@
       return controller;
     });
 
+    function clearInspect() {
+      state.inspectedWireId = null;
+      syncInspectUi();
+      syncAdapter();
+    }
+
     const controller = {
       ready,
       getSnapshot,
@@ -597,6 +657,7 @@
       stepBy,
       jumpToWireId,
       inspectWire,
+      clearInspect,
       refresh: syncAdapter,
       getContract: () => state.contract,
     };
@@ -611,7 +672,10 @@
       .map((item) => {
         const badgeCls = item.kind === "flyback_diode" ? "wg-prot-kind-diode" : "wg-prot-kind-cap";
         const locCls = item.pcb_status === "onboard_pcb" ? "wg-prot-loc-pcb" : "wg-prot-loc-off";
-        return `<tr>
+        const isC8C9 = item.ref === "C8" || item.ref === "C9";
+        const rowCls = isC8C9 ? ' class="wg-prot-row-highlight"' : "";
+        const newTag = isC8C9 ? '<span class="wg-prot-v3-pill">Hàn trên PCB v3</span>' : "";
+        return `<tr${rowCls}>
           <td><span class="wg-prot-ref ${badgeCls}">${escHtml(item.ref)}</span></td>
           <td><strong>${escHtml(item.value)}</strong><div class="wg-prot-sub">${escHtml(item.voltage_rating)}</div></td>
           <td>${escHtml(item.polarity)}</td>
@@ -619,7 +683,8 @@
             <div>${escHtml(item.placement_pins)}</div>
             <div class="wg-prot-meta-line">
               <code>${escHtml(item.net_pos)} ↔ ${escHtml(item.net_neg)}</code>
-              <span class="wg-prot-loc ${locCls}">${escHtml(item.pcb_status_vi || "")}</span>
+              <span class="wg-prot-loc ${locCls}">${escHtml(item.pcb_status_vi || "Hàn trực tiếp trên PCB Hub")}</span>
+              ${newTag}
             </div>
           </td>
           <td>
@@ -631,14 +696,18 @@
       .join("");
 
     host.innerHTML = `
+      <div class="wg-prot-banner">
+        <strong>100% hàn trực tiếp trên PCB Hub DIY v3 (100×80 mm, 51 footprints, 0 ERC/DRC):</strong>
+        Toàn bộ <strong>9 tụ điện (C1–C9, nhấn mạnh C8 100 nF &amp; C9 100 µF 16V đã tích hợp trực tiếp trên bo)</strong> và <strong>2 diode dập xung 1N4007 (D1–D2)</strong> đều nằm gọn trên mạch PCB — <strong>không dùng breadboard trắng</strong>.
+      </div>
       <div class="wg-table-scroll">
-        <table class="wg-protection-table" aria-label="Bảng tụ điện và diode bảo vệ theo datasheet">
+        <table class="wg-protection-table" aria-label="Bảng tụ điện C1–C9 và diode bảo vệ D1–D2 trên PCB Hub DIY v3">
           <thead>
             <tr>
               <th>Ký hiệu</th>
               <th>Giá trị</th>
               <th>Phân cực</th>
-              <th>Vị trí &amp; Chân nối</th>
+              <th>Vị trí trên PCB &amp; Mạng nối</th>
               <th>Vai trò &amp; Datasheet</th>
             </tr>
           </thead>

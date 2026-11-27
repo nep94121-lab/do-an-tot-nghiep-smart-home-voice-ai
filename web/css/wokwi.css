@@ -364,6 +364,301 @@
       color: var(--accent);
       font-weight: 600;
     }
+    .wg-mode-btn-legacy {
+      font-size: 11.5px;
+      opacity: 0.84;
+    }
+    .wg-mode-btn-legacy.is-active {
+      background: var(--warn-soft);
+      color: var(--warn);
+    }
+
+    /* Step-by-Step Guided Wiring Bar & Detail Card */
+    .pcb-step-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+    }
+    .pcb-step-bar-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .pcb-step-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 36px;
+      padding: 6px 12px;
+      border-radius: 9px;
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--text);
+      font: inherit;
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .pcb-step-btn:hover:not(:disabled) {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .pcb-step-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .pcb-step-btn-primary.is-active,
+    .pcb-step-btn-primary:hover:not(:disabled) {
+      background: var(--btn-primary-bg);
+      border-color: var(--btn-primary-border);
+      color: var(--btn-primary-ink);
+    }
+    .pcb-step-btn-ghost.is-active {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .pcb-step-counter {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 98px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12.5px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .pcb-step-hint {
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+    .pcb-step-detail-card {
+      border-radius: 12px;
+      border: 1.5px solid var(--accent);
+      background: var(--surface-elevated);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .pcb-step-detail-card[hidden] {
+      display: none !important;
+    }
+    .pcb-step-badges {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .pcb-step-card-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .pcb-step-cell {
+      padding: 9px 11px;
+      border-radius: 10px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+    }
+    .pcb-step-cell strong {
+      font-size: 13px;
+      color: var(--text);
+    }
+    .pcb-step-card-guide {
+      font-size: 12.8px;
+      line-height: 1.5;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .pcb-step-card-note {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* Searchable & Sortable Full 40-Wire Table Card */
+    .wire-table-card {
+      margin-top: 6px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--card);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+    }
+    .wire-table-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .wire-table-head h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0;
+    }
+    .wire-table-sub {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .wire-table-stats {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .wire-table-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .wire-search-wrap {
+      flex: 1 1 260px;
+      min-width: 0;
+    }
+    .wire-search-input {
+      width: 100%;
+      min-height: 38px;
+      padding: 7px 11px;
+      border-radius: 9px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+    }
+    .wire-group-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+    .wire-group-select {
+      min-height: 38px;
+      padding: 6px 10px;
+      border-radius: 9px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+      font-size: 12.5px;
+      max-width: 240px;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+    .wire-ssot-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.2px;
+      line-height: 1.45;
+      color: var(--text);
+    }
+    .wokwi-auth-banner {
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      border-radius: 10px;
+      border: 1px solid #fecaca;
+      background: #fef2f2;
+      color: #991b1b;
+      font-size: 13px;
+    }
+    html[data-theme="dark"] .wokwi-auth-banner,
+    html.dark .wokwi-auth-banner {
+      border-color: rgba(248, 113, 113, 0.35);
+      background: rgba(127, 29, 29, 0.35);
+      color: #fecaca;
+    }
+    .wire-ssot-table th,
+    .wire-ssot-table td {
+      padding: 7px 8px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+    }
+    .wire-ssot-table thead th {
+      background: var(--bg);
+      white-space: nowrap;
+    }
+    .wire-sort-btn {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 0;
+    }
+    .wire-sort-btn:hover,
+    .wire-sort-btn.is-sorted-asc,
+    .wire-sort-btn.is-sorted-desc {
+      color: var(--accent);
+    }
+    .wire-table-row {
+      cursor: pointer;
+      transition: background-color 0.12s ease;
+    }
+    .wire-table-row:hover {
+      background: var(--bg);
+    }
+    .wire-table-row.is-active-wire {
+      background: var(--accent-soft);
+    }
+    .wire-tbl-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+    .wire-num-cell {
+      white-space: nowrap;
+      text-align: right !important;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
     .workbench-scroll.wg-can-pan,
     .pcb2d-scroll.wg-can-pan {
       cursor: grab;
@@ -381,13 +676,47 @@
     @media (max-width: 768px) {
       .wg-mode-switch {
         width: 100%;
+        flex-wrap: wrap;
       }
       .wg-mode-btn {
         min-height: 44px;
         min-width: 44px;
-        flex: 1 1 50%;
+        flex: 1 1 100%;
         padding: 8px 10px;
         font-size: 12.5px;
+        white-space: normal;
+        text-align: center;
+      }
+      .pcb-step-bar-controls {
+        width: 100%;
+      }
+      .pcb-step-btn {
+        min-height: 44px;
+        min-width: 44px;
+        flex: 1 1 44%;
+        padding: 8px 10px;
+      }
+      .pcb-step-counter {
+        min-height: 44px;
+        flex: 1 1 100%;
+      }
+      .pcb-step-card-grid {
+        grid-template-columns: 1fr;
+      }
+      .wire-search-input,
+      .wire-group-select {
+        min-height: 44px;
+        width: 100%;
+        max-width: 100%;
+      }
+      .wire-group-wrap {
+        width: 100%;
+      }
+      .wire-sort-btn,
+      .step-btn {
+        min-height: 44px;
+        min-width: 44px;
+        padding: 8px 6px;
       }
       .workbench-scroll,
       .pcb2d-scroll {

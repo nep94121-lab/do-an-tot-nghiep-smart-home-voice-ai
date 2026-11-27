@@ -259,11 +259,19 @@
     }
 
     let wokwiWiringController = null;
-    let wokwiActiveDiagramMode = 'breadboard';
+    let wokwiActiveDiagramMode = 'pcb2d';
     let pcb2dSvgLoaded = false;
     let pcb2dSvgLoadingPromise = null;
     let breadboardViewport = null;
     let pcb2dViewport = null;
+    let WIRING_TABLE = [];
+    const wireTableState = {
+      search: '',
+      group: 'all',
+      sortKey: 'wire_id',
+      sortDir: 'asc',
+      activeWireId: null,
+    };
 
     function drawWires() {
       const svg = document.getElementById('wireLayer');
@@ -394,33 +402,359 @@
         .join('');
     }
 
+    function escWokwiHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function normalizeSearchText(str) {
+      return String(str == null ? '' : str)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .toLowerCase()
+        .trim();
+    }
+
+    const GROUP_VI_MAP = {
+      'Power Supply': 'Nguồn cấp 5V 2A',
+      'Main Door (SG90)': 'Cửa chính (Servo SG90)',
+      'Living Room LED': 'Đèn LED phòng khách',
+      'Bedroom LED': 'Đèn LED phòng ngủ',
+      'Garden Pump (Relay 1)': 'Rơ-le 1 điều khiển bơm',
+      'Garden Pump (Motor)': 'Bơm nước tưới cây',
+      'Alarm Siren (Buzzer)': 'Còi báo động 5V',
+      'Speaker Amp (Relay 2)': 'Rơ-le 2 cấp nguồn âm thanh',
+      'Speaker Amp (PAM8403)': 'Nguồn mạch khuếch đại PAM8403',
+      'Speaker Amp (Audio PWM)': 'Tín hiệu âm thanh PWM (D3)',
+      'Speaker Output (BTL)': 'Loa mini 28mm (BTL)',
+      'DHT11 Sensor': 'Cảm biến DHT11 (Nhiệt/Ẩm)',
+      'Soil Sensor (LM393)': 'Mạch so sánh ẩm đất LM393',
+      'Soil Sensor (Probe)': 'Đầu dò ẩm đất YL-69',
+      'Sound Sensor (KY-037)': 'Cảm biến âm thanh KY-037',
+    };
+
+    function getGroupLabelVi(group) {
+      return GROUP_VI_MAP[group] || group || '';
+    }
+
+    const ROUTE_CHANNEL_VI_MAP = {
+      'Tech Bay front channel (PAM8403 -> P15 Speaker)': 'Rãnh trước khoang kỹ thuật (PAM8403 → Loa trên mặt nạ P15)',
+      'Garden rim channel (LM393 -> YL-69 Probe)': 'Mép trên vách vườn (LM393 → Đầu dò đất YL-69)',
+      'Tech Bay left power channel (J1 -> DC-022)': 'Rãnh nguồn trái khoang kỹ thuật (Cầu vít J1 → Giắc DC-022)',
+      'Tech Bay -> P05 front cable slot -> P07 SG90 shelf': 'Khoang kỹ thuật → Lỗ dây mặt tiền P05 → Kệ Servo SG90 (P07)',
+      'P05 open front cutaway (Z=56 above KY037 ledge) -> P06_WALL_MID Living Room chase': 'Khoảng mở mặt tiền P05 (Z=56 mm trên bệ KY-037) → Vách giữa P06 phía phòng khách',
+      'P05 Cable_Front_BR (X=224) -> P06_WALL_MID Bedroom vertical chase': 'Lỗ dây P05 (X=224 mm) → Rãnh dọc vách giữa P06 phía phòng ngủ',
+      'Tech Bay -> P05 center pillar vertical chase -> Buzzer': 'Khoang kỹ thuật → Trụ giữa mặt tiền P05 → Còi báo động 5V',
+      'Tech Bay -> P05 front wall KY-037 cradle': 'Khoang kỹ thuật → Giá đỡ cảm biến KY-037 trên vách trước P05',
+      'Tech Bay direct inter-board harness': 'Bó dây trực tiếp trong khoang kỹ thuật (PCB Hub ↔ Rơ-le 1/2)',
+      'Tech Bay front audio/power tray (J11/J12 -> PAM8403)': 'Khay dây âm thanh & nguồn phía trước (J11/J12 → PAM8403)',
+      'Tech Bay center channel -> P09 water tank wire notch (Y=99) -> Pump': 'Rãnh giữa khoang kỹ thuật → Khe dây bể nước P09 (Y=99 mm) → Bơm tưới cây',
+      'Tech Bay rear dry tray -> P13 dry rear LM393 cradle': 'Rãnh khô phía sau khoang kỹ thuật → Giá đỡ khô LM393 sau vách P13',
+      'Direct routed path': 'Đường dây đi thẳng trong khoang kỹ thuật',
+    };
+
+    function formatRouteChannelVi(ch) {
+      if (!ch) return '';
+      return ROUTE_CHANNEL_VI_MAP[ch] || ch;
+    }
+
+    function populateWireGroupFilter(contract) {
+      const sel = document.getElementById('wireGroupFilter');
+      if (!sel || !contract || !Array.isArray(contract.wires)) return;
+      const groups = [];
+      const seen = new Set();
+      contract.wires.forEach((w) => {
+        if (w.group && !seen.has(w.group)) {
+          seen.add(w.group);
+          groups.push(w.group);
+        }
+      });
+      const currentVal = sel.value || 'all';
+      sel.innerHTML = [
+        `<option value="all">Tất cả nhóm (${contract.wires.length} dây)</option>`,
+        ...groups.map((g) => {
+          const cnt = contract.wires.filter((w) => w.group === g).length;
+          return `<option value="${escWokwiHtml(g)}">${escWokwiHtml(getGroupLabelVi(g))} (${cnt} dây)</option>`;
+        }),
+      ].join('');
+      sel.value = seen.has(currentVal) ? currentVal : 'all';
+    }
+
     function renderSsotPinoutTable(contract) {
       const tbody = document.getElementById('ssotPinoutTableBody');
       if (!tbody || !contract || !Array.isArray(contract.wires)) return;
-      const esc = (s) =>
-        String(s == null ? '' : s)
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
-      tbody.innerHTML = contract.wires
-        .map(
-          (w) => `<tr style="border-bottom:1px solid var(--line); cursor:pointer;" data-wire-row="${esc(w.wire_id)}">
-            <td style="padding:6px 8px;"><span class="hole-badge">${esc(w.wire_id)}</span></td>
-            <td style="padding:6px 8px;">${esc(w.color_vi)}</td>
-            <td style="padding:6px 8px;">${esc(w.module_label_vi)} · <code>${esc(w.module_pin)}</code></td>
-            <td style="padding:6px 8px;"><span class="hole-badge">${esc(w.hub_label)}</span></td>
-            <td style="padding:6px 8px;"><code>${esc(w.nodemcu_pin)}</code> (${esc(w.gpio)})</td>
-          </tr>`
-        )
+      WIRING_TABLE = contract.wires.slice();
+      if (typeof window !== 'undefined') window.WIRING_TABLE = WIRING_TABLE;
+
+      const q = normalizeSearchText(wireTableState.search);
+      const grp = wireTableState.group || 'all';
+      let rows = contract.wires.filter((w) => {
+        if (grp !== 'all' && w.group !== grp) return false;
+        if (!q) return true;
+        const hay = normalizeSearchText(
+          `${w.wire_id} ${w.hub_ref} ${w.hub_pin} ${w.hub_label} ${w.module_label_vi} ${w.module_name} ${w.module_pin} ${w.net} ${w.nodemcu_pin} ${w.gpio} ${w.color_vi} ${w.color} ${w.wire_type_vi} ${w.group} ${w.route_channel || ''}`
+        );
+        return hay.includes(q);
+      });
+
+      const key = wireTableState.sortKey || 'wire_id';
+      const dir = wireTableState.sortDir === 'desc' ? -1 : 1;
+      rows = rows.slice().sort((a, b) => {
+        if (key === 'wire_id') {
+          const na = Number(String(a.wire_id || '').replace(/\D+/g, '')) || 0;
+          const nb = Number(String(b.wire_id || '').replace(/\D+/g, '')) || 0;
+          return (na - nb) * dir;
+        }
+        if (key === 'length_cm' || key === 'recommended_std_cm') {
+          const na = Number(a[key] != null ? a[key] : -1);
+          const nb = Number(b[key] != null ? b[key] : -1);
+          return (na - nb) * dir;
+        }
+        return String(a[key] || '').localeCompare(String(b[key] || ''), 'vi') * dir;
+      });
+
+      const statsEl = document.getElementById('wireTableStats');
+      if (statsEl) {
+        const lens = rows.map((r) => Number(r.length_cm)).filter((v) => Number.isFinite(v));
+        const minL = lens.length ? Math.min(...lens).toFixed(2) : '—';
+        const maxL = lens.length ? Math.max(...lens).toFixed(2) : '—';
+        const passCnt = rows.filter((r) => r.within_30cm !== false).length;
+        statsEl.textContent = `${rows.length}/${contract.wires.length} dây · ${minL}–${maxL} cm · ${passCnt}/${rows.length} đạt ≤ 30 cm`;
+      }
+
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="8" style="padding:14px; text-align:center; color:var(--muted);">Không tìm thấy dây nối phù hợp với từ khóa lọc.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = rows
+        .map((w) => {
+          const isActive = wireTableState.activeWireId === w.wire_id;
+          const colorBorder = w.color === 'White' ? 'border:1.5px solid #475569;' : '';
+          const lenTxt = typeof w.length_cm === 'number' && Number.isFinite(w.length_cm) ? `${w.length_cm.toFixed(2)} cm` : '—';
+          const stdTxt = w.recommended_std_cm ? `${w.recommended_std_cm} cm` : '—';
+          return `<tr class="wire-table-row${isActive ? ' is-active-wire' : ''}" data-wire-row="${escWokwiHtml(w.wire_id)}">
+            <td><span class="hole-badge">${escWokwiHtml(w.wire_id)}</span></td>
+            <td><code>${escWokwiHtml(w.hub_label)}</code></td>
+            <td><strong>${escWokwiHtml(w.module_label_vi)}</strong><div class="wire-tbl-sub">Chân: <code>${escWokwiHtml(w.module_pin)}</code></div></td>
+            <td><code>${escWokwiHtml(w.net)}</code><div class="wire-tbl-sub">${escWokwiHtml(w.nodemcu_pin)} · ${escWokwiHtml(w.gpio)}</div></td>
+            <td><span class="wg-color-chip"><span class="wg-color-dot" style="background:${escWokwiHtml(w.color_hex)};${colorBorder}"></span><span>${escWokwiHtml(w.color_vi)}</span></span></td>
+            <td>${escWokwiHtml(w.wire_type_vi)}</td>
+            <td class="wire-num-cell"><strong>${escWokwiHtml(lenTxt)}</strong></td>
+            <td class="wire-num-cell"><span class="wg-std-pill">${escWokwiHtml(stdTxt)}</span></td>
+          </tr>`;
+        })
         .join('');
+
       tbody.querySelectorAll('tr[data-wire-row]').forEach((row) => {
         row.addEventListener('click', () => {
           const wid = row.getAttribute('data-wire-row');
-          if (wid && wokwiWiringController) {
-            wokwiWiringController.jumpToWireId(wid, true);
+          if (!wid || !wokwiWiringController) return;
+          if (wokwiActiveDiagramMode !== 'pcb2d') {
+            setWokwiDiagramMode('pcb2d');
+          }
+          wokwiWiringController.jumpToWireId(wid, true);
+          const stage = document.getElementById('pcbStepBar') || document.getElementById('pcb2dScroll');
+          if (stage && typeof stage.scrollIntoView === 'function') {
+            stage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           }
         });
       });
+    }
+
+    function bindWireTableControls() {
+      const searchInput = document.getElementById('wireSearchInput');
+      const groupSel = document.getElementById('wireGroupFilter');
+      if (searchInput && !searchInput.dataset.bound) {
+        searchInput.dataset.bound = '1';
+        searchInput.addEventListener('input', () => {
+          wireTableState.search = searchInput.value || '';
+          const c = wokwiWiringController && wokwiWiringController.getContract();
+          if (c) renderSsotPinoutTable(c);
+        });
+      }
+      if (groupSel && !groupSel.dataset.bound) {
+        groupSel.dataset.bound = '1';
+        groupSel.addEventListener('change', () => {
+          wireTableState.group = groupSel.value || 'all';
+          const c = wokwiWiringController && wokwiWiringController.getContract();
+          if (c) renderSsotPinoutTable(c);
+        });
+      }
+      document.querySelectorAll('.wire-sort-btn').forEach((btn) => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', () => {
+          const key = btn.getAttribute('data-sort-key') || 'wire_id';
+          if (wireTableState.sortKey === key) {
+            wireTableState.sortDir = wireTableState.sortDir === 'asc' ? 'desc' : 'asc';
+          } else {
+            wireTableState.sortKey = key;
+            wireTableState.sortDir = 'asc';
+          }
+          document.querySelectorAll('.wire-sort-btn').forEach((other) => {
+            other.classList.remove('is-sorted-asc', 'is-sorted-desc');
+            const ind = other.querySelector('.sort-ind');
+            if (ind) ind.textContent = '';
+          });
+          btn.classList.add(wireTableState.sortDir === 'asc' ? 'is-sorted-asc' : 'is-sorted-desc');
+          const ind = btn.querySelector('.sort-ind');
+          if (ind) ind.textContent = wireTableState.sortDir === 'asc' ? '▲' : '▼';
+          const c = wokwiWiringController && wokwiWiringController.getContract();
+          if (c) renderSsotPinoutTable(c);
+        });
+      });
+    }
+
+    function renderStepDetailCard(snap) {
+      const btnMode = document.getElementById('btnStepMode');
+      const btnPrev = document.getElementById('btnStepPrev');
+      const btnNext = document.getElementById('btnStepNext');
+      const btnAll = document.getElementById('btnStepAll');
+      const counter = document.getElementById('stepModeCounter');
+      const card = document.getElementById('pcbStepDetailCard');
+
+      const total = snap && snap.totalSteps ? snap.totalSteps : 40;
+      const isStep = Boolean(snap && snap.guideOpen && snap.activeWire);
+      const wire = isStep ? snap.activeWire : null;
+
+      if (btnMode) {
+        btnMode.classList.toggle('is-active', isStep);
+        btnMode.setAttribute('aria-pressed', isStep ? 'true' : 'false');
+      }
+      if (btnAll) {
+        btnAll.classList.toggle('is-active', !isStep);
+        btnAll.setAttribute('aria-pressed', !isStep ? 'true' : 'false');
+      }
+      if (btnPrev) btnPrev.disabled = isStep && snap.stepIndex <= 0;
+      if (btnNext) btnNext.disabled = isStep && snap.stepIndex >= total - 1;
+      if (counter) {
+        counter.textContent = isStep ? `Bước ${snap.stepIndex + 1}/${total}` : `Tất cả ${total} dây`;
+      }
+
+      wireTableState.activeWireId = wire ? wire.wire_id : (snap && snap.inspectedWireId) || null;
+      const contract = snap && snap.contract;
+      if (contract) {
+        document.querySelectorAll('#ssotPinoutTableBody tr[data-wire-row]').forEach((row) => {
+          row.classList.toggle('is-active-wire', row.getAttribute('data-wire-row') === wireTableState.activeWireId);
+        });
+      }
+
+      if (!card) return;
+      if (!wire) {
+        card.hidden = true;
+        card.innerHTML = '';
+        return;
+      }
+
+      const colorBorder = wire.color === 'White' ? 'border:1.5px solid #475569;' : '';
+      const lenStr = typeof wire.length_cm === 'number' && Number.isFinite(wire.length_cm) ? `${wire.length_cm.toFixed(2)} cm` : '—';
+      const stdStr = wire.recommended_std_cm ? `Dây chuẩn ${wire.recommended_std_cm} cm` : '';
+      const xyStr =
+        Array.isArray(wire.hub_pin_xy_mm) && wire.hub_pin_xy_mm.length >= 2
+          ? `X=${Number(wire.hub_pin_xy_mm[0]).toFixed(2)} mm, Y=${Number(wire.hub_pin_xy_mm[1]).toFixed(2)} mm`
+          : 'Liên kết ngoài mạch Hub';
+
+      card.hidden = false;
+      card.innerHTML = `
+        <div class="pcb-step-card-top">
+          <div class="pcb-step-badges">
+            <span class="wg-step-counter">Bước ${snap.stepIndex + 1}/${total}</span>
+            <span class="wg-wire-badge">${escWokwiHtml(wire.wire_id)}</span>
+            <span class="wg-color-chip">
+              <span class="wg-color-dot" style="background:${escWokwiHtml(wire.color_hex)};${colorBorder}"></span>
+              <span>Màu <strong>${escWokwiHtml(wire.color_vi)}</strong></span>
+            </span>
+            <span class="wg-type-chip">${escWokwiHtml(wire.wire_type_vi)}</span>
+            <span class="wg-length-pill">Thực tế: <strong>${escWokwiHtml(lenStr)}</strong></span>
+            ${stdStr ? `<span class="wg-std-pill">${escWokwiHtml(stdStr)}</span>` : ''}
+            <span class="wg-pass-pill">${wire.within_30cm === false ? '> 30 cm' : 'Đạt ≤ 30 cm'}</span>
+          </div>
+        </div>
+        <div class="pcb-step-card-grid">
+          <div class="pcb-step-cell">
+            <span class="wg-endpoint-tag">Đầu PCB Hub (Chân &amp; Tọa độ)</span>
+            <strong>${escWokwiHtml(wire.hub_label)}</strong>
+            <div class="wire-tbl-sub">NodeMCU: <code>${escWokwiHtml(wire.nodemcu_pin)}</code> (${escWokwiHtml(wire.gpio)}) · Mạng: <code>${escWokwiHtml(wire.net)}</code></div>
+            <div class="wire-tbl-sub">Tọa độ PCB: <code>${escWokwiHtml(xyStr)}</code></div>
+          </div>
+          <div class="pcb-step-cell">
+            <span class="wg-endpoint-tag">Mô-đun &amp; Chân đích</span>
+            <strong>${escWokwiHtml(wire.module_label_vi)}</strong>
+            <div class="wire-tbl-sub">Chân mô-đun: <code>${escWokwiHtml(wire.module_pin)}</code></div>
+            ${wire.route_channel ? `<div class="wire-tbl-sub">Đường đi dây: ${escWokwiHtml(formatRouteChannelVi(wire.route_channel))}</div>` : ''}
+          </div>
+        </div>
+        <div class="pcb-step-card-guide">
+          <p><strong>Hướng dẫn cắm dây:</strong> ${escWokwiHtml(wire.instruction_vi)}</p>
+          <p class="pcb-step-card-note"><strong>Lưu ý kỹ thuật:</strong> ${escWokwiHtml(wire.power_gnd_note_vi)}</p>
+        </div>
+      `;
+    }
+
+    function bindPcbStepBarControls() {
+      const btnMode = document.getElementById('btnStepMode');
+      const btnPrev = document.getElementById('btnStepPrev');
+      const btnNext = document.getElementById('btnStepNext');
+      const btnAll = document.getElementById('btnStepAll');
+
+      if (btnMode && !btnMode.dataset.bound) {
+        btnMode.dataset.bound = '1';
+        btnMode.addEventListener('click', () => {
+          if (!wokwiWiringController) return;
+          const snap = wokwiWiringController.getSnapshot();
+          if (!snap.guideOpen) {
+            if (wokwiActiveDiagramMode !== 'pcb2d') setWokwiDiagramMode('pcb2d');
+            wokwiWiringController.setGuideOpen(true);
+          } else {
+            wokwiWiringController.setGuideOpen(false);
+          }
+        });
+      }
+      if (btnPrev && !btnPrev.dataset.bound) {
+        btnPrev.dataset.bound = '1';
+        btnPrev.addEventListener('click', () => {
+          if (!wokwiWiringController) return;
+          const snap = wokwiWiringController.getSnapshot();
+          if (!snap.guideOpen) {
+            if (wokwiActiveDiagramMode !== 'pcb2d') setWokwiDiagramMode('pcb2d');
+            wokwiWiringController.setGuideOpen(true);
+            wokwiWiringController.goToStep(Math.max(0, (snap.totalSteps || 40) - 1));
+          } else {
+            wokwiWiringController.stepBy(-1);
+          }
+        });
+      }
+      if (btnNext && !btnNext.dataset.bound) {
+        btnNext.dataset.bound = '1';
+        btnNext.addEventListener('click', () => {
+          if (!wokwiWiringController) return;
+          const snap = wokwiWiringController.getSnapshot();
+          if (!snap.guideOpen) {
+            if (wokwiActiveDiagramMode !== 'pcb2d') setWokwiDiagramMode('pcb2d');
+            wokwiWiringController.setGuideOpen(true);
+            wokwiWiringController.goToStep(0);
+          } else {
+            wokwiWiringController.stepBy(1);
+          }
+        });
+      }
+      if (btnAll && !btnAll.dataset.bound) {
+        btnAll.dataset.bound = '1';
+        btnAll.addEventListener('click', () => {
+          if (!wokwiWiringController) return;
+          wokwiWiringController.setGuideOpen(false);
+          if (typeof wokwiWiringController.clearInspect === 'function') {
+            wokwiWiringController.clearInspect();
+          }
+        });
+      }
     }
 
     function filterStep(stepKey, btnEl) {
@@ -644,15 +978,15 @@
       if (!window.SmartHomeWiringGuide || wokwiWiringController) return;
       const modeSwitchHtml = `
         <div class="wg-zoom-toolbar" role="group" aria-label="Điều khiển thu phóng sơ đồ">
-          <button type="button" class="wg-zoom-btn" data-wg-zoom="out" aria-label="Thu nhỏ sơ đồ">−</button>
-          <span class="wg-zoom-readout" data-wg-zoom-readout aria-live="polite">100%</span>
-          <button type="button" class="wg-zoom-btn" data-wg-zoom="in" aria-label="Phóng to sơ đồ">+</button>
-          <button type="button" class="wg-zoom-btn wg-zoom-btn-text" data-wg-zoom="fit">Vừa màn hình</button>
-          <button type="button" class="wg-zoom-btn wg-zoom-btn-text" data-wg-zoom="reset">100%</button>
+          <button type="button" id="btnZoomOut" class="wg-zoom-btn" data-wg-zoom="out" aria-label="Thu nhỏ sơ đồ">−</button>
+          <span class="wg-zoom-readout" id="zoomReadout" data-wg-zoom-readout aria-live="polite">100%</span>
+          <button type="button" id="btnZoomIn" class="wg-zoom-btn" data-wg-zoom="in" aria-label="Phóng to sơ đồ">+</button>
+          <button type="button" id="btnFitScreen" class="wg-zoom-btn wg-zoom-btn-text" data-wg-zoom="fit">Vừa màn hình</button>
+          <button type="button" id="btnZoomReset" class="wg-zoom-btn wg-zoom-btn-text" data-wg-zoom="reset">100%</button>
         </div>
         <div class="wg-mode-switch" role="group" aria-label="Chế độ xem sơ đồ">
-          <button type="button" class="wg-mode-btn is-active" data-wokwi-mode="breadboard" aria-pressed="true">Mạch Breadboard</button>
-          <button type="button" class="wg-mode-btn" data-wokwi-mode="pcb2d" aria-pressed="false">Sơ đồ PCB 2D</button>
+          <button type="button" id="btnModePcb2d" class="wg-mode-btn is-active" data-wokwi-mode="pcb2d" aria-pressed="true">Sơ đồ PCB 2D (Trực tiếp)</button>
+          <button type="button" id="btnModeBreadboardLegacy" class="wg-mode-btn wg-mode-btn-legacy" data-wokwi-mode="breadboard" aria-pressed="false">Mạch Breadboard (legacy — không dùng)</button>
         </div>
       `;
 
@@ -662,9 +996,15 @@
         panelMount: 'wokwiWiringPanelMount',
         inspectMount: 'wokwiWireInspect',
         extraToolbarHtml: modeSwitchHtml,
+        onStateChange(snap) {
+          renderStepDetailCard(snap);
+        },
         adapter: {
           onContractReady(contract) {
+            populateWireGroupFilter(contract);
             renderSsotPinoutTable(contract);
+            bindWireTableControls();
+            bindPcbStepBarControls();
             renderSsotTechGuides('all', contract);
             if (typeof window.SmartHomeWiringGuide.renderProtectionTable === 'function') {
               window.SmartHomeWiringGuide.renderProtectionTable(
@@ -677,10 +1017,7 @@
             });
             ensureDiagramViewports();
             bindZoomToolbarControls();
-            requestAnimationFrame(() => {
-              fitCircuitStageToWorkbench();
-              syncZoomToolbarReadout();
-            });
+            setWokwiDiagramMode('pcb2d');
           },
           bindInteractions(onSelectWire) {
             const wireSvg = document.getElementById('wireLayer');
@@ -1645,6 +1982,7 @@
       buildBreadboard400();
       drawWires();
       initWokwiWiringGuide();
+      loadPcb2dSvgOnce();
       fitCircuitStageToWorkbench();
       setTimeout(() => {
         drawWires();
@@ -1652,10 +1990,12 @@
       }, 250);
       if (typeof window !== 'undefined') {
         window.addEventListener('resize', fitCircuitStageToWorkbench);
+        const pcbEl = document.getElementById('pcb2dScroll');
         const scrollEl = document.getElementById('workbenchScroll') || document.querySelector('.workbench-scroll');
-        if (scrollEl && typeof ResizeObserver === 'function' && !_workbenchResizeObserver) {
+        if (typeof ResizeObserver === 'function' && !_workbenchResizeObserver) {
           _workbenchResizeObserver = new ResizeObserver(() => fitCircuitStageToWorkbench());
-          _workbenchResizeObserver.observe(scrollEl);
+          if (pcbEl) _workbenchResizeObserver.observe(pcbEl);
+          if (scrollEl) _workbenchResizeObserver.observe(scrollEl);
         }
       }
       fetchState();

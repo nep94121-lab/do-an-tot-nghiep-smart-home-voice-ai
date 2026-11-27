@@ -515,12 +515,89 @@
 }
 
 .wg-wire-dimmed {
-  opacity: 0.12 !important;
+  opacity: 0.11 !important;
 }
 
 .wg-wire-highlighted {
   opacity: 1 !important;
-  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.95));
+  filter: drop-shadow(0 0 7px rgba(14, 165, 233, 0.98));
+}
+
+.pcb-wire.wg-wire-highlighted path:not(.pcb-wire-hit) {
+  stroke-width: 4.5px !important;
+}
+
+/* Wire Length, Standard Size & Route Pills */
+.wg-length-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.wg-length-pill,
+.wg-std-pill,
+.wg-pass-pill,
+.wg-prot-v3-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.wg-length-pill {
+  background: var(--accent-soft, #e6f3f2);
+  border: 1px solid var(--line, #b8dedc);
+  color: var(--accent, #066f77);
+}
+
+.wg-std-pill {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+}
+
+.wg-pass-pill {
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #166534;
+  font-weight: 600;
+}
+
+.wg-prot-v3-pill {
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  color: #1e40af;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.wg-route-line {
+  font-size: 12px;
+  color: var(--muted, #55676d);
+  background: var(--bg, var(--page, #f5f7f7));
+  border: 1px dashed var(--line, #d5e0e2);
+  border-radius: 8px;
+  padding: 6px 9px;
+}
+
+.wg-prot-banner {
+  margin-bottom: 8px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  background: #ecfdf5;
+  border: 1px solid #86efac;
+  color: #065f46;
+  font-size: 12.2px;
+  line-height: 1.45;
+}
+
+.wg-prot-row-highlight {
+  background: rgba(16, 185, 129, 0.06);
 }
 
 .wg-pin-highlighted circle {
@@ -891,6 +968,39 @@
     background: rgba(251, 191, 36, 0.18);
     color: #fde68a;
   }
+  .wg-std-pill,
+  .wg-prot-v3-pill {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(96, 165, 250, 0.45);
+    color: #bfdbfe;
+  }
+  .wg-pass-pill,
+  .wg-prot-banner {
+    background: rgba(16, 185, 129, 0.16);
+    border-color: rgba(52, 211, 153, 0.42);
+    color: #a7f3d0;
+  }
+  .wg-prot-row-highlight {
+    background: rgba(16, 185, 129, 0.1);
+  }
+}
+
+[data-theme="dark"] .wg-std-pill,
+[data-theme="dark"] .wg-prot-v3-pill {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #bfdbfe;
+}
+
+[data-theme="dark"] .wg-pass-pill,
+[data-theme="dark"] .wg-prot-banner {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(52, 211, 153, 0.42);
+  color: #a7f3d0;
+}
+
+[data-theme="dark"] .wg-prot-row-highlight {
+  background: rgba(16, 185, 129, 0.1);
 }
 
 [data-theme="dark"] .wg-note-box {

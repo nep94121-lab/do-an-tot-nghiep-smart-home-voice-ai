@@ -61,7 +61,7 @@
         </div>
       </header>
 
-      <div id="wokwiAuthBanner" role="alert" style="display:none;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;margin-bottom:14px;border-radius:10px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;font-size:13px;" hidden>
+      <div id="wokwiAuthBanner" class="wokwi-auth-banner" role="alert" style="display:none;" hidden>
         <span id="wokwiAuthBannerMsg">Bạn cần đăng nhập để điều khiển thiết bị phần cứng.</span>
         <a href="/login" class="btn primary" style="padding:6px 12px;font-size:12px;white-space:nowrap;">Đăng nhập ngay</a>
       </div>
@@ -70,23 +70,44 @@
         <!-- THẺ MẠCH MÔ PHỎNG -->
         <div class="workbench-card">
           <div class="card-head">
-            <h2>Mạch mô phỏng</h2>
+            <h2>Sơ đồ đấu nối PCB-Direct (Hub DIY v3 — Không Breadboard)</h2>
             <span id="hoverHoleInfo">Nhiệt độ: 28.5°C · Độ ẩm: 65% · Độ ẩm đất: 55%</span>
           </div>
 
           <div class="pcb-wiring-note" id="pcbWiringNote" role="note">
-            <strong>Lưu ý đấu nối thực tế theo PCB Hub (100×80 mm):</strong> Cắm dây trên breadboard phải tuân thủ đúng sơ đồ mạch PCB thực tế (đèn ngủ <strong>D4</strong> đấu Active-LOW từ 3.3V qua R2 220Ω + R7 10kΩ; đường âm thanh <strong>D3</strong> dùng R4 10kΩ kéo lên 3.3V, tụ <strong>C4 10µF 16V</strong>, cầu R5/R6 2.2kΩ và C5 10nF; bổ sung tụ lọc <strong>C8 100nF</strong> trên +3.3V và <strong>C9 100µF 16V</strong> tại J11/PAM8403). Riêng chân <strong>D8 (GPIO15)</strong> bắt buộc có điện trở kéo xuống <strong>R9 (10kΩ → GND)</strong> để an toàn khi khởi động, và lái còi 5V qua <strong>R10 (1kΩ) → Q1 (S8050 NPN)</strong> kèm diode dập xung <strong>D2 (1N4007)</strong> (không nối trực tiếp còi vào D8).
+            <strong>Kiến trúc PCB-Direct (Hub DIY v3 <code>100×80 mm</code>, <code>51 vị trí chân linh kiện</code>, KHÔNG dùng breadboard trắng):</strong> Mạch <strong>NodeMCU ESP8266 v2 Amica (<code>48.26×25.40 mm</code>, khoảng cách hàng chân 0.9&quot;)</strong> cắm thẳng vào đế <code>U1/U2</code>, toàn bộ <strong>9 tụ lọc C1–C9 (gồm cả C8 100nF trên +3.3V &amp; C9 100µF 16V tại J11/PAM8403)</strong>, <strong>2 đi-ốt dập xung D1–D2 (1N4007)</strong>, <strong>Q1 (S8050 NPN)</strong> và <strong>R1–R10</strong> đều hàn trực tiếp trên PCB. 40/40 dây nối đạt <strong>≤ 30 cm (<code>3.84 – 27.48 cm</code>)</strong>: đèn ngủ <strong>D4</strong> đấu mức thấp (<code>R2 220Ω + R7 10kΩ</code>), âm thanh <strong>D3</strong> qua <code>R4 10kΩ + C4 10µF 16V + R5/R6 2.2kΩ + C5 10nF</code>, còi <strong>D8</strong> lái qua <code>R9 10kΩ + R10 1kΩ → Q1 S8050 + D2 1N4007</code>.
             <div class="pcb-wiring-note-links">
               <a class="pcb-note-link" href="/docs/phan_cung/HUONG_DAN_NAP_FIRMWARE_USB.md" target="_blank" rel="noopener noreferrer">Hướng dẫn nạp firmware &amp; cài Wi-Fi qua USB</a>
+              <a class="pcb-note-link" href="/docs/phan_cung/WIRING_TABLE.md" target="_blank" rel="noopener noreferrer">Bảng 40 dây &amp; chiều dài (Markdown)</a>
+              <a class="pcb-note-link" href="/docs/phan_cung/wiring_diagram_2d.pdf" target="_blank" rel="noopener noreferrer">Tải sơ đồ PCB 2D (PDF)</a>
             </div>
           </div>
 
           <div id="wokwiWiringToolbar" class="wokwi-wiring-toolbar-slot"></div>
+
+          <!-- THANH HƯỚNG DẪN TỪNG BƯỚC 1/40 .. 40/40 CHO SƠ ĐỒ PCB-DIRECT -->
+          <div class="pcb-step-bar" id="pcbStepBar" role="region" aria-label="Điều khiển hướng dẫn nối dây từng bước">
+            <div class="pcb-step-bar-controls">
+              <button type="button" id="btnStepMode" class="pcb-step-btn pcb-step-btn-primary" aria-pressed="false">Chế độ từng bước</button>
+              <button type="button" id="btnStepPrev" class="pcb-step-btn" aria-label="Bước trước">← Bước trước</button>
+              <span id="stepModeCounter" class="pcb-step-counter" aria-live="polite">Tất cả 40 dây</span>
+              <button type="button" id="btnStepNext" class="pcb-step-btn" aria-label="Bước tiếp">Bước tiếp →</button>
+              <button type="button" id="btnStepAll" class="pcb-step-btn pcb-step-btn-ghost is-active" aria-pressed="true">Xem tất cả 40 dây</button>
+            </div>
+            <span class="pcb-step-hint">Mẹo: Nhấn mũi tên ← / → trên bàn phím hoặc bấm trực tiếp vào dây/hàng trong bảng bên dưới.</span>
+          </div>
+
+          <div id="pcbStepDetailCard" class="pcb-step-detail-card" role="region" aria-live="polite" hidden></div>
           <div id="wokwiWireInspect" class="wokwi-wire-inspect-slot"></div>
 
           <div class="wokwi-stage-layout" id="wokwiStageLayout">
             <div class="wokwi-diagram-col">
-              <div class="workbench-scroll" id="workbenchScroll">
+              <div class="pcb2d-scroll" id="pcb2dScroll">
+                <div class="pcb2d-svg-host" id="pcb2dSvgHost" aria-label="Sơ đồ nối dây PCB Hub 2D trực tiếp">
+                  <p class="pcb2d-loading">Đang tải sơ đồ nối dây PCB Hub DIY v3…</p>
+                </div>
+              </div>
+              <div class="workbench-scroll" id="workbenchScroll" hidden>
                 <div class="circuit-stage-wrap" id="circuitStageWrap">
                 <div class="circuit-stage" id="circuitStage" onmouseleave="clearHoleHover()">
 
@@ -556,24 +577,69 @@
                 </div>
                 </div>
               </div>
-              <div class="pcb2d-scroll" id="pcb2dScroll" hidden>
-                <div class="pcb2d-svg-host" id="pcb2dSvgHost" aria-label="Sơ đồ nối dây PCB Hub 2D">
-                  <p class="pcb2d-loading">Đang tải sơ đồ nối dây PCB Hub 2D…</p>
-                </div>
-              </div>
             </div>
             <div id="wokwiWiringPanelMount" class="wokwi-guide-mount"></div>
           </div>
 
           <details class="wg-protection-card" id="wokwiProtectionCard" open>
             <summary class="wg-protection-summary">
-              <span>Tụ điện &amp; Diode bảo vệ (Datasheet)</span>
-              <span class="wg-protection-count">C1–C9 · D1–D2 (1N4007)</span>
+              <span>Tụ điện C1–C9 &amp; Diode bảo vệ D1–D2 hàn trực tiếp trên PCB Hub DIY v3</span>
+              <span class="wg-protection-count">C1–C9 (gồm C8, C9 trên bo) · D1–D2 (1N4007)</span>
             </summary>
             <div id="wokwiProtectionTableMount" class="wg-protection-body">
               <p class="wg-empty">Đang tải bảng tụ điện và diode bảo vệ…</p>
             </div>
           </details>
+
+          <!-- BẢNG 40 DÂY NỐI ĐẦY ĐỦ: TÌM KIẾM, LỌC NHÓM, SẮP XẾP & BẤM ĐỂ CHỈ DẪN TRÊN PCB -->
+          <section class="wire-table-card" id="wireTableCard" aria-label="Bảng chi tiết 40 dây nối PCB-Direct">
+            <div class="wire-table-head">
+              <div>
+                <h3>Bảng đầy đủ 40 dây nối PCB-Direct &amp; Chiều dài thực tế (cm)</h3>
+                <p class="wire-table-sub">Bấm vào bất kỳ hàng nào để chuyển sang chế độ từng bước và làm nổi bật đúng dây đó trên sơ đồ PCB 2D.</p>
+              </div>
+              <div id="wireTableStats" class="wire-table-stats">40/40 dây · 3.84–27.48 cm · 100% ≤ 30 cm</div>
+            </div>
+
+            <div class="wire-table-controls" id="wireTableControls">
+              <label class="wire-search-wrap">
+                <span class="sr-only">Tìm kiếm dây nối</span>
+                <input
+                  type="search"
+                  id="wireSearchInput"
+                  class="wire-search-input"
+                  placeholder="Tìm mã dây (W01), đầu PCB (J1–J15), mô-đun, tín hiệu, màu..."
+                  autocomplete="off"
+                />
+              </label>
+              <label class="wire-group-wrap">
+                <span>Nhóm:</span>
+                <select id="wireGroupFilter" class="wire-group-select" aria-label="Lọc bảng dây theo nhóm thiết bị">
+                  <option value="all">Tất cả nhóm (40 dây)</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="wg-table-scroll">
+              <table class="wire-ssot-table" id="wireSsotTable" aria-label="Bảng 40 dây nối có thể tìm kiếm và sắp xếp">
+                <thead>
+                  <tr>
+                    <th><button type="button" class="wire-sort-btn is-sorted-asc" data-sort-key="wire_id">ID <span class="sort-ind">▲</span></button></th>
+                    <th><button type="button" class="wire-sort-btn" data-sort-key="hub_label">Đầu PCB <span class="sort-ind"></span></button></th>
+                    <th><button type="button" class="wire-sort-btn" data-sort-key="module_label_vi">Mô-đun &amp; Chân <span class="sort-ind"></span></button></th>
+                    <th><button type="button" class="wire-sort-btn" data-sort-key="net">Tín hiệu <span class="sort-ind"></span></button></th>
+                    <th><button type="button" class="wire-sort-btn" data-sort-key="color_vi">Màu <span class="sort-ind"></span></button></th>
+                    <th><button type="button" class="wire-sort-btn" data-sort-key="wire_type_vi">Đầu nối <span class="sort-ind"></span></button></th>
+                    <th><button type="button" class="wire-sort-btn" data-sort-key="length_cm">Chiều dài (cm) <span class="sort-ind"></span></button></th>
+                    <th><button type="button" class="wire-sort-btn" data-sort-key="recommended_std_cm">Cỡ chuẩn <span class="sort-ind"></span></button></th>
+                  </tr>
+                </thead>
+                <tbody id="ssotPinoutTableBody">
+                  <tr><td colspan="8" style="padding:12px; color:var(--muted);">Đang tải bảng 40 dây nối từ hợp đồng phần cứng…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
 
         <!-- CỘT PHẢI: THIẾT BỊ -->
@@ -630,12 +696,12 @@
 
         <div class="guide-footer">
           <h4>
-            <span id="guideTitle">Hướng dẫn cắm dây 10 chân khóa cứng trên Breadboard 400 lỗ</span>
+            <span id="guideTitle">Hướng dẫn cắm dây 10 chân khóa cứng trên PCB Hub DIY v3 (100×80 mm)</span>
             <button id="btnWokwiServerMode" class="btn secondary" type="button" onclick="toggleWokwiServerMode()" style="font-size:12px; padding:5px 10px;">Đã kết nối máy chủ</button>
           </h4>
           <ol id="guideItems">
-            <li>Cấp nguồn từ chân <span class="hole-badge">3V3</span> vào rãnh dương trên, chân <span class="hole-badge">VIN (5V)</span> vào rãnh dương dưới và chân <span class="hole-badge">GND</span> vào rãnh âm.</li>
-            <li>Cắm đúng mạch PCB Hub 100×80 mm: Đèn khách (<span class="hole-badge">D0</span> qua R1 220Ω), âm thanh (<span class="hole-badge">D3</span> qua R4 10kΩ + C4 10µF 16V + R5/R6 2.2kΩ + C5 10nF), đèn ngủ Active-LOW (<span class="hole-badge">D4</span> qua R2 220Ω + R7 10kΩ), KY-037 (<span class="hole-badge">D5</span>), DHT11 (<span class="hole-badge">D2</span> + R3 10kΩ) và còi 5V (<span class="hole-badge">D8</span> qua R9 10kΩ kéo xuống GND + R10 1kΩ → Q1 S8050 + D2 1N4007).</li>
+            <li>Cấp nguồn ngoài <strong>5V 2A</strong> vào cầu đấu vít <span class="hole-badge">J1</span>; NodeMCU v2 Amica cắm thẳng vào đế <span class="hole-badge">U1/U2</span>, toàn bộ tụ <span class="hole-badge">C1–C9</span> và diode <span class="hole-badge">D1–D2</span> hàn trên bo.</li>
+            <li>Cắm đúng 15 cổng trên PCB Hub 100×80 mm: Đèn khách (<span class="hole-badge">J4 / D0</span> qua R1 220Ω), âm thanh (<span class="hole-badge">J12 / D3</span> qua R4 10kΩ + C4 10µF 16V + R5/R6 2.2kΩ + C5 10nF), đèn ngủ Active-LOW (<span class="hole-badge">J5 / D4</span> qua R2 220Ω + R7 10kΩ), KY-037 (<span class="hole-badge">J15 / D5</span>), DHT11 (<span class="hole-badge">J13 / D2</span> + R3 10kΩ) và còi 5V (<span class="hole-badge">J6 / D8</span> qua R9 10kΩ kéo xuống GND + R10 1kΩ → Q1 S8050 + D2 1N4007).</li>
           </ol>
         </div>
 
@@ -679,33 +745,15 @@
               <button class="btn tertiary" type="button" onclick="document.getElementById('serialBox').innerHTML=''">Xóa</button>
             </h3>
             <div class="serial-box" id="serialBox">
-              <div class="serial-line">[00:00.010] Khởi động mô phỏng mạch phần cứng (6 thiết bị + 3 cảm biến).</div>
-              <div class="serial-line">[00:00.140] Breadboard 400 lỗ đã sẵn sàng.</div>
+              <div class="serial-line">[00:00.010] Khởi động giao diện phần cứng PCB-Direct (6 thiết bị + 3 cảm biến).</div>
+              <div class="serial-line">[00:00.140] PCB Hub DIY v3 (100×80 mm, 40 dây ≤ 30 cm) đã sẵn sàng.</div>
               <div class="serial-line">[00:00.320] Đã kết nối thiết bị.</div>
             </div>
           </div>
         </div>
 
         <section id="pinoutAndCodeSection" class="tech-pinout-grid">
-          <div class="card" style="overflow-x:auto;">
-            <h3>Bảng nối dây đồng bộ từ hợp đồng phần cứng</h3>
-            <table style="width:100%; border-collapse:collapse; font-size:12.5px; line-height:1.45;">
-              <thead>
-                <tr style="background:var(--bg); color:var(--muted); text-align:left; border-bottom:1px solid var(--line);">
-                  <th style="padding:7px 8px; font-weight:500;">Mã dây</th>
-                  <th style="padding:7px 8px; font-weight:500;">Màu</th>
-                  <th style="padding:7px 8px; font-weight:500;">Mô-đun &amp; Chân</th>
-                  <th style="padding:7px 8px; font-weight:500;">Header Hub</th>
-                  <th style="padding:7px 8px; font-weight:500;">Chân ESP8266</th>
-                </tr>
-              </thead>
-              <tbody id="ssotPinoutTableBody">
-                <tr><td colspan="5" style="padding:8px; color:var(--muted);">Đang tải bảng nối dây từ hợp đồng phần cứng…</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="card" style="display:flex; flex-direction:column;">
+          <div class="card" style="display:flex; flex-direction:column; grid-column: 1 / -1;">
             <h3>
               <span>Mã nguồn nạp mạch</span>
               <span style="display:inline-flex; gap:6px; flex-wrap:wrap;">
