@@ -370,11 +370,7 @@ print(json.dumps({"owner_email": owner_email, "td_desk": td_desk, "td_mob": td_m
                             for tok in ("C4", "C5", "C6", "C9", "D2", "1N4007"):
                                 assert _has_token(bb_html, tok), f"Breadboard stage missing marker {tok}"
 
-                            # Breadboard zoom/pan cycle
-                            _verify_zoom_pan_cycle(page, "#workbenchScroll", f"desktop-{scheme}-breadboard")
-
-                            # Switch to PCB 2D mode
-                            page.click("[data-wokwi-mode='pcb2d']")
+                            # Default view is PCB-direct (pcb2d, zero breadboard)
                             page.wait_for_selector("#pcb2dSvgHost svg", state="visible", timeout=15000)
                             page.wait_for_timeout(250)
 
@@ -382,8 +378,14 @@ print(json.dumps({"owner_email": owner_email, "td_desk": td_desk, "td_mob": td_m
                             for tok in (*REQUIRED_PROTECTION_REFS, "1N4007"):
                                 assert _has_token(pcb_svg_html, tok), f"PCB 2D SVG DOM missing {tok}"
 
-                            # PCB 2D zoom/pan cycle
+                            # PCB 2D zoom/pan cycle (default view)
                             _verify_zoom_pan_cycle(page, "#pcb2dScroll", f"desktop-{scheme}-pcb2d")
+
+                            # Switch to non-default legacy breadboard mode and verify zoom/pan parity
+                            page.click("[data-wokwi-mode='breadboard']")
+                            page.wait_for_selector("#workbenchScroll", state="visible", timeout=10000)
+                            page.wait_for_timeout(200)
+                            _verify_zoom_pan_cycle(page, "#workbenchScroll", f"desktop-{scheme}-breadboard")
 
                             ctx.close()
 
@@ -426,11 +428,7 @@ print(json.dumps({"owner_email": owner_email, "td_desk": td_desk, "td_mob": td_m
                             )
                             assert bad_btns == [], f"Mobile {scheme} toolbar/zoom controls < 44x44px: {bad_btns}"
 
-                            # Breadboard zoom/pan cycle on mobile
-                            _verify_zoom_pan_cycle(page_m, "#workbenchScroll", f"mobile-{scheme}-breadboard")
-
-                            # Switch to PCB 2D mode on mobile & verify zoom/pan + 0 overflow
-                            page_m.click("[data-wokwi-mode='pcb2d']")
+                            # Default PCB 2D view on mobile: verify zoom/pan + 0 overflow
                             page_m.wait_for_selector("#pcb2dSvgHost svg", state="visible", timeout=15000)
                             page_m.wait_for_timeout(250)
                             overflow_m_pcb = page_m.evaluate(
@@ -438,6 +436,12 @@ print(json.dumps({"owner_email": owner_email, "td_desk": td_desk, "td_mob": td_m
                             )
                             assert overflow_m_pcb is False, f"Mobile {scheme} /wokwi PCB 2D has horizontal overflow"
                             _verify_zoom_pan_cycle(page_m, "#pcb2dScroll", f"mobile-{scheme}-pcb2d")
+
+                            # Switch to legacy breadboard mode on mobile & verify zoom/pan
+                            page_m.click("[data-wokwi-mode='breadboard']")
+                            page_m.wait_for_selector("#workbenchScroll", state="visible", timeout=10000)
+                            page_m.wait_for_timeout(200)
+                            _verify_zoom_pan_cycle(page_m, "#workbenchScroll", f"mobile-{scheme}-breadboard")
 
                             ctx_m.close()
                     finally:

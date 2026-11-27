@@ -436,6 +436,7 @@ class TestP1WokwiAndProtectedRoutesAuth:
                 assert "/login" in (resp.headers.get("location") or "")
             body = resp.text
             assert "Mạch mô phỏng" not in body, f"{route} leaked hardware title when unauthenticated"
+            assert "Sơ đồ đấu nối PCB-Direct" not in body, f"{route} leaked hardware title when unauthenticated"
             assert "ESP8266MOD" not in body, f"{route} leaked ESP8266 circuit when unauthenticated"
             assert "Xem nhật ký" not in body, f"{route} leaked /logs shortcut when unauthenticated"
 
@@ -470,7 +471,7 @@ class TestP1WokwiAndProtectedRoutesAuth:
             # Owner (Tier 1) -> 200 on both /wokwi and /logs
             r_w1 = client.get("/wokwi", headers={"X-Session-Token": s_owner.session_id}, follow_redirects=False)
             r_l1 = client.get("/logs", headers={"X-Session-Token": s_owner.session_id}, follow_redirects=False)
-            assert r_w1.status_code == 200 and "Mạch mô phỏng" in r_w1.text
+            assert r_w1.status_code == 200 and "Sơ đồ đấu nối PCB-Direct" in r_w1.text
             assert 'id="wokwiLogsShortcut"' in r_w1.text and 'data-owner-only="true"' in r_w1.text
             assert r_l1.status_code == 200 and "auditLogsTbody" in r_l1.text
 

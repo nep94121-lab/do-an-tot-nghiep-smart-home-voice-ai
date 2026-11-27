@@ -282,6 +282,12 @@ class TestBugR2WokwiPlaywrightRendering:
             page = browser.new_page()
             page.set_viewport_size({"width": width, "height": height})
             page.goto(f"{static_server}/wokwi.html")
+            # Legacy breadboard stage is hidden by default (PCB-direct default); unhide to inspect static .comp-tag spacing
+            page.evaluate("""() => {
+                if (typeof setWokwiDiagramMode === 'function') setWokwiDiagramMode('breadboard');
+                const wb = document.getElementById('workbenchScroll');
+                if (wb) wb.hidden = false;
+            }""")
 
             tags_data = page.evaluate("""() => {
                 const tags = Array.from(document.querySelectorAll('.comp-tag'));

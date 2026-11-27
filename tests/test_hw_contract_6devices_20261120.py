@@ -388,16 +388,16 @@ def test_wokwi_page_and_wiring_table_match_100x80_diy_pcb() -> None:
     assert "100nF–1µF" not in wokwi_js and "100nF-1uF" not in wokwi_js
     assert "C4 10µF 16V" in wokwi_js
 
-    # (4) WIRING_TABLE.md section 3: 100x80 mm, R10/Q1, 21 active/passive/indicator parts, 49 BOM footprints
+    # (4) WIRING_TABLE.md section 3: 100x80 mm, R10/Q1, C1-C9 (incl. onboard C8/C9), 23 active/passive/indicator parts, 51 BOM footprints
     assert "80.0 × 65.0" not in wiring_md
     assert "100.0 × 80.0 × 1.6 mm" in wiring_md
-    assert "`R1`–`R10`, `Q1`, `C1`–`C7`, `D1`–`D3`" in wiring_md
-    assert "All 21 on-board active/passive/indicator components" in wiring_md
-    assert "49 total BOM footprints" in wiring_md
+    assert "`R1`–`R10`, `Q1`, `C1`–`C9`, `D1`–`D3`" in wiring_md
+    assert "All 23 on-board active/passive/indicator components" in wiring_md
+    assert "51 total BOM footprints" in wiring_md
 
     # (5) Vietnamese PCB & D8 pull-down note on /wokwi
     assert 'id="pcbWiringNote"' in wokwi_html
-    assert "breadboard" in wokwi_html.lower() and "R9 (10kΩ → GND)" in wokwi_html
+    assert "R9 10kΩ" in wokwi_html and "Q1 S8050" in wokwi_html and "D2 1N4007" in wokwi_html
 
 
 def test_sqlite_7_to_6_migration_preserves_states_and_prunes_fan_ac(
