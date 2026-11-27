@@ -18,6 +18,7 @@ and captures REAL tool-rendered screenshots 90..95 into `C:/Users/LENOVO/datn-wt
 """
 from __future__ import annotations
 
+import argparse
 import collections
 import csv
 import json
@@ -27,6 +28,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 import pymupdf as fitz  # PyMuPDF
 from PIL import Image, ImageDraw, ImageFont
@@ -40,8 +42,8 @@ REPO_ROOT = KICAD_DIR.parent.parent.parent
 DIY_OUT = REPO_ROOT / "docs" / "phan_cung" / "diy_pcb"
 GERBER_OUT = DIY_OUT / "gerbers"
 HW_GERBER_OUT = KICAD_DIR / "gerbers"
-RUN_DIR = pathlib.Path(r"C:\Users\LENOVO\datn-wt\agyhwmerge3_20261121")
-SHOT_DIR = RUN_DIR / "screenshots"
+HW_3D_OUT = KICAD_DIR / "3d"
+SHOT_DIR = DIY_OUT
 
 KCLI = r"C:\Users\LENOVO\AppData\Local\Programs\KiCad\10.0\bin\kicad-cli.exe"
 KPY = r"C:\Users\LENOVO\AppData\Local\Programs\KiCad\10.0\bin\python.exe"
@@ -156,22 +158,59 @@ def export_all() -> dict:
         "Export Excellon drill files (PTH + NPTH)",
     )
     # Also export a merged single Excellon .drl directly in docs/phan_cung/diy_pcb/
-    tmp_drl_dir = RUN_DIR / "scratch" / "drl_export"
-    tmp_drl_dir.mkdir(parents=True, exist_ok=True)
-    for old in tmp_drl_dir.glob("*"):
-        old.unlink()
+    with tempfile.TemporaryDirectory(prefix="diy_drl_") as _tmp_drl:
+        tmp_drl_dir = pathlib.Path(_tmp_drl)
+        run_cmd(
+            [
+                KCLI, "pcb", "export", "drill",
+                "--format", "excellon",
+                "--excellon-units", "mm",
+                "--output", str(tmp_drl_dir) + "\\",
+                str(PCB_PATH),
+            ],
+            "Export merged Excellon drill file",
+        )
+        shutil.copy2(tmp_drl_dir / "smarthome_hub.drl", DIY_OUT / "smarthome_hub.drl")
+        shutil.copy2(tmp_drl_dir / "smarthome_hub.drl", GERBER_OUT / "smarthome_hub-merged.drl")
+
+    # Export KiCad Component Position File (CSV, mm, both sides, including THT) for R1/R6 verification
+    pos_hw = KICAD_DIR / "smarthome_hub-all-pos.csv"
+    pos_doc = DIY_OUT / "smarthome_hub-all-pos.csv"
     run_cmd(
         [
-            KCLI, "pcb", "export", "drill",
-            "--format", "excellon",
-            "--excellon-units", "mm",
-            "--output", str(tmp_drl_dir) + "\\",
+            KCLI, "pcb", "export", "pos",
+            "--format", "csv",
+            "--units", "mm",
+            "--side", "both",
+            "--output", str(pos_hw),
             str(PCB_PATH),
         ],
-        "Export merged Excellon drill file",
+        "Export KiCad component position file (CSV)",
     )
-    shutil.copy2(tmp_drl_dir / "smarthome_hub.drl", DIY_OUT / "smarthome_hub.drl")
-    shutil.copy2(tmp_drl_dir / "smarthome_hub.drl", GERBER_OUT / "smarthome_hub-merged.drl")
+    shutil.copy2(pos_hw, pos_doc)
+
+    # Export updated 3D models (GLB + STEP) so Blender & FreeCAD consume the exact on-board C8/C9 PCB
+    HW_3D_OUT.mkdir(parents=True, exist_ok=True)
+    run_cmd(
+        [
+            KCLI, "pcb", "export", "glb",
+            "--subst-models",
+            "--include-tracks",
+            "--include-zones",
+            "--output", str(HW_3D_OUT / "smarthome_hub.glb"),
+            str(PCB_PATH),
+        ],
+        "Export KiCad 3D GLB (with C8/C9)",
+    )
+    run_cmd(
+        [
+            KCLI, "pcb", "export", "step",
+            "--subst-models",
+            "--output", str(HW_3D_OUT / "smarthome_hub.step"),
+            str(PCB_PATH),
+        ],
+        "Export KiCad 3D STEP (with C8/C9)",
+    )
 
     # Sync gerbers into hardware/kicad/smarthome_hub/gerbers/
     for f in GERBER_OUT.glob("*"):
@@ -275,7 +314,7 @@ print(json.dumps({{
             parts_by_drill[d].append(h["ref"])
 
     drill_use_notes = {
-        0.9: "Resistors (R1-R10), NPN Transistor (Q1 S8050), Ceramic & Electrolytic Capacitors (C1-C7), Power LED (D3), Top-Side 22AWG Wire Jumpers (JP1-JP7)",
+        0.9: "Resistors (R1-R10), NPN Transistor (Q1 S8050), Ceramic & Electrolytic Capacitors (C1-C9), Power LED (D3), Top-Side 22AWG Wire Jumpers (JP1-JP7)",
         1.1: "NodeMCU Female Sockets (U1, U2), All 2.54mm Module Pin Headers (J3-J15), DO-41 Diodes (D1, D2)",
         1.3: "5.08mm Phoenix MKDS Screw Terminal Blocks (J1 Power 5V In, J2 Pump Output)",
         3.2: "4x Corner M3 Mounting Holes (H1-H4, NPTH, 90x70 mm pattern, 5 mm inset from corners)",
@@ -381,6 +420,7 @@ print(json.dumps({{
         "R_Axial_P10.16mm_DIY": "1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm)",
         "D_DO41_P10.16mm_DIY": "1N4007 DO-41 / SOD-81 (L=5.2 mm, D=2.7 mm, lead 0.86 mm max, P=10.16 mm) — Vishay 1N4007",
         "CP_Radial_D8.0mm_P3.50mm_DIY": "470 µF 16V Radial Electrolytic (D=8.0 mm, H=11.5 mm, P=3.50 mm, lead 0.6 mm) — Nichicon UVR/UHE",
+        "CP_Radial_D6.3mm_P3.50mm_DIY": "100 µF 16V Radial Electrolytic (D=6.3 mm, H=11.0 mm, P=3.50 mm formed, lead 0.5 mm) — Nichicon UVR / PAM8403 bulk on-board C9",
         "CP_Radial_D5.0mm_P3.50mm_DIY": "10 uF 16V Radial Electrolytic (D=5.0 mm, P=3.50 mm formed; use low-profile H<=7mm or lay flat sideways to clear NodeMCU Micro-USB plug)",
         "C_Disc_D5.0mm_P5.00mm_DIY": "Ceramic Disc / MLCC 50V (D=5.0 mm, P=5.00 mm, lead 0.5 mm) — Murata RDE / Vishay K-series",
         "LED_D3.0mm_P5.08mm_DIY": "3 mm Green Indicator LED (D=3.0 mm, leads formed to P=5.08 mm for forgiving 2.8 mm DIY pads)",
@@ -417,8 +457,9 @@ print(json.dumps({{
     # 8b. Generate TRUE 1:1 scale drill_map.pdf directly from Excellon .drl + board geometry!
     generate_true_1to1_drill_map_pdf(DIY_OUT / "drill_map.pdf", holes, counts, parts_by_drill)
 
-    # 9. Render REAL Screenshots 90..95!
-    # 90: KiCad 3D Isometric Render (quality=basic uses fast OpenGL/SW rasterizer without 2-min CPU raytrace hang)
+    # 9. Render REAL KiCad 3D & 2D PNGs (saved to docs/phan_cung/diy_pcb/ and optional --shot-dir)
+    kicad_3d_iso = DIY_OUT / "kicad_3d_iso.png"
+    kicad_3d_top = DIY_OUT / "kicad_3d_top.png"
     run_cmd(
         [
             KCLI, "pcb", "render",
@@ -427,12 +468,11 @@ print(json.dumps({{
             "--quality", "basic",
             "--background", "opaque",
             "--width", "1600", "--height", "1000",
-            "--output", str(SHOT_DIR / "90_kicad_3d_iso.png"),
+            "--output", str(kicad_3d_iso),
             str(PCB_PATH),
         ],
-        "Render 90_kicad_3d_iso.png",
+        "Render kicad_3d_iso.png",
     )
-    # 91: KiCad 3D Top Render
     run_cmd(
         [
             KCLI, "pcb", "render",
@@ -440,42 +480,40 @@ print(json.dumps({{
             "--quality", "basic",
             "--background", "opaque",
             "--width", "1600", "--height", "1000",
-            "--output", str(SHOT_DIR / "91_kicad_3d_top.png"),
+            "--output", str(kicad_3d_top),
             str(PCB_PATH),
         ],
-        "Render 91_kicad_3d_top.png",
+        "Render kicad_3d_top.png",
     )
-    # 92: KiCad 2D Color Copper Layout (B.Cu + Edge.Cuts + F.SilkS + Dwgs.User)
-    color_pdf = RUN_DIR / "scratch" / "2d_copper_color.pdf"
-    run_cmd(
-        [
-            KCLI, "pcb", "export", "pdf",
-            "--layers", "B.Cu,F.SilkS,Edge.Cuts,Dwgs.User",
-            "--drill-shape-opt", "2",
-            "--output", str(color_pdf),
-            str(PCB_PATH),
-        ],
-        "Export 2D color layout PDF",
-    )
-    with fitz.open(color_pdf) as doc:
-        page = doc[0]
-        # Crop cleanly around the board (BX0=50..150, BY0=45..125) + scale bar (y=35..148)
-        clip = fitz.Rect((B.BX0 - 10) / PT_TO_MM, (B.BY0 - 12) / PT_TO_MM, (B.BX0 + B.BOARD_W + 10) / PT_TO_MM, (B.BY_BOT + 24) / PT_TO_MM)
-        pix = page.get_pixmap(dpi=250, clip=clip)
-        pix.save(str(SHOT_DIR / "92_kicad_2d_copper_layout.png"))
+    # 2D Color Copper Layout (B.Cu + Edge.Cuts + F.SilkS + Dwgs.User)
+    with tempfile.TemporaryDirectory(prefix="diy_2d_") as _tmp_2d:
+        color_pdf = pathlib.Path(_tmp_2d) / "2d_copper_color.pdf"
+        run_cmd(
+            [
+                KCLI, "pcb", "export", "pdf",
+                "--layers", "B.Cu,F.SilkS,Edge.Cuts,Dwgs.User",
+                "--drill-shape-opt", "2",
+                "--output", str(color_pdf),
+                str(PCB_PATH),
+            ],
+            "Export 2D color layout PDF",
+        )
+        with fitz.open(color_pdf) as doc:
+            page = doc[0]
+            clip = fitz.Rect((B.BX0 - 10) / PT_TO_MM, (B.BY0 - 12) / PT_TO_MM, (B.BX0 + B.BOARD_W + 10) / PT_TO_MM, (B.BY_BOT + 24) / PT_TO_MM)
+            pix = page.get_pixmap(dpi=250, clip=clip)
+            pix.save(str(DIY_OUT / "kicad_2d_copper_layout.png"))
 
-    # 93: Page 1 of Mirrored Toner Transfer PDF (full A4 page showing exact 1:1 scale + 50mm bar + mirrored text)
-    with fitz.open(mirrored_pdf) as doc:
-        page = doc[0]
-        pix = page.get_pixmap(dpi=180)
-        pix.save(str(SHOT_DIR / "93_toner_pdf_page.png"))
-
-    # 94: True 1:1 Drill Map PDF rasterized (both in docs/phan_cung/diy_pcb/drill_map.png and screenshots/94_drill_map.png)
     with fitz.open(DIY_OUT / "drill_map.pdf") as doc:
         page = doc[0]
         pix = page.get_pixmap(dpi=200)
         pix.save(str(DIY_OUT / "drill_map.png"))
-        shutil.copy2(DIY_OUT / "drill_map.png", SHOT_DIR / "94_drill_map.png")
+
+    if SHOT_DIR != DIY_OUT:
+        SHOT_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(kicad_3d_iso, SHOT_DIR / "hw12_01_kicad_3d_iso.png")
+        shutil.copy2(kicad_3d_top, SHOT_DIR / "hw12_02_kicad_3d_top.png")
+        shutil.copy2(DIY_OUT / "kicad_2d_copper_layout.png", SHOT_DIR / "hw12_03_kicad_2d_copper.png")
 
     # Remove transient local KiCad GUI view-state sidecar auto-created by kicad-cli pcb render
     prl_path = PCB_PATH.with_suffix(".kicad_prl")
@@ -633,7 +671,7 @@ def generate_true_1to1_drill_map_pdf(
     c.line((px + 5) * RL_MM, 156.5 * RL_MM, (px + 133) * RL_MM, 156.5 * RL_MM)
 
     rows = [
-        (0.9, "Step 1: 0.9 mm (PTH)", f"{counts[0.9]} holes", "R1-R10, Q1 (S8050), C1-C7, D3, JP1-JP7 (jumpers)", "#1d4ed8"),
+        (0.9, "Step 1: 0.9 mm (PTH)", f"{counts[0.9]} holes", "R1-R10, Q1 (S8050), C1-C9, D3, JP1-JP7 (jumpers)", "#1d4ed8"),
         (1.1, "Step 2: 1.1 mm (PTH)", f"{counts[1.1]} holes", "U1, U2 (NodeMCU sockets), J3-J15, D1, D2", "#15803d"),
         (1.3, "Step 3: 1.3 mm (PTH)", f"{counts[1.3]} holes", "J1 (5V Power In), J2 (Pump Out) MKDS 5.08mm", "#dc2626"),
         (3.2, "Step 4: 3.2 mm (NPTH)", f"{counts[3.2]} holes", "H1-H4 M3 corners: (5,5),(95,5),(5,75),(95,75)", "#0f172a"),
@@ -961,10 +999,17 @@ def render_drc_screenshot(results: dict) -> None:
         draw.text((882, y), v, fill=(22, 128, 61), font=font_body)
         y += 22
 
-    img.save(str(SHOT_DIR / "95_drc_result.png"))
+    img.save(str(DIY_OUT / "kicad_drc_result.png"))
+    if SHOT_DIR != DIY_OUT:
+        shutil.copy2(DIY_OUT / "kicad_drc_result.png", SHOT_DIR / "hw12_04_kicad_drc_result.png")
 
 
 def main() -> None:
+    global SHOT_DIR
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--shot-dir", default=str(DIY_OUT))
+    args = ap.parse_args()
+    SHOT_DIR = pathlib.Path(args.shot_dir)
     board_data = export_all()
     results = verify_all(board_data)
     print(json.dumps(results, indent=2))

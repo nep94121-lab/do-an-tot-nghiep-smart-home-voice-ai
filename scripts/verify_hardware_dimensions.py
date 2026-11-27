@@ -2,16 +2,19 @@
 
 Verifies:
   1. web/models/smarthome_villa.glb exists, < 10 MB, contains all 16 required
-     contract nodes, and contains zero forbidden nodes (fan, ac, vs1838, ir).
-  2. hardware/kicad/smarthome_hub/3d/smarthome_hub.glb has exact 100.0 x 80.0 x 17.3 mm extents.
+     contract nodes, contains all 40 routed wire nodes (Wire_W01..Wire_W40),
+     and contains zero forbidden nodes (fan, ac, vs1838, ir, breadboard).
+  2. hardware/kicad/smarthome_hub/3d/smarthome_hub.glb has exact 100.0 x 80.0 mm extents.
   3. Optional Blender live measurement (--check-blender) verifies every hardware component
-     matches its datasheet dimensions within tolerance and has zero unintended collisions.
+     matches its SSOT datasheet dimensions within tolerance, sits flush on its mount,
+     and has zero unintended collisions.
 """
 
 from __future__ import annotations
 
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import trimesh
@@ -41,13 +44,11 @@ REQUIRED_NODES = [
     "nodemcu_esp8266",
 ]
 
-FORBIDDEN_TOKENS = ("fan", "ac", "vs1838", "ir")
+FORBIDDEN_TOKENS = ("fan", "ac", "vs1838", "ir", "breadboard")
 
 
 def is_forbidden(node_name: str) -> bool:
     low = node_name.lower()
-    # Split on non-alphanumeric tokens so words like "chair" or "air" aren't false positives
-    import re
     tokens = [t for t in re.split(r"[^a-z0-9]+", low) if t]
     for tok in tokens:
         if tok in FORBIDDEN_TOKENS or tok.startswith("vs1838"):
@@ -71,9 +72,11 @@ def verify_glbs() -> dict:
     nodes = set(v_scene.graph.nodes)
     missing = [n for n in REQUIRED_NODES if n not in nodes]
     forbidden = sorted(n for n in nodes if is_forbidden(n))
+    wire_nodes = sorted(n for n in nodes if re.match(r"^Wire_W\d{2}_", n))
 
     assert not missing, f"Missing required contract nodes: {missing}"
     assert not forbidden, f"Forbidden nodes found: {forbidden}"
+    assert len(wire_nodes) == 40, f"Expected 40 routed wire nodes (Wire_W01..W40), found {len(wire_nodes)}"
 
     summary = {
         "kicad_glb_bytes": KICAD_GLB.stat().st_size,
@@ -82,6 +85,7 @@ def verify_glbs() -> dict:
         "villa_glb_mb": round(villa_bytes / (1024 * 1024), 3),
         "villa_node_count": len(nodes),
         "villa_geom_count": len(v_scene.geometry),
+        "routed_wire_node_count": len(wire_nodes),
         "missing_required_nodes": missing,
         "forbidden_nodes": forbidden,
         "all_16_contract_nodes_present": True,
@@ -129,7 +133,7 @@ def group_bbox_mm(root_obj, include_names=None, exclude_names=None):
         }
     return {
         'size': [round(max(xs)-min(xs), 2), round(max(ys)-min(ys), 2), round(max(zs)-min(zs), 2)],
-        'min': [round(min(xs), 2), round(min(mys if False else ys), 2), round(min(zs), 2)],
+        'min': [round(min(xs), 2), round(min(ys), 2), round(min(zs), 2)],
         'max': [round(max(xs), 2), round(max(ys), 2), round(max(zs), 2)],
         'sub': sub,
     }
@@ -137,19 +141,17 @@ def group_bbox_mm(root_obj, include_names=None, exclude_names=None):
 groups = [
     'kicad_pcb_hub', 'nodemcu_esp8266', 'SG90_DoorServo', 'door_pivot', 'main_door_leaf',
     'led_living_room', 'led_bedroom', 'pump_unit', 'water_tube', 'relay1_pump', 'relay2_speaker',
-    'buzzer_alarm', 'speaker_mini', 'pam8403_module', 'sensor_dht11', 'sensor_soil', 'sensor_mic_ky037',
+    'buzzer_alarm', 'speaker_mini', 'pam8403_module', 'sensor_dht11', 'sensor_soil',
+    'soil_lm393_board', 'sensor_mic_ky037', 'psu_5v_dc_jack',
 ]
-out = {'groups': {}, 'sub_parts': {}, 'overlaps': []}
+out = {'groups': {}, 'sub_parts': {}, 'overlaps': [], 'wire_count': 0}
 for g in groups:
     obj = bpy.data.objects.get(g)
     if obj:
         out['groups'][g] = group_bbox_mm(obj)
 
-# Sub-part envelopes for composite groups (LED body without wall-embedded leads, Soil probe vs LM393, SG90 body)
-soil_obj = bpy.data.objects.get('sensor_soil')
-if soil_obj:
-    out['sub_parts']['soil_probe_yl69'] = group_bbox_mm(soil_obj, include_names={'SoilProbe_Head', 'SoilProbe_ProngL', 'SoilProbe_ProngR'})
-    out['sub_parts']['soil_lm393_board'] = group_bbox_mm(soil_obj, include_names={'Soil_LM393_PCB', 'Soil_LM393_Pot', 'Soil_LM393_Screw', 'Soil_LM393_IC', 'Soil_LM393_Hdr'})
+out['wire_count'] = sum(1 for o in bpy.data.objects if o.name.startswith('Wire_W'))
+
 for lname in ('led_living_room', 'led_bedroom'):
     lobj = bpy.data.objects.get(lname)
     if lobj:
@@ -159,7 +161,6 @@ sg_obj = bpy.data.objects.get('SG90_DoorServo')
 if sg_obj:
     out['sub_parts']['sg90_body'] = group_bbox_mm(sg_obj, include_names={'SG90_Body'})
 
-# Check FR4 board bottom & U1/U2 socket top inside kicad_pcb_hub
 pcb_obj = bpy.data.objects.get('kicad_pcb_hub')
 if pcb_obj:
     info = out['groups']['kicad_pcb_hub']['sub']
@@ -170,7 +171,7 @@ if pcb_obj:
             out['sub_parts']['kicad_u1_u2_socket'] = mdata
 
 # Pairwise overlaps between hardware groups (excluding door_pivot <-> main_door_leaf parent/child)
-check_groups = [g for g in groups if g not in ('water_tube', 'door_pivot')]
+check_groups = [g for g in groups if g not in ('water_tube', 'door_pivot') and g in out['groups']]
 for i in range(len(check_groups)):
     for j in range(i + 1, len(check_groups)):
         a, b = check_groups[i], check_groups[j]
@@ -202,53 +203,52 @@ with open(sys.argv[-1], 'w', encoding='utf-8') as f:
         if out_json is None and tmp_out.exists():
             tmp_out.unlink()
 
-    # Assert key datasheet envelopes within +-1.0 mm tolerance
+    assert data["wire_count"] == 40, f"Expected 40 Wire_W* objects in .blend, found {data['wire_count']}"
+
+    # Assert key datasheet envelopes within +-0.5 mm tolerance
     expected = {
         "nodemcu_esp8266": (25.4, 7.14, 49.4),
-        "SG90_DoorServo": (32.2, 31.0, 12.2),
+        "SG90_DoorServo": (12.2, 31.0, 32.2),
         "pump_unit": (24.0, 33.0, 45.0),
         "relay1_pump": (50.0, 18.5, 26.0),
         "relay2_speaker": (50.0, 18.5, 26.0),
         "buzzer_alarm": (12.0, 12.0, 9.5),
-        "speaker_mini": (28.0, 5.2, 28.0),
+        "speaker_mini": (28.0, 28.0, 5.2),
         "pam8403_module": (21.0, 3.1, 18.0),
-        "sensor_dht11": (14.0, 28.0, 7.1),
-        "sensor_mic_ky037": (35.0, 13.1, 15.0),
+        "sensor_dht11": (7.1, 28.0, 14.0),
+        "sensor_soil": (1.6, 60.0, 20.0),
+        "soil_lm393_board": (32.0, 14.0, 12.1),
+        "sensor_mic_ky037": (35.0, 15.0, 13.1),
     }
     for name, exp in expected.items():
         got = data["groups"][name]["size"]
         for axis in range(3):
             assert abs(got[axis] - exp[axis]) <= 0.5, f"{name} axis {axis}: got {got}, expected {exp}"
 
-    # Check composite sub-parts
     sub_exp = {
-        "soil_probe_yl69": (20.0, 60.0, 1.6),
-        "soil_lm393_board": (32.0, 12.1, 14.0),
-        "led_living_room_body": (5.8, 5.8, 8.6),
-        "led_bedroom_body": (5.8, 5.8, 8.6),
-        "sg90_body": (22.8, 22.5, 12.2),
+        "led_living_room_body": (8.6, 5.8, 5.8),
+        "led_bedroom_body": (8.6, 5.8, 5.8),
+        "sg90_body": (12.2, 22.5, 22.8),
     }
     for name, exp in sub_exp.items():
         got = data["sub_parts"][name]["size"]
         for axis in range(3):
             assert abs(got[axis] - exp[axis]) <= 0.3, f"{name} axis {axis}: got {got}, expected {exp}"
 
-    # Check FR4 substrate bottom sits flush on 12.0 mm standoffs and NodeMCU sits cleanly on U1/U2 top
+    # Check FR4 substrate bottom sits flush on 19.0 mm standoffs and NodeMCU sits cleanly on U1/U2 top (29.1 mm)
     fr4_y_min = data["sub_parts"]["kicad_fr4_slab"]["min"][1]
     u_top = data["sub_parts"]["kicad_u1_u2_socket"]["max"][1]
     mcu_bot = data["groups"]["nodemcu_esp8266"]["min"][1]
-    assert abs(fr4_y_min - 12.0) <= 0.2, f"FR4 bottom not on standoffs: Y={fr4_y_min}"
+    assert abs(fr4_y_min - 19.0) <= 0.2, f"FR4 bottom not on 19.0 mm standoffs: Y={fr4_y_min}"
     assert abs(mcu_bot - u_top) <= 0.2, f"NodeMCU bottom ({mcu_bot}) does not sit flush on U1/U2 top ({u_top})"
 
-    # Note: kicad_pcb_hub overall bbox Y max reaches 27.4 mm because of Phoenix J1/J2,
-    # whereas NodeMCU sits at Y = 22.1..29.24 mm directly above U1/U2 (no actual mesh collision with J1/J2!).
-    # Verify ZERO unintended overlaps outside that AABB envelope!
+    # Zero unintended overlaps outside kicad_pcb_hub <-> nodemcu_esp8266 socket mating envelope
     real_overlaps = [
         o for o in data["overlaps"]
         if {o["a"], o["b"]} != {"kicad_pcb_hub", "nodemcu_esp8266"}
     ]
     assert not real_overlaps, f"Unintended hardware collisions detected: {real_overlaps}"
-    print("[BLENDER VERIFY] ALL datasheet dimensions & zero-collision checks PASSED!")
+    print("[BLENDER VERIFY] ALL datasheet dimensions, 40 routed wires, & zero-collision checks PASSED!")
     return data
 
 

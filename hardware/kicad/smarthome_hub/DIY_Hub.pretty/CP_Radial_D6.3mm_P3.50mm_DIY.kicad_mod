@@ -1,0 +1,138 @@
+(footprint "CP_Radial_D6.3mm_P3.50mm_DIY"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "Electrolytic Cap D6.3mm P3.50mm formed (B.Cu 2.6x3.4mm pads, 0.9mm drill)")
+	(property "Reference" "REF**"
+		(at 0 -3.5 90)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "4a274f8e-838f-40da-b887-505bd1e901de")
+		(effects
+			(font
+				(size 1.5 1.5)
+				(thickness 0.25)
+			)
+		)
+	)
+	(property "Value" "CP_Radial_D6.3mm_P3.50mm_DIY"
+		(at 0 3.5 90)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "dd0e27ae-ced5-4a48-aade-81e2f7ac8a08")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 90)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "011d35d2-b4a1-4f1c-8102-f5b548532153")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" "On-Board PAM8403 Audio Power Bulk Electrolytic Cap (100uF 16V, parallel C6 at J11, zero breadboard)"
+		(at 0 0 90)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "61b83345-f461-492c-958a-eafbe8012970")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -2.6 -2.1)
+		(end -1.4 -2.1)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "04739ccb-1e4c-5dd6-a39e-5320b021b3ff")
+	)
+	(fp_line
+		(start -2 -2.7)
+		(end -2 -1.5)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "fef9fd27-4c0a-5b25-8a42-e0145a050d3a")
+	)
+	(fp_circle
+		(center 1.75 0)
+		(end 5.05 0)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.SilkS")
+		(uuid "c3a283ca-3571-58dc-a31d-ad89e94135e6")
+	)
+	(fp_circle
+		(center 1.75 0)
+		(end 5.3 0)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.CrtYd")
+		(uuid "381440f6-6778-50c5-9673-c43a5ca2e7b6")
+	)
+	(fp_circle
+		(center 1.75 0)
+		(end 4.9 0)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+		(uuid "f1bd00f0-0500-5442-abec-ce4363b45ec6")
+	)
+	(pad "1" thru_hole rect
+		(at 0 0)
+		(size 2.6 3.4)
+		(drill 0.9)
+		(layers "*.Cu" "B.Mask")
+		(remove_unused_layers no)
+		(uuid "84166a43-30eb-505b-a9fa-7255bbbec70f")
+	)
+	(pad "2" thru_hole oval
+		(at 3.5 0)
+		(size 2.6 3.4)
+		(drill 0.9)
+		(layers "*.Cu" "B.Mask")
+		(remove_unused_layers no)
+		(uuid "f87ea9df-3170-504c-ab96-24c73ca7008f")
+	)
+	(embedded_fonts no)
+	(model "${KICAD10_3DMODEL_DIR}/Capacitor_THT.3dshapes/CP_Radial_D6.3mm_P2.50mm.step"
+		(offset
+			(xyz 0.5 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)

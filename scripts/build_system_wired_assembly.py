@@ -1286,7 +1286,7 @@ def run_annotate_and_glb_verify(out_dir: pathlib.Path) -> None:
 
     missing_mods = [m for m in MODULE_DIMENSIONS_MM if m not in nodes]
     wire_nodes = [n for n in nodes if n.startswith("Wire_W")]
-    forbidden_tokens = ("fan", "ac", "vs1838", "ir")
+    forbidden_tokens = ("fan", "ac", "vs1838", "ir", "breadboard")
     forbidden_found = []
     for n in nodes:
         toks = [t for t in re.split(r"[^a-z0-9]+", n.lower()) if t]
@@ -1351,8 +1351,8 @@ def run_annotate_and_glb_verify(out_dir: pathlib.Path) -> None:
         "relay2_speaker": ("Relay 2 (Red Opto 5V, Jmp=H)",  "50×26×18.5 mm  |  J9 (D7) & J10 (SW)"),
         "psu_5v":         ("5V 2A External PSU Input",      "34×22×16 mm  |  J1 (+5V / GND)"),
         "pump_unit":      ("Mini Submersible Pump (3-6V)",  "45×24×33 mm  |  J2 (Switched 5V)"),
-        "hub_pcb":        ("1-Layer DIY Central Hub PCB",   "100×80×1.6 mm FR4  |  15 Headers + 7 Jumpers"),
-        "nodemcu":        ("ESP8266 NodeMCU v2 Amica",      "48.26×25.4 mm  |  U1/U2 Sockets"),
+        "hub_pcb":        ("1-Layer DIY Central Hub PCB",   "100×80×1.6 mm FR4  |  51 FPs, C1–C9 & D1–D2 On-Board"),
+        "nodemcu":        ("ESP8266 NodeMCU v2 Amica",      "48.26×25.4 mm  |  U1/U2 Sockets (No Breadboard)"),
     }
 
     def draw_header_and_legend(img: Image.Image, title: str, subtitle: str) -> None:
@@ -1464,8 +1464,8 @@ def run_annotate_and_glb_verify(out_dir: pathlib.Path) -> None:
 
         draw_header_and_legend(
             img,
-            "SMART HOME VOICE AI — 1-LAYER DIY CENTRAL HUB PCB & ALL PLUG-IN MODULES (3D ISOMETRIC)",
-            "Exact 1:1 mm KiCad Hub PCB (100×80 mm, Q1 S8050, 7 Jumpers) + ESP8266 NodeMCU + 14 Off-Board Modules + All 40 Color-Coded Wires (Zero Clipping)",
+            "SMART HOME VOICE AI — 1-LAYER DIY CENTRAL HUB PCB & ALL PLUG-IN MODULES (3D ISOMETRIC, PCB-DIRECT)",
+            "Exact 1:1 mm KiCad Hub PCB (100×80 mm, 51 FPs: C1–C9 & D1–D2 On-Board, Zero Breadboard) + NodeMCU v2 Amica + 14 Modules + 40 Wires",
         )
         out_path = ss_dir / "51_pcb_modules_wired_3d_iso.png"
         img.convert("RGB").save(out_path, optimize=True)
@@ -1539,8 +1539,8 @@ def run_annotate_and_glb_verify(out_dir: pathlib.Path) -> None:
 
         draw_header_and_legend(
             img,
-            "SMART HOME VOICE AI — TOP ORTHOGRAPHIC WIRING MAP (HUB J1..J15 -> ALL 14 MODULES)",
-            "Exact 1:1 mm Top Projection Showing Every KiCad Header (J1..J15), Every Plug-In Module, and All 40 Color-Coded Wires",
+            "SMART HOME VOICE AI — TOP ORTHOGRAPHIC WIRING MAP (PCB-DIRECT, ZERO BREADBOARD)",
+            "Exact 1:1 mm Top Projection: Hub PCB (C1–C9 & D1–D2 On-Board, J1..J15) -> All 14 Plug-In Modules & 40 Color-Coded Wires",
         )
         out_path = ss_dir / "52_pcb_modules_wired_top.png"
         img.convert("RGB").save(out_path, optimize=True)

@@ -13,6 +13,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from hardware.component_dimensions_ssot import (
+    COMPONENT_DIM_MAP,
+    COMPONENT_DIMENSIONS,
+    MODULE_DIMENSIONS_MM,
+)
+
 # ---------------------------------------------------------------------------
 # Wire Color Palette (consistent across KiCad notes, 3D Blender, 2D SVG, Docs)
 # Rule: Red = VCC / +5V / +3V3 power rails; Black = GND; distinct colors = signals
@@ -363,26 +369,7 @@ WIRING_TABLE: tuple[WireEntry, ...] = (
 )
 
 
-# Datasheet dimensions (exact match to docs/phan_cung/DIMENSIONS_AUDIT.md)
-MODULE_DIMENSIONS_MM: dict[str, dict[str, object]] = {
-    "hub_pcb":        {"label": "Central Hub DIY PCB (100x80mm, 1-Layer)", "dims_mm": (100.0, 80.0, 1.6), "overall_h_mm": 17.3, "source": "smarthome_hub.kicad_pcb"},
-    "nodemcu":        {"label": "NodeMCU v2 Amica (ESP8266)",     "dims_mm": (48.26, 25.4, 1.6), "overall_h_mm": 7.14,  "source": "Amica DevKit v1.0"},
-    "psu_5v":         {"label": "5V 2A Power Supply Terminal",    "dims_mm": (34.0, 22.0, 16.0), "overall_h_mm": 16.0,  "source": "External 5V/2A DC-005 + Screw Breakout"},
-    "sg90_servo":     {"label": "SG90 Micro Servo",               "dims_mm": (22.8, 12.2, 22.5), "overall_h_mm": 31.0,  "source": "TowerPro SG90 (tab 32.2mm)"},
-    "led_living":     {"label": "5mm LED (Living Room, D0)",      "dims_mm": (5.8, 5.8, 8.6),    "overall_h_mm": 8.6,   "source": "Kingbright WP7113 T-1 3/4"},
-    "led_bedroom":    {"label": "5mm LED (Bedroom, D4)",          "dims_mm": (5.8, 5.8, 8.6),    "overall_h_mm": 8.6,   "source": "Kingbright WP7113 T-1 3/4"},
-    "relay1_pump":    {"label": "Relay 1 (Blue 5V 1-ch, D6)",     "dims_mm": (50.0, 26.0, 18.5), "overall_h_mm": 18.5,  "source": "Songle SRD-05VDC-SL-C 1-ch"},
-    "pump_unit":      {"label": "Mini Submersible Pump (3-6V)",   "dims_mm": (45.0, 24.0, 33.0), "overall_h_mm": 33.0,  "source": "Horizontal 3-6V DC Pump (nozzle OD 7.5mm)"},
-    "buzzer_alarm":   {"label": "Active 5V Buzzer (D8)",          "dims_mm": (12.0, 12.0, 9.5),  "overall_h_mm": 9.5,   "source": "TMB12A05 (pin pitch 7.6mm)"},
-    "relay2_speaker": {"label": "Relay 2 (Red Opto 5V, D7)",      "dims_mm": (50.0, 26.0, 18.5), "overall_h_mm": 18.5,  "source": "SRD-05VDC-SL-C + PC817 Opto (Jumper=H)"},
-    "pam8403_amp":    {"label": "PAM8403 Mini Audio Amp",         "dims_mm": (21.0, 18.0, 3.1),  "overall_h_mm": 3.1,   "source": "Diodes Inc PAM8403 bare green PCB"},
-    "speaker_mini":   {"label": "Mini Speaker (28mm 8Ω 0.5W)",    "dims_mm": (28.0, 28.0, 5.2),  "overall_h_mm": 5.2,   "source": "PUI Audio AS02808MR-R"},
-    "dht11_sensor":   {"label": "DHT11 3-Pin Breakout (D2)",      "dims_mm": (28.0, 14.0, 7.1),  "overall_h_mm": 7.1,   "source": "Aosong DHT11 (body 15.5x12.0x5.5mm)"},
-    "soil_lm393":     {"label": "Soil LM393 Comparator (A0)",     "dims_mm": (32.0, 14.0, 12.1), "overall_h_mm": 12.1,  "source": "LM393 Soil Breakout (3296W pot)"},
-    "soil_probe":     {"label": "YL-69 Soil Fork Probe",          "dims_mm": (60.0, 20.0, 1.6),  "overall_h_mm": 1.6,   "source": "YL-69 2-Prong Probe"},
-    "ky037_sound":    {"label": "KY-037/038 Sound Sensor (D5)",   "dims_mm": (35.0, 15.0, 13.1), "overall_h_mm": 13.1,  "source": "Joy-IT KY-038 (ECM-9767 mic Ø9.7x6.7mm)"},
-}
-
+# Datasheet dimensions imported directly from hardware/component_dimensions_ssot.py (R2 SSOT).
 # Locked 10-pin firmware table for deterministic cross-checking
 FIRMWARE_PIN_CONTRACT: dict[str, tuple[str, int, str]] = {
     "PIN_LIVING_LIGHT":    ("D0", 16, "LED_LR_D0 / J4"),
@@ -412,13 +399,12 @@ class ProtectionComponent:
     net_neg: str
     role_vi: str
     datasheet_ref: str
-    pcb_status: str = "onboard_pcb"  # "onboard_pcb" or "offboard_header_breadboard"
+    pcb_status: str = "onboard_pcb"  # All C1..C9 & D1..D2 soldered directly on Hub PCB (zero breadboard)
 
 
 # Complete audited protection & decoupling inventory (C1..C9 capacitors + D1..D2 flyback diodes).
-# C1..C7 and D1..D2 are soldered on the 1-layer 100x80mm Hub PCB (49 footprints, 0 ERC / 0 DRC).
-# C8 (+3V3 HF bypass) and C9 (AMP_5V PAM8403 bulk electrolytic) are documented as off-board
-# header-pin / breadboard decoupling so the single-layer DIY PCB preserves >=0.60mm clearance & 0 DRC.
+# ALL C1..C9 and D1..D2 are soldered directly on the 1-layer 100x80mm Hub DIY v3 PCB
+# (51 footprints, 0 ERC / 0 DRC, >=0.60mm clearance, ZERO white breadboard in final build).
 PROTECTION_COMPONENTS: tuple[ProtectionComponent, ...] = (
     ProtectionComponent(
         ref="C1",
@@ -517,12 +503,12 @@ PROTECTION_COMPONENTS: tuple[ProtectionComponent, ...] = (
         value="100nF (104)",
         voltage_rating="50V",
         polarity="Không phân cực (tụ gốm)",
-        placement_pins="Gắn ngoài bo trên Breadboard / chân header +3V3 ↔ GND sát NodeMCU 3V3 (U1.11/U2.6) và cảm biến J13/J14/J15 (kết hợp tụ Tantalum 10µF của AMS1117-3.3 có sẵn trên NodeMCU v2 Amica)",
+        placement_pins="Hàn trực tiếp trên PCB Hub cạnh J14 (+3V3 ↔ GND, C_Disc D5.0×P5.0mm, lọc đường nguồn +3.3V nuôi NodeMCU & 3 cảm biến J13/J14/J15)",
         net_pos="+3V3",
         net_neg="GND",
-        role_vi="Tụ gốm tách nhiễu cao tần cho đường nguồn +3.3V nuôi ESP8266 và 3 cảm biến 3.3V (DHT11, LM393, KY-037).",
+        role_vi="Tụ gốm tách nhiễu cao tần hàn trên bo cho đường nguồn +3.3V nuôi ESP8266 và 3 cảm biến 3.3V (DHT11, LM393, KY-037), kết hợp tụ 10µF của AMS1117-3.3 trên NodeMCU v2 Amica.",
         datasheet_ref="Espressif ESP8266 Hardware Design Guidelines Sec. 2.1; AMS1117-3.3 Datasheet (onboard 10µF tantalum on NodeMCU v2 Amica)",
-        pcb_status="offboard_header_breadboard",
+        pcb_status="onboard_pcb",
     ),
     ProtectionComponent(
         ref="C9",
@@ -530,12 +516,12 @@ PROTECTION_COMPONENTS: tuple[ProtectionComponent, ...] = (
         value="100µF",
         voltage_rating="16V",
         polarity="Có cực (+/-): chân (+) nối AMP_5V (5V+), chân (-) vạch trắng nối GND (5V-)",
-        placement_pins="Gắn ngoài bo tại chân header J11 (AMP_5V ↔ GND) hoặc trực tiếp trên pad 5V+/5V- của module PAM8403 (song song C6 100nF)",
+        placement_pins="Hàn trực tiếp trên PCB Hub ngay cạnh J11 (AMP_5V ↔ GND, CP_Radial D6.3×P3.5mm, song song C6 100nF cấp nguồn PAM8403)",
         net_pos="AMP_5V",
         net_neg="GND",
-        role_vi="Tụ hóa dự trữ năng lượng cho tầng khuếch đại Class-D PAM8403, giảm méo tiếng và sụt áp xung khi phát chuông loa 8Ω.",
+        role_vi="Tụ hóa dự trữ năng lượng hàn trên bo cho tầng khuếch đại Class-D PAM8403, giảm méo tiếng và sụt áp xung khi phát chuông loa 8Ω.",
         datasheet_ref="Diodes Inc. PAM8403 Datasheet (Power Supply Decoupling: 100µF–470µF bulk + 0.1µF ceramic)",
-        pcb_status="offboard_header_breadboard",
+        pcb_status="onboard_pcb",
     ),
     ProtectionComponent(
         ref="D1",

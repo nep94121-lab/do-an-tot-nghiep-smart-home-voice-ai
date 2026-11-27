@@ -268,6 +268,16 @@ def build_footprint_body(
         lines.append(_pad_sexpr("2", "thru_hole", "oval", 3.50, 0.0, 2.60, 3.60, 0.9, pad_rot=pad_rot, net=p.get("2"), key=f"{kpref}:p2"))
         lines.append(_model("${KICAD10_3DMODEL_DIR}/Capacitor_THT.3dshapes/CP_Radial_D8.0mm_P3.50mm.step"))
 
+    elif name == "CP_Radial_D6.3mm_P3.50mm_DIY":
+        lines.append(_circle(1.75, 0.0, 3.30, "F.SilkS", sw, f"{kpref}:scirc"))
+        lines.append(_line(-2.6, -2.1, -1.4, -2.1, "F.SilkS", 0.25, f"{kpref}:plus_h"))
+        lines.append(_line(-2.0, -2.7, -2.0, -1.5, "F.SilkS", 0.25, f"{kpref}:plus_v"))
+        lines.append(_circle(1.75, 0.0, 3.15, "F.Fab", 0.12, f"{kpref}:fab"))
+        lines.append(_circle(1.75, 0.0, 3.55, "F.CrtYd", 0.05, f"{kpref}:crt"))
+        lines.append(_pad_sexpr("1", "thru_hole", "rect", 0.0, 0.0, 2.60, 3.40, 0.9, pad_rot=pad_rot, net=p.get("1"), key=f"{kpref}:p1"))
+        lines.append(_pad_sexpr("2", "thru_hole", "oval", 3.50, 0.0, 2.60, 3.40, 0.9, pad_rot=pad_rot, net=p.get("2"), key=f"{kpref}:p2"))
+        lines.append(_model("${KICAD10_3DMODEL_DIR}/Capacitor_THT.3dshapes/CP_Radial_D6.3mm_P2.50mm.step", ox=0.50))
+
     elif name == "CP_Radial_D5.0mm_P3.50mm_DIY":
         lines.append(_circle(1.75, 0.0, 2.65, "F.SilkS", sw, f"{kpref}:scirc"))
         lines.append(_line(-2.2, -1.8, -1.2, -1.8, "F.SilkS", 0.25, f"{kpref}:plus_h"))
@@ -366,6 +376,7 @@ FP_DESCRS: dict[str, str] = {
     "R_Axial_P10.16mm_DIY": "1/4W Axial Resistor P10.16mm (B.Cu 2.6mm pads, 0.9mm drill)",
     "D_DO41_P10.16mm_DIY": "DO-41 Diode P10.16mm (B.Cu 2.6x3.4mm pads, 1.1mm drill)",
     "CP_Radial_D8.0mm_P3.50mm_DIY": "Electrolytic Cap D8.0mm P3.50mm (B.Cu 2.6x3.6mm pads, 0.9mm drill)",
+    "CP_Radial_D6.3mm_P3.50mm_DIY": "Electrolytic Cap D6.3mm P3.50mm formed (B.Cu 2.6x3.4mm pads, 0.9mm drill)",
     "CP_Radial_D5.0mm_P3.50mm_DIY": "Electrolytic Cap D5.0mm P3.50mm formed (B.Cu 2.6x3.4mm pads, 0.9mm drill)",
     "C_Disc_D5.0mm_P5.00mm_DIY": "Ceramic Disc Cap D5.0mm P5.00mm (B.Cu 2.6mm pads, 0.9mm drill)",
     "LED_D3.0mm_P5.08mm_DIY": "3mm LED formed P5.08mm (B.Cu 2.8mm pads, 0.9mm drill)",
@@ -394,7 +405,7 @@ class ComponentSpec:
 
 
 def get_components() -> list[ComponentSpec]:
-    """42 circuit parts (incl. Q1 S8050 + R10 1k buzzer driver) + 7 wire jumpers (JP1..JP7) = 49 footprints."""
+    """44 circuit parts (incl. Q1 S8050, R10 1k, and on-board C8 100nF +3V3 & C9 100uF AMP_5V) + 7 wire jumpers (JP1..JP7) = 51 footprints."""
     return [
         # --- 4 Fixed Corner M3 Mounting Holes (90 x 70 mm pattern, 5 mm edge inset) ---
         ComponentSpec("H1", "M3_3.2mm", "MountingHole_3.2mm_M3_DIY", 5.0, 75.0, 0.0, {}),
@@ -430,6 +441,7 @@ def get_components() -> list[ComponentSpec]:
 
         # --- TOP EDGE ---
         ComponentSpec("J14", "SOIL_A0", "PinHeader_1x03_P2.54mm_DIY", 16.5, 71.0, 90.0, {"1": "+3V3_SOIL", "2": "GND", "3": "A0_SOIL"}),
+        ComponentSpec("C8", "100nF", "C_Disc_D5.0mm_P5.00mm_DIY", 16.5, 65.5, 180.0, {"1": "+3V3_SOIL", "2": "GND"}),
         ComponentSpec("C7", "100nF", "C_Disc_D5.0mm_P5.00mm_DIY", 26.5, 66.5, 0.0, {"1": "A0_SOIL", "2": "GND"}),
         ComponentSpec("J4", "LED_LR_D0", "PinHeader_1x02_P2.54mm_DIY", 40.5, 71.0, 90.0, {"1": "LED_LR_A", "2": "GND"}),
         ComponentSpec("R1", "220R", "R_Axial_P10.16mm_DIY", 54.0, 65.5, 180.0, {"1": "D0_LED_LR", "2": "LED_LR_A"}),
@@ -447,6 +459,7 @@ def get_components() -> list[ComponentSpec]:
 
         # --- BOTTOM EDGE ---
         ComponentSpec("J10", "RLY2_SW", "PinHeader_1x02_P2.54mm_DIY", 16.5, 8.5, 90.0, {"1": "+5V", "2": "AMP_5V"}),
+        ComponentSpec("C9", "100uF 16V", "CP_Radial_D6.3mm_P3.50mm_DIY", 24.0, 13.2, -90.0, {"1": "AMP_5V", "2": "GND"}),
         ComponentSpec("J11", "PAM8403_PWR", "PinHeader_1x02_P2.54mm_DIY", 29.0, 8.5, 90.0, {"1": "AMP_5V", "2": "GND"}),
         ComponentSpec("C6", "100nF", "C_Disc_D5.0mm_P5.00mm_DIY", 33.5, 14.5, 0.0, {"1": "AMP_5V", "2": "GND"}),
         ComponentSpec("R4", "10k", "R_Axial_P10.16mm_DIY", 43.0, 51.38, 0.0, {"1": "+3V3", "2": "D3_AUDIO_PWM"}),
@@ -551,6 +564,8 @@ def get_tracks(pm: dict[tuple[str, str], tuple[float, float, str]]) -> list[tupl
             (12.5, 2.8), (11.0, 9.0), (2.8, 12.0),
         ]),
         ("GND", W_PWR, [P("J14", "2", 0.0, +OFF), (P("J14", "2")[0], 77.2)]),
+        ("GND", W_PWR, [P("C8", "2"), (11.0, 71.0)]),
+        ("GND", W_PWR, [P("C9", "2"), (24.0, 2.8)]),
         ("GND", W_PWR, [P("J4", "2"), (P("J4", "2")[0], 77.2)]),
         ("GND", W_PWR, [P("J3", "3", 0.0, +OFF), (P("J3", "3")[0], 77.2)]),
         ("GND", W_PWR, [P("J13", "3"), (P("J13", "3")[0], 77.2)]),
@@ -573,7 +588,8 @@ def get_tracks(pm: dict[tuple[str, str], tuple[float, float, str]]) -> list[tupl
 
         # 2. PUMP_5V & AMP_5V (2.0 mm wide, 0 jumpers)
         ("PUMP_5V", W_PWR, [P("J2", "1"), P("D1", "1"), P("J8", "2", -OFF, 0.0)]),
-        ("AMP_5V", W_PWR, [P("J10", "2", +0.16, +OFF), (19.20, 13.5), (29.0, 13.5), P("J11", "1", 0.0, +OFF)]),
+        ("AMP_5V", W_PWR, [P("J10", "2", +0.16, +OFF), (19.20, 13.5), (24.0, 13.5), (29.0, 13.5), P("J11", "1", 0.0, +OFF)]),
+        ("AMP_5V", W_PWR, [(24.0, 13.5), P("C9", "1")]),
         ("AMP_5V", W_PWR, [(29.0, 13.5), (33.5, 13.5), P("C6", "1")]),
 
         # 3. ALL 15 SIGNAL NETS (1.0 mm wide, 0 jumpers)
@@ -600,7 +616,7 @@ def get_tracks(pm: dict[tuple[str, str], tuple[float, float, str]]) -> list[tupl
 
         # 4. +3V3 NETS (2.0 mm wide, bridged by JP1, JP2, JP3)
         ("+3V3", W_PWR, [P("U1", "11", +OFF, 0.0), (43.0, P("U1", "11")[1]), P("JP1", "1"), P("R4", "1"), (41.0, 55.0), (40.5, 60.5), P("JP2", "1")]),
-        ("+3V3_SOIL", W_PWR, [P("JP2", "2"), (16.5, 62.0), P("J14", "1", 0.0, -OFF)]),
+        ("+3V3_SOIL", W_PWR, [P("JP2", "2"), (16.5, 62.0), P("C8", "1"), P("J14", "1", 0.0, -OFF)]),
         ("+3V3_R", W_PWR, [P("U2", "15", -OFF, 0.0), (54.5, P("U2", "15")[1]), (54.5, 46.30), P("JP1", "2"), P("U2", "6", -OFF, 0.0)]),
         ("+3V3_R", W_PWR, [P("U2", "6", +0.90, +0.035), (62.5, 46.335), (64.0, 46.50), (76.0, 46.50), P("JP3", "1")]),
         ("+3V3_R", W_PWR, [P("JP3", "1"), (77.5, 47.16), P("J15", "1", -OFF, +0.16)]),
@@ -1021,9 +1037,153 @@ def sync_schematic(comps: list[ComponentSpec]) -> tuple[dict[str, str], dict[str
         f'\t)',
     ]
 
-    # Insert buzzer driver & jumper blocks right before `(sheet_instances`
+    # Add on-board decoupling capacitors C8 (100nF on +3V3_SOIL) and C9 (100uF 16V on AMP_5V)
+    # placed cleanly in open lower-center sheet space (x=254..285, y=250..275)
+    c8_u = duuid("sch:sym:C8")
+    c9_u = duuid("sch:sym:C9")
+    sch_paths["C8"] = f"/{ROOT_SHEET_UUID}/{c8_u}"
+    sch_descrs["C8"] = "On-Board +3V3 Rail HF Decoupling Ceramic Cap (100nF 50V, near NodeMCU/J14, zero breadboard)"
+    sch_paths["C9"] = f"/{ROOT_SHEET_UUID}/{c9_u}"
+    sch_descrs["C9"] = "On-Board PAM8403 Audio Power Bulk Electrolytic Cap (100uF 16V, parallel C6 at J11, zero breadboard)"
+
+    extra_cap_blocks: list[str] = [
+        f'\n\t(text "On-Board Rail Decoupling (PCB-Direct, Zero Breadboard)" (exclude_from_sim no) (at 241.30 247.65 0)\n'
+        f'\t\t(effects (font (size 1.27 1.27) (bold yes)) (justify left))\n'
+        f'\t\t(uuid "{duuid("sch:c8c9_title")}")\n'
+        f'\t)',
+        # C8 at (254.00, 261.62, rot=0): Pin 1 at (254.00, 257.81), Pin 2 at (254.00, 265.43)
+        f'\n\t(symbol (lib_id "Device:C") (at 254.0000 261.6200 0) (unit 1)\n'
+        f'\t\t(exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no)\n'
+        f'\t\t(uuid "{c8_u}")\n'
+        f'\t\t(property "Reference" "C8" (at 256.5400 259.0800 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (justify left))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Value" "100nF" (at 256.5400 262.8900 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (justify left))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Footprint" "DIY_Hub:C_Disc_D5.0mm_P5.00mm_DIY" (at 254.0000 261.6200 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Datasheet" "" (at 254.0000 261.6200 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Description" "{sch_descrs["C8"]}" (at 254.0000 261.6200 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(pin "1" (uuid "{duuid("sch:pin:C8:1")}"))\n'
+        f'\t\t(pin "2" (uuid "{duuid("sch:pin:C8:2")}"))\n'
+        f'\t\t(instances\n'
+        f'\t\t\t(project "smarthome_hub"\n'
+        f'\t\t\t\t(path "/{ROOT_SHEET_UUID}" (reference "C8") (unit 1))\n'
+        f'\t\t\t)\n'
+        f'\t\t)\n'
+        f'\t)',
+        f'\n\t(wire (pts (xy 254.0000 257.8100) (xy 254.0000 254.0000))\n'
+        f'\t\t(stroke (width 0) (type default))\n'
+        f'\t\t(uuid "{duuid("sch:w:C8:1")}")\n'
+        f'\t)',
+        f'\n\t(label "+3V3_SOIL" (at 254.0000 254.0000 0)\n'
+        f'\t\t(effects (font (size 1.27 1.27)) (justify left bottom))\n'
+        f'\t\t(uuid "{duuid("sch:lbl:C8:1")}")\n'
+        f'\t)',
+        f'\n\t(wire (pts (xy 254.0000 265.4300) (xy 254.0000 269.2400))\n'
+        f'\t\t(stroke (width 0) (type default))\n'
+        f'\t\t(uuid "{duuid("sch:w:C8:2")}")\n'
+        f'\t)',
+        f'\n\t(symbol (lib_id "power:GND") (at 254.0000 269.2400 0) (unit 1)\n'
+        f'\t\t(exclude_from_sim no) (in_bom no) (on_board no) (dnp no)\n'
+        f'\t\t(uuid "{duuid("sch:pwr:#PWR099")}")\n'
+        f'\t\t(property "Reference" "#PWR099" (at 254.0000 275.3360 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Value" "GND" (at 254.0000 273.0500 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Footprint" "" (at 254.0000 269.2400 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Datasheet" "" (at 254.0000 269.2400 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Description" "" (at 254.0000 269.2400 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(pin "1" (uuid "{duuid("sch:pwrpin:#PWR099")}"))\n'
+        f'\t\t(instances\n'
+        f'\t\t\t(project "smarthome_hub"\n'
+        f'\t\t\t\t(path "/{ROOT_SHEET_UUID}" (reference "#PWR099") (unit 1))\n'
+        f'\t\t\t)\n'
+        f'\t\t)\n'
+        f'\t)',
+        # C9 at (279.40, 261.62, rot=0): Pin 1(+) at (279.40, 257.81), Pin 2(-) at (279.40, 265.43)
+        f'\n\t(symbol (lib_id "Device:C_Polarized") (at 279.4000 261.6200 0) (unit 1)\n'
+        f'\t\t(exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no)\n'
+        f'\t\t(uuid "{c9_u}")\n'
+        f'\t\t(property "Reference" "C9" (at 281.9400 259.0800 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (justify left))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Value" "100uF 16V" (at 281.9400 262.8900 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (justify left))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Footprint" "DIY_Hub:CP_Radial_D6.3mm_P3.50mm_DIY" (at 279.4000 261.6200 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Datasheet" "" (at 279.4000 261.6200 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Description" "{sch_descrs["C9"]}" (at 279.4000 261.6200 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(pin "1" (uuid "{duuid("sch:pin:C9:1")}"))\n'
+        f'\t\t(pin "2" (uuid "{duuid("sch:pin:C9:2")}"))\n'
+        f'\t\t(instances\n'
+        f'\t\t\t(project "smarthome_hub"\n'
+        f'\t\t\t\t(path "/{ROOT_SHEET_UUID}" (reference "C9") (unit 1))\n'
+        f'\t\t\t)\n'
+        f'\t\t)\n'
+        f'\t)',
+        f'\n\t(wire (pts (xy 279.4000 257.8100) (xy 279.4000 254.0000))\n'
+        f'\t\t(stroke (width 0) (type default))\n'
+        f'\t\t(uuid "{duuid("sch:w:C9:1")}")\n'
+        f'\t)',
+        f'\n\t(label "AMP_5V" (at 279.4000 254.0000 0)\n'
+        f'\t\t(effects (font (size 1.27 1.27)) (justify left bottom))\n'
+        f'\t\t(uuid "{duuid("sch:lbl:C9:1")}")\n'
+        f'\t)',
+        f'\n\t(wire (pts (xy 279.4000 265.4300) (xy 279.4000 269.2400))\n'
+        f'\t\t(stroke (width 0) (type default))\n'
+        f'\t\t(uuid "{duuid("sch:w:C9:2")}")\n'
+        f'\t)',
+        f'\n\t(symbol (lib_id "power:GND") (at 279.4000 269.2400 0) (unit 1)\n'
+        f'\t\t(exclude_from_sim no) (in_bom no) (on_board no) (dnp no)\n'
+        f'\t\t(uuid "{duuid("sch:pwr:#PWR100")}")\n'
+        f'\t\t(property "Reference" "#PWR100" (at 279.4000 275.3360 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Value" "GND" (at 279.4000 273.0500 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Footprint" "" (at 279.4000 269.2400 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Datasheet" "" (at 279.4000 269.2400 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Description" "" (at 279.4000 269.2400 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(pin "1" (uuid "{duuid("sch:pwrpin:#PWR100")}"))\n'
+        f'\t\t(instances\n'
+        f'\t\t\t(project "smarthome_hub"\n'
+        f'\t\t\t\t(path "/{ROOT_SHEET_UUID}" (reference "#PWR100") (unit 1))\n'
+        f'\t\t\t)\n'
+        f'\t\t)\n'
+        f'\t)',
+    ]
+
+    # Insert buzzer driver, on-board C8/C9 decoupling & jumper blocks right before `(sheet_instances`
     ins = new_body.rindex("\n\t(sheet_instances")
-    final_sch = head + new_body[:ins] + "".join(buzzer_drv_blocks) + "".join(jp_blocks) + new_body[ins:]
+    final_sch = head + new_body[:ins] + "".join(buzzer_drv_blocks) + "".join(extra_cap_blocks) + "".join(jp_blocks) + new_body[ins:]
     sch_path = KICAD_DIR / "smarthome_hub.kicad_sch"
     sch_path.write_text(final_sch, encoding="utf-8")
 
@@ -1341,7 +1501,7 @@ def build_silkscreen_and_fab(comps: list[ComponentSpec]) -> list[str]:
 
         # Bottom edge headers
         ("J10 RLY2", 16.5, 3.0, 0.0, 1.5, 0.25),
-        ("5V A5", 17.8, 11.8, 0.0, 1.5, 0.25),
+        ("5V A5", 16.2, 12.5, 0.0, 1.5, 0.25),
         ("J11 PAM", 30.8, 3.0, 0.0, 1.5, 0.25),
         ("5V G", 30.3, 11.8, 0.0, 1.5, 0.25),
         ("J12 AUD D3", 54.0, 2.8, 0.0, 1.5, 0.25),
@@ -1352,7 +1512,7 @@ def build_silkscreen_and_fab(comps: list[ComponentSpec]) -> list[str]:
         ("-  +", 83.7, 5.2, 0.0, 1.5, 0.25),
 
         # Left edge terminals & header
-        ("J2 PUMP", 10.0, 64.5, 0.0, 1.5, 0.25),
+        ("J2 PUMP", 7.2, 62.5, 0.0, 1.5, 0.25),
         ("+", 2.5, 58.0, 0.0, 1.5, 0.25),
         ("-", 2.5, 52.9, 0.0, 1.5, 0.25),
         ("J8 SW", 28.5, 52.0, 0.0, 1.5, 0.25),
@@ -1361,6 +1521,10 @@ def build_silkscreen_and_fab(comps: list[ComponentSpec]) -> list[str]:
         ("J1 5V IN", 10.0, 33.0, 0.0, 1.5, 0.25),
         ("+", 2.5, 26.5, 0.0, 1.5, 0.25),
         ("-", 2.5, 21.4, 0.0, 1.5, 0.25),
+
+        # On-board C8 & C9 silkscreen callouts (100% visible on PCB top view)
+        ("C8", 14.0, 62.0, 0.0, 1.5, 0.25),
+        ("C9", 24.0, 3.0, 0.0, 1.5, 0.25),
 
         # Jumper labels J-1..J-7
         ("J-1", 49.3, 48.5, 0.0, 1.5, 0.25),
@@ -1388,6 +1552,8 @@ def build_silkscreen_and_fab(comps: list[ComponentSpec]) -> list[str]:
         ("C5 10n", 62.5, 5.6, 0.0),
         ("C6 100n", 36.0, 17.6, 0.0),
         ("C7 100n", 29.0, 69.5, 0.0),
+        ("C8 100n", 14.0, 66.5, 0.0),
+        ("C9 100uF+", 24.0, 10.25, 90.0),
         ("D1 1N4007", 13.8, 52.9, 90.0),
         ("D2 1N4007", 80.5, 16.7, 90.0),
         ("D3 PWR", 10.0, 15.8, 0.0),

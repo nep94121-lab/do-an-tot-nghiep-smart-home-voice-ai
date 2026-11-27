@@ -187,7 +187,7 @@ HARDWARE_PARTS: list[HardwarePartSpec] = [
         room="Technical Bay",
         mount_panel="P16_PCB_PLATE",
         fasteners="4x M3x10 brass standoffs on P16_PCB_PLATE (90x70 mm pattern, Dia 3.4 mm)",
-        center_xyz=(82.0, 99.0, 19.8),
+        center_xyz=(122.0, 104.0, 19.8),
         size_xyz=(100.0, 80.0, 1.6),
         color_rgb=(0.08, 0.45, 0.18),
         datasheet_dims="100.0 x 80.0 x 1.6 mm; 4x M3 (3.2 mm) holes at 5 mm corner inset -> 90.0 x 70.0 mm",
@@ -200,7 +200,7 @@ HARDWARE_PARTS: list[HardwarePartSpec] = [
         room="Technical Bay",
         mount_panel="P16_PCB_PLATE (plugged into Hub PCB U1/U2 sockets)",
         fasteners="2x 1x15 female pin sockets on Hub PCB (22.86 mm row spacing); Micro-USB faces open cutaway",
-        center_xyz=(82.0, 99.0, 31.0),
+        center_xyz=(122.0, 104.0, 31.0),
         size_xyz=(25.4, 48.3, 7.1),
         color_rgb=(0.10, 0.12, 0.16),
         datasheet_dims="48.26 x 25.40 x 1.60 mm PCB (49.4 mm w/ Micro-USB), 22.86 mm row spacing",
@@ -213,7 +213,7 @@ HARDWARE_PARTS: list[HardwarePartSpec] = [
         room="Technical Bay",
         mount_panel="P01A_BASE_TECH",
         fasteners="4x M3x8 nylon standoffs + M3 screws/nuts (Dia 3.5 mm holes at 44.5 x 20.5 mm)",
-        center_xyz=(196.0, 136.0, 17.25),
+        center_xyz=(226.0, 136.0, 17.25),
         size_xyz=(50.0, 26.0, 18.5),
         color_rgb=(0.09, 0.32, 0.78),
         datasheet_dims="50.0 x 26.0 x 18.5 mm; 4x M3 (3.1 mm) holes at 44.5 x 20.5 mm",
@@ -226,7 +226,7 @@ HARDWARE_PARTS: list[HardwarePartSpec] = [
         room="Technical Bay",
         mount_panel="P01A_BASE_TECH",
         fasteners="4x M3x8 nylon standoffs + M3 screws/nuts (Dia 3.5 mm holes at 44.5 x 20.5 mm)",
-        center_xyz=(196.0, 92.0, 17.25),
+        center_xyz=(226.0, 92.0, 17.25),
         size_xyz=(50.0, 26.0, 18.5),
         color_rgb=(0.76, 0.12, 0.14),
         datasheet_dims="50.0 x 26.0 x 18.5 mm; 4x M3 (3.1 mm) holes at 44.5 x 20.5 mm",
@@ -239,7 +239,7 @@ HARDWARE_PARTS: list[HardwarePartSpec] = [
         room="Technical Bay",
         mount_panel="P01A_BASE_TECH",
         fasteners="2x Dia 3.0 mm nylon tie/clamp holes (26.0 mm span) + double-sided foam pad",
-        center_xyz=(182.0, 52.0, 3.0),
+        center_xyz=(224.0, 52.0, 3.0),
         size_xyz=(21.0, 18.0, 3.4),
         color_rgb=(0.10, 0.56, 0.24),
         datasheet_dims="21.0 x 18.0 x 3.4 mm (bare stamp PCB, no internal screw holes)",
@@ -315,10 +315,10 @@ HARDWARE_PARTS: list[HardwarePartSpec] = [
         part_id="HW_LED_LR",
         name="Living Room 5mm LED (Kingbright WP7113, D0)",
         room="Living Room",
-        mount_panel="P02_WALL_BACK",
+        mount_panel="P06_WALL_MID",
         fasteners="Dia 5.5 mm hole + 5mm LED panel bezel",
-        center_xyz=(95.0, 374.7, 124.0),
-        size_xyz=(5.8, 8.6, 5.8),
+        center_xyz=(197.0, 232.0, 126.0),
+        size_xyz=(8.6, 5.8, 5.8),
         color_rgb=(1.00, 0.86, 0.42),
         datasheet_dims="Standard T-1 3/4 (5.0 mm dome, 5.8 mm flange, 8.6 mm height)",
         source_name="Kingbright WP7113 Datasheet",
@@ -328,10 +328,10 @@ HARDWARE_PARTS: list[HardwarePartSpec] = [
         part_id="HW_LED_BR",
         name="Bedroom 5mm LED (Kingbright WP7113, D4)",
         room="Bedroom",
-        mount_panel="P02_WALL_BACK",
+        mount_panel="P06_WALL_MID",
         fasteners="Dia 5.5 mm hole + 5mm LED panel bezel",
-        center_xyz=(300.0, 374.7, 128.0),
-        size_xyz=(5.8, 8.6, 5.8),
+        center_xyz=(203.0, 258.0, 126.0),
+        size_xyz=(8.6, 5.8, 5.8),
         color_rgb=(1.00, 0.78, 0.34),
         datasheet_dims="Standard T-1 3/4 (5.0 mm dome, 5.8 mm flange, 8.6 mm height)",
         source_name="Kingbright WP7113 Datasheet",
@@ -341,10 +341,10 @@ HARDWARE_PARTS: list[HardwarePartSpec] = [
         part_id="HW_DHT11",
         name="DHT11 Temperature & Humidity 3-Pin Breakout Module (D2)",
         room="Living Room",
-        mount_panel="P02_WALL_BACK",
+        mount_panel="P06_WALL_MID",
         fasteners="1x M3x8 nylon standoff + screw (Dia 3.5 mm) above 12.5 x 16.0 mm airflow vent",
-        center_xyz=(158.0, 375.4, 96.0),
-        size_xyz=(14.0, 7.1, 28.0),
+        center_xyz=(195.0, 286.0, 92.0),
+        size_xyz=(7.1, 14.0, 28.0),
         color_rgb=(0.14, 0.58, 0.92),
         datasheet_dims="Breakout PCB 28.0 x 14.0 x 1.6 mm; Aosong sensor 15.5 x 12.0 x 5.5 mm",
         source_name="Aosong / DFRobot DHT11 Datasheet",
@@ -379,10 +379,10 @@ HARDWARE_PARTS: list[HardwarePartSpec] = [
     HardwarePartSpec(
         part_id="HW_LM393",
         name="LM393 Soil Comparator Board (YL-38, A0)",
-        room="Garden Planter (Dry Exterior)",
-        mount_panel="P12_GARDEN_FRONT",
-        fasteners="1x M3x8 nylon standoff + screw (Dia 3.5 mm) on dry exterior of planter front wall",
-        center_xyz=(358.0, 20.0, 24.0),
+        room="Garden Planter (Dry Exterior Rear)",
+        mount_panel="P13_GARDEN_BACK",
+        fasteners="1x M3x8 nylon standoff + screw (Dia 3.5 mm) on dry exterior rear of garden back wall",
+        center_xyz=(292.0, 158.0, 24.0),
         size_xyz=(32.0, 12.0, 14.0),
         color_rgb=(0.10, 0.34, 0.76),
         datasheet_dims="PCB 32.0 x 14.0 x 1.6 mm (H 12.0 mm w/ 3296W pot); 1x M3 mounting hole",
@@ -676,24 +676,24 @@ def build_design() -> tuple[list[PanelSpec], list[JointPair]]:
     _add_base_slot_x(p01a_cuts, "P01A_BASE_TECH", "GBack", "P13_GARDEN_BACK", gfb_base_xs, f"{GY_B} - Params.T_mm / 2.0", TAB_G)
 
     p01a_circles: list[CircleOp] = [
-        # 4x M3 (3.4mm) holes for P16_PCB_PLATE corner standoffs (116x96 pitch centered at 82, 99)
-        CircleOp("PLT_H1_M3", 82.0 - 58.0, 99.0 + 48.0, "Params.pcb_m3_d", "m3", "P16_PCB_PLATE corner standoff M3 #1"),
-        CircleOp("PLT_H2_M3", 82.0 + 58.0, 99.0 + 48.0, "Params.pcb_m3_d", "m3", "P16_PCB_PLATE corner standoff M3 #2"),
-        CircleOp("PLT_H3_M3", 82.0 - 58.0, 99.0 - 48.0, "Params.pcb_m3_d", "m3", "P16_PCB_PLATE corner standoff M3 #3"),
-        CircleOp("PLT_H4_M3", 82.0 + 58.0, 99.0 - 48.0, "Params.pcb_m3_d", "m3", "P16_PCB_PLATE corner standoff M3 #4"),
-        # Relay 1 (Blue, Pump) 4x M3 (3.5mm) at 44.5 x 20.5 mm centered at (196.0, 136.0)
-        CircleOp("RLY1_H1_M3", 196.0 - 22.25, 136.0 + 10.25, "Params.m3_mod_d", "m3", "Relay 1 (Pump) M3 #1"),
-        CircleOp("RLY1_H2_M3", 196.0 + 22.25, 136.0 + 10.25, "Params.m3_mod_d", "m3", "Relay 1 (Pump) M3 #2"),
-        CircleOp("RLY1_H3_M3", 196.0 - 22.25, 136.0 - 10.25, "Params.m3_mod_d", "m3", "Relay 1 (Pump) M3 #3"),
-        CircleOp("RLY1_H4_M3", 196.0 + 22.25, 136.0 - 10.25, "Params.m3_mod_d", "m3", "Relay 1 (Pump) M3 #4"),
-        # Relay 2 (Red Opto, Amp) 4x M3 (3.5mm) at 44.5 x 20.5 mm centered at (196.0, 92.0)
-        CircleOp("RLY2_H1_M3", 196.0 - 22.25, 92.0 + 10.25, "Params.m3_mod_d", "m3", "Relay 2 (Amp) M3 #1"),
-        CircleOp("RLY2_H2_M3", 196.0 + 22.25, 92.0 + 10.25, "Params.m3_mod_d", "m3", "Relay 2 (Amp) M3 #2"),
-        CircleOp("RLY2_H3_M3", 196.0 - 22.25, 92.0 - 10.25, "Params.m3_mod_d", "m3", "Relay 2 (Amp) M3 #3"),
-        CircleOp("RLY2_H4_M3", 196.0 + 22.25, 92.0 - 10.25, "Params.m3_mod_d", "m3", "Relay 2 (Amp) M3 #4"),
-        # PAM8403 (21 x 18 mm) 2x Dia 3.0mm clamp/zip-tie holes (26.0 mm span) centered at (182.0, 52.0)
-        CircleOp("PAM_CLAMP_L", 182.0 - 13.0, 52.0, "Params.clamp_d", "clamp", "PAM8403 nylon tie/clamp left"),
-        CircleOp("PAM_CLAMP_R", 182.0 + 13.0, 52.0, "Params.clamp_d", "clamp", "PAM8403 nylon tie/clamp right"),
+        # 4x M3 (3.4mm) holes for P16_PCB_PLATE corner standoffs (116x96 pitch centered at 122, 104)
+        CircleOp("PLT_H1_M3", 122.0 - 58.0, 104.0 + 48.0, "Params.pcb_m3_d", "m3", "P16_PCB_PLATE corner standoff M3 #1"),
+        CircleOp("PLT_H2_M3", 122.0 + 58.0, 104.0 + 48.0, "Params.pcb_m3_d", "m3", "P16_PCB_PLATE corner standoff M3 #2"),
+        CircleOp("PLT_H3_M3", 122.0 - 58.0, 104.0 - 48.0, "Params.pcb_m3_d", "m3", "P16_PCB_PLATE corner standoff M3 #3"),
+        CircleOp("PLT_H4_M3", 122.0 + 58.0, 104.0 - 48.0, "Params.pcb_m3_d", "m3", "P16_PCB_PLATE corner standoff M3 #4"),
+        # Relay 1 (Blue, Pump) 4x M3 (3.5mm) at 44.5 x 20.5 mm centered at (226.0, 136.0)
+        CircleOp("RLY1_H1_M3", 226.0 - 22.25, 136.0 + 10.25, "Params.m3_mod_d", "m3", "Relay 1 (Pump) M3 #1"),
+        CircleOp("RLY1_H2_M3", 226.0 + 22.25, 136.0 + 10.25, "Params.m3_mod_d", "m3", "Relay 1 (Pump) M3 #2"),
+        CircleOp("RLY1_H3_M3", 226.0 - 22.25, 136.0 - 10.25, "Params.m3_mod_d", "m3", "Relay 1 (Pump) M3 #3"),
+        CircleOp("RLY1_H4_M3", 226.0 + 22.25, 136.0 - 10.25, "Params.m3_mod_d", "m3", "Relay 1 (Pump) M3 #4"),
+        # Relay 2 (Red Opto, Amp) 4x M3 (3.5mm) at 44.5 x 20.5 mm centered at (226.0, 92.0)
+        CircleOp("RLY2_H1_M3", 226.0 - 22.25, 92.0 + 10.25, "Params.m3_mod_d", "m3", "Relay 2 (Amp) M3 #1"),
+        CircleOp("RLY2_H2_M3", 226.0 + 22.25, 92.0 + 10.25, "Params.m3_mod_d", "m3", "Relay 2 (Amp) M3 #2"),
+        CircleOp("RLY2_H3_M3", 226.0 - 22.25, 92.0 - 10.25, "Params.m3_mod_d", "m3", "Relay 2 (Amp) M3 #3"),
+        CircleOp("RLY2_H4_M3", 226.0 + 22.25, 92.0 - 10.25, "Params.m3_mod_d", "m3", "Relay 2 (Amp) M3 #4"),
+        # PAM8403 (21 x 18 mm) 2x Dia 3.0mm clamp/zip-tie holes (26.0 mm span) centered at (224.0, 52.0)
+        CircleOp("PAM_CLAMP_L", 224.0 - 13.0, 52.0, "Params.clamp_d", "clamp", "PAM8403 nylon tie/clamp left"),
+        CircleOp("PAM_CLAMP_R", 224.0 + 13.0, 52.0, "Params.clamp_d", "clamp", "PAM8403 nylon tie/clamp right"),
         # 4x Joiner M3 holes (3.4mm) at Y = 166.0 matching P17_BASE_JOINER_L & R
         CircleOp("JOIN_L1_M3", joiner_xs_l[0], 166.0, "Params.pcb_m3_d", "m3", "Base seam joiner left M3 #1"),
         CircleOp("JOIN_L2_M3", joiner_xs_l[1], 166.0, "Params.pcb_m3_d", "m3", "Base seam joiner left M3 #2"),
@@ -821,15 +821,6 @@ def build_design() -> tuple[list[PanelSpec], list[JointPair]]:
 
     p02_cuts: list[RectOp] = [
         RectOp("BedWindow", 228.0, 46.0, 124.0, 64.0, "window", "Bedroom panoramic window (124x64)"),
-        RectOp(
-            "DHT11_Airflow",
-            "148.0 - Params.dht_w / 2.0",
-            "88.0 - Params.dht_h / 2.0",
-            "Params.dht_w",
-            "Params.dht_h",
-            "window",
-            "DHT11 sensor airflow vent (12.5x16.0)",
-        ),
     ]
     for idx, zc in enumerate(rear_vert_zs, 1):
         jid_l = f"J_P03_P02_{idx}"
@@ -872,9 +863,6 @@ def build_design() -> tuple[list[PanelSpec], list[JointPair]]:
         ))
 
     p02_circles = [
-        CircleOp("LED_Living_5mm", 85.0, 124.0, "Params.led5_d", "led", "Living Room 5mm LED (D0)"),
-        CircleOp("LED_Bedroom_5mm", 290.0, 128.0, "Params.led5_d", "led", "Bedroom 5mm LED (D4)"),
-        CircleOp("DHT11_Mount_M3", 148.0, 106.0, "Params.m3_mod_d", "m3", "DHT11 breakout M3 mount"),
         CircleOp("Cable_Rear_LR", 34.0, 20.0, "Params.cable_d", "cable", "Living Room rear Dupont routing"),
         CircleOp("Cable_Rear_BR", 224.0, 20.0, "Params.cable_d", "cable", "Bedroom rear Dupont routing"),
     ]
@@ -1032,7 +1020,7 @@ def build_design() -> tuple[list[PanelSpec], list[JointPair]]:
         CircleOp("KY037_Mic_Aperture", 148.0, 26.0, "Params.mic_d", "mic", "KY-037 electret mic acoustic window"),
         CircleOp("KY037_Mount_M3", 168.0, 26.0, "Params.m3_mod_d", "m3", "KY-037 PCB M3 mounting hole"),
         CircleOp("Cable_Front_LR", 16.0, 17.0, "Params.cable_d", "cable", "Tech Bay to Living Room cable pass-through"),
-        CircleOp("Cable_Front_BR", 224.0, 17.0, "Params.cable_d", "cable", "Tech Bay to Bedroom cable pass-through"),
+        CircleOp("Cable_Front_BR", 214.0, 17.0, "Params.cable_d", "cable", "Tech Bay to Bedroom/Mid-Wall cable pass-through (world X=224)"),
     ]
 
     p05_poly: list[tuple[str | float, str | float]] = [(0.0, 0.0)]
@@ -1097,8 +1085,20 @@ def build_design() -> tuple[list[PanelSpec], list[JointPair]]:
 
     p06_cuts = [
         RectOp("InteriorDoorway", 22.0, -1.0, 52.0, DOOR_H + 1.0, "door", "Interior Living-Bedroom doorway (52x104)"),
+        RectOp(
+            "DHT11_Airflow",
+            "94.0 - Params.dht_w / 2.0",
+            "88.0 - Params.dht_h / 2.0",
+            "Params.dht_w",
+            "Params.dht_h",
+            "window",
+            "DHT11 sensor airflow vent (12.5x16.0, relocated to P06 for <=30cm Dupont wiring)",
+        ),
     ]
     p06_circles = [
+        CircleOp("LED_Living_5mm", 40.0, 126.0, "Params.led5_d", "led", "Living Room 5mm LED (D0, relocated to P06 for <=30cm Dupont wiring)"),
+        CircleOp("LED_Bedroom_5mm", 66.0, 126.0, "Params.led5_d", "led", "Bedroom 5mm LED (D4, relocated to P06 for <=30cm Dupont wiring)"),
+        CircleOp("DHT11_Mount_M3", 94.0, 104.0, "Params.m3_mod_d", "m3", "DHT11 breakout M3 mount"),
         CircleOp("Cable_Mid_Rooms", 154.0, 20.0, "Params.cable_d", "cable", "Living Room to Bedroom cable pass-through"),
     ]
 
@@ -1228,7 +1228,7 @@ def build_design() -> tuple[list[PanelSpec], list[JointPair]]:
         if has_tube_hole:
             circles.append(CircleOp("Pump_Tube_Hole", 63.0, 38.0, "Params.tube_d", "tube", "Silicone pump tube pass-through (Dia 10.0mm)"))
         if has_wire_notch:
-            cuts.append(RectOp("Pump_Wire_Notch", 16.0, h - 8.0, 10.0, 9.0, "notch", "Pump wire exit notch (10x8)"))
+            cuts.append(RectOp("Pump_Wire_Notch", 68.0, h - 8.0, 10.0, 9.0, "notch", "Pump wire exit notch (10x8, aligned w/ pump & Hub PCB)"))
 
         poly: list[tuple[str | float, str | float]] = [(g_u_front, 0.0)]
         for c in sorted(gside_local_tabs):
@@ -1240,7 +1240,7 @@ def build_design() -> tuple[list[PanelSpec], list[JointPair]]:
         poly.extend(_tab_edge_poly_vertical(g_u_rear, 0.0, h, garden_vert_zs, TAB_G, G_DEP))
         poly.append((g_u_rear, h))
         if has_wire_notch:
-            poly.extend([(26.0, h), (26.0, h - 8.0), (16.0, h - 8.0), (16.0, h)])
+            poly.extend([(78.0, h), (78.0, h - 8.0), (68.0, h - 8.0), (68.0, h)])
         poly.append((g_u_front, h))
         poly.extend(_tab_edge_poly_vertical(g_u_front, h, 0.0, garden_vert_zs, TAB_G, 0.0))
 
@@ -1334,8 +1334,8 @@ def build_design() -> tuple[list[PanelSpec], list[JointPair]]:
         ))
 
         circles: list[CircleOp] = []
-        if is_front:
-            circles.append(CircleOp("LM393_Mount_M3", 92.0, 24.0, "Params.m3_mod_d", "m3", "LM393 soil comparator M3 exterior mount"))
+        if not is_front:
+            circles.append(CircleOp("LM393_Mount_M3", 26.0, 24.0, "Params.m3_mod_d", "m3", "LM393 soil comparator M3 dry exterior rear mount"))
 
         poly: list[tuple[str | float, str | float]] = []
         poly.extend(_tab_edge_poly_bottom(0.0, G_LEN, gfb_local_tabs, TAB_G))
@@ -1495,7 +1495,7 @@ def build_design() -> tuple[list[PanelSpec], list[JointPair]]:
         name="Hub PCB Mounting Plate (100x80 / 90x70 M3)",
         qty=1,
         plane="XY",
-        origin_xyz=(17.0, 44.0, 6.0),
+        origin_xyz=(57.0, 49.0, 6.0),
         explode_xyz=(-55.0, -20.0, 75.0),
         add_rects=p16_adds,
         cut_rects=[],
