@@ -3,8 +3,8 @@
   "kind": "support",
   "category": "wall_cradle",
   "qty": 1,
-  "vi_name": "Gia mong kep mach so sanh LM393 tren vach P12",
-  "mating_source": "LM393 PCB 32.0x14.0x12.0 mm + P12_GARDEN_FRONT exterior mortises (38.0 mm span)",
+  "vi_name": "Gia mong kep mach so sanh LM393 tren vach sau vuon P13",
+  "mating_source": "LM393 PCB 32.0x14.0x12.0 mm + P13_GARDEN_BACK dry exterior rear mortises (38.0 mm span)",
   "params": {
     "board_x": 32.0,
     "board_y": 14.0,
@@ -21,8 +21,8 @@
   },
   "assembly_placements": [
     {
-      "x": 358.0,
-      "y": 26.0,
+      "x": 292.0,
+      "y": 152.0,
       "z": 24.0,
       "rot_z": 0.0
     }
@@ -43,10 +43,10 @@
     0.42,
     0.78
   ],
-  "notes": "Gia ranh kep LM393 gam mong vao mat ngoai kho rao cua P12_GARDEN_FRONT, khong dung vit.",
+  "notes": "Gia ranh kep LM393 gam mong vao mat sau kho rao cua P13_GARDEN_BACK, khong dung vit.",
   "engraved_ok": true,
   "engrave_text": "SUP14",
-  "print_rotation_for_world": "rot_x_-90",
+  "print_rotation_for_world": "rot_x_90",
   "step_file": "parts/SUP14_LM393_SNAP_CRADLE.step",
   "stl_file": "parts/SUP14_LM393_SNAP_CRADLE.stl",
   "stl_facets": 1510

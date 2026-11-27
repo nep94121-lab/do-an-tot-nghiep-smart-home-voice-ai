@@ -3,8 +3,8 @@
   "kind": "support",
   "category": "wall_cradle",
   "qty": 1,
-  "vi_name": "Gia mong kep cam bien DHT11 tren tuong P02",
-  "mating_source": "DHT11 breakout 14.0x28.0x7.1 mm + P02_WALL_BACK mortises (22.0 mm span)",
+  "vi_name": "Gia mong kep cam bien DHT11 tren vach giua P06",
+  "mating_source": "DHT11 breakout 14.0x28.0x7.1 mm + P06_WALL_MID mortises (22.0 mm span)",
   "params": {
     "board_x": 14.0,
     "board_y": 28.0,
@@ -21,10 +21,10 @@
   },
   "assembly_placements": [
     {
-      "x": 158.0,
-      "y": 379.0,
+      "x": 198.5,
+      "y": 286.0,
       "z": 88.0,
-      "rot_z": 0.0
+      "rot_z": -90.0
     }
   ],
   "print_bbox_mm": [
@@ -43,7 +43,7 @@
     0.62,
     0.9
   ],
-  "notes": "Gia ranh kep DHT11 gan tuong P02 bang 2 chot mong, mo cua thoang khop dung lo 12.5x16 mm.",
+  "notes": "Gia ranh kep DHT11 gan vach giua P06 (mat phong khach) bang 2 chot mong, mo cua thoang khop dung lo 12.5x16 mm.",
   "engraved_ok": true,
   "engrave_text": "SUP12",
   "print_rotation_for_world": "rot_x_-90",

@@ -18,6 +18,7 @@ import time
 
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 FREECAD_CANDIDATES = [
+    pathlib.Path(r"C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe"),
     pathlib.Path(r"C:\Users\LENOVO\AppData\Local\Programs\FreeCAD 1.1\bin\freecadcmd.exe"),
     pathlib.Path(r"C:\Program Files\FreeCAD 1.0\bin\FreeCADCmd.exe"),
 ]

@@ -547,8 +547,8 @@ def render_freecad_previews() -> list[pathlib.Path]:
     asm_callouts = [
         ((78.0, 352.0, 26.0), (36, 108), "PHONG KHACH: Sofa FUR01 + TV FUR02/03", (32, 92, 148)),
         ((326.0, 336.0, 22.0), (1120, 108), "PHONG NGU: Giuong FUR04 + Den ngu FUR05", (136, 86, 40)),
-        ((82.0, 99.0, 24.0), (28, 720), "TECH BAY: KiCad Hub PCB 100x80 (SUP06)", (16, 114, 48)),
-        ((196.0, 114.0, 20.0), (28, 925), "2x Relay (SUP07) + PAM8403 (SUP08)", (28, 78, 152)),
+        ((122.0, 104.0, 24.0), (28, 720), "TECH BAY: KiCad Hub PCB 100x80 (SUP06)", (16, 114, 48)),
+        ((226.0, 114.0, 20.0), (28, 925), "2x Relay (SUP07) + PAM8403 (SUP08)", (28, 78, 152)),
         ((376.0, 163.0, 36.0), (1185, 650), "Chau cay FUR06/08 + Cay mini FUR07", (34, 128, 56)),
         ((292.75, 89.0, 35.0), (1125, 880), "VUON: Be nuoc SUP15 (khong keo) + Bom 5V", (22, 108, 168)),
     ]
@@ -873,23 +873,23 @@ def render_freecad_previews() -> list[pathlib.Path]:
         ))
 
     W4, H4 = 1400, 950
-    eye4 = (118.0, -118.0, 182.0)
-    tgt4 = (118.0, 98.0, 12.0)
+    eye4 = (158.0, -118.0, 188.0)
+    tgt4 = (158.0, 102.0, 12.0)
     fov4 = 35.0
     img_pcb = _render_coin_to_pil(coin, root_pcb, eye4, tgt4, W4, H4, fov_deg=fov4)
     draw_header_banner(
         img_pcb,
         "CAN CANH 3D LAP GHEP MACH HUB PCB & MODULE DIEN TU (TECH BAY — 0 OC VIT)",
-        "Hub PCB thuc KiCad 100x80 (4 lo Dia 3.2 @ 90x70) giu bang 4 chot dan hoi SUP06 | P16 + 4x SUP05 | 2x Relay (SUP07) | PAM8403 (SUP08)",
+        "Hub PCB thuc KiCad 100x80 (51 footprints + C8/C9, 4 lo Dia 3.2 @ 90x70) | P16 + 4x SUP05 | 2x Relay (SUP07) | PAM8403 (SUP08)",
     )
     draw4 = ImageDraw.Draw(img_pcb)
     pcb_callouts = [
-        ((72.0, 108.0, 28.5), (34, 102), "Socket NodeMCU U1/U2 & Terminal Blocks (KiCad SSOT)", (28, 42, 62)),
-        ((127.0, 134.0, 21.8), (540, 102), "4x Chot dan hoi SUP06 (OD 3.0 -> Lo PCB 3.2)", (204, 96, 12)),
-        ((37.0, 64.0, 21.8), (28, 760), "Khung SUP06_HUB_PCB_SNAP_CARRIER (chot SUP05B)", (204, 96, 12)),
-        ((140.0, 51.0, 4.0), (28, 845), "Tam P16_PCB_PLATE + 4x Chan nang SUP05 (6 mm)", (20, 116, 102)),
-        ((196.0, 136.0, 26.5), (960, 112), "Relay 1 & Relay 2 (50x26) trong khay SUP07 (4 chot)", (24, 78, 162)),
-        ((182.0, 52.0, 8.2), (920, 845), "Mach am thanh PAM8403 (21x18) trong khay SUP08", (176, 36, 44)),
+        ((112.0, 112.0, 28.5), (34, 102), "Socket NodeMCU U1/U2, Terminals & C8/C9 (KiCad SSOT)", (28, 42, 62)),
+        ((167.0, 139.0, 21.8), (540, 102), "4x Chot dan hoi SUP06 (OD 3.0 -> Lo PCB 3.2)", (204, 96, 12)),
+        ((77.0, 69.0, 21.8), (28, 760), "Khung SUP06_HUB_PCB_SNAP_CARRIER (chot SUP05B)", (204, 96, 12)),
+        ((180.0, 56.0, 4.0), (28, 845), "Tam P16_PCB_PLATE + 4x Chan nang SUP05 (6 mm)", (20, 116, 102)),
+        ((226.0, 136.0, 26.5), (960, 112), "Relay 1 & Relay 2 (50x26) trong khay SUP07 (4 chot)", (24, 78, 162)),
+        ((224.0, 52.0, 8.2), (920, 845), "Mach am thanh PAM8403 (21x18) trong khay SUP08", (176, 36, 44)),
     ]
     for pt3, lxy, txt, acc in pcb_callouts:
         px, py = project_3d_to_2d(pt3, eye4, tgt4, W4, H4, fov4)
@@ -1310,11 +1310,10 @@ def render_slicer_plate_preview() -> pathlib.Path:
 
     t0 = time.time()
     slicer_exe = find_prusaslicer_cli()
-    plate_files = [
-        "PLATE01_base_walls.3mf",
-        "PLATE02_base_tech.3mf",
-        "PLATE16_walls_garden.3mf",
-    ]
+    plates_man = json.loads((META_DIR / "plates_manifest.json").read_text(encoding="utf-8"))
+    pl_list = plates_man["plates"]
+    pick_indices = [0, 1, max(2, len(pl_list) - 2)]
+    plate_files = [pathlib.Path(pl_list[i]["threemf_file"]).name for i in pick_indices]
     bed_x, bed_y = 180.0, 200.0
     margin = 5.0
     usable_x, usable_y = 170.0, 190.0

@@ -297,20 +297,20 @@ def build_panel_mortise_map(cfg: PrintConfig | None = None) -> dict[str, list[Mo
 
     return {
         "P01A_BASE_TECH": [
-            # 4x P16_PCB_PLATE tenon risers (SUP05) at exact 116x96 pitch
-            m("MORT_P16_R1", 24.0, 147.0, 8.0, 3.0, "SUP05_P16_TENON_RISER corner 1"),
-            m("MORT_P16_R2", 140.0, 147.0, 8.0, 3.0, "SUP05_P16_TENON_RISER corner 2"),
-            m("MORT_P16_R3", 24.0, 51.0, 8.0, 3.0, "SUP05_P16_TENON_RISER corner 3"),
-            m("MORT_P16_R4", 140.0, 51.0, 8.0, 3.0, "SUP05_P16_TENON_RISER corner 4"),
-            # 2x Relay 1 snap caddy tenons (SUP07 #1 centered at 196, 136)
-            m("MORT_RLY1_L", 180.0, 136.0, 6.0, 3.0, "SUP07_RELAY_SNAP_CADDY #1 left floating tenon"),
-            m("MORT_RLY1_R", 212.0, 136.0, 6.0, 3.0, "SUP07_RELAY_SNAP_CADDY #1 right floating tenon"),
-            # 2x Relay 2 snap caddy tenons (SUP07 #2 centered at 196, 92)
-            m("MORT_RLY2_L", 180.0, 92.0, 6.0, 3.0, "SUP07_RELAY_SNAP_CADDY #2 left floating tenon"),
-            m("MORT_RLY2_R", 212.0, 92.0, 6.0, 3.0, "SUP07_RELAY_SNAP_CADDY #2 right floating tenon"),
-            # 2x PAM8403 snap tray tenons (SUP08 centered at 182, 52, 26mm span)
-            m("MORT_PAM_L", 169.0, 52.0, 6.0, 3.0, "SUP08_PAM8403_SNAP_TRAY left floating tenon"),
-            m("MORT_PAM_R", 195.0, 52.0, 6.0, 3.0, "SUP08_PAM8403_SNAP_TRAY right floating tenon"),
+            # 4x P16_PCB_PLATE tenon risers (SUP05) at exact 116x96 pitch centered at (122, 104)
+            m("MORT_P16_R1", 64.0, 152.0, 8.0, 3.0, "SUP05_P16_TENON_RISER corner 1"),
+            m("MORT_P16_R2", 180.0, 152.0, 8.0, 3.0, "SUP05_P16_TENON_RISER corner 2"),
+            m("MORT_P16_R3", 64.0, 56.0, 8.0, 3.0, "SUP05_P16_TENON_RISER corner 3"),
+            m("MORT_P16_R4", 180.0, 56.0, 8.0, 3.0, "SUP05_P16_TENON_RISER corner 4"),
+            # 2x Relay 1 snap caddy tenons (SUP07 #1 centered at 226, 136)
+            m("MORT_RLY1_L", 210.0, 136.0, 6.0, 3.0, "SUP07_RELAY_SNAP_CADDY #1 left floating tenon"),
+            m("MORT_RLY1_R", 242.0, 136.0, 6.0, 3.0, "SUP07_RELAY_SNAP_CADDY #1 right floating tenon"),
+            # 2x Relay 2 snap caddy tenons (SUP07 #2 centered at 226, 92)
+            m("MORT_RLY2_L", 210.0, 92.0, 6.0, 3.0, "SUP07_RELAY_SNAP_CADDY #2 left floating tenon"),
+            m("MORT_RLY2_R", 242.0, 92.0, 6.0, 3.0, "SUP07_RELAY_SNAP_CADDY #2 right floating tenon"),
+            # 2x PAM8403 snap tray tenons (SUP08 centered at 224, 52, 26mm span)
+            m("MORT_PAM_L", 211.0, 52.0, 6.0, 3.0, "SUP08_PAM8403_SNAP_TRAY left floating tenon"),
+            m("MORT_PAM_R", 237.0, 52.0, 6.0, 3.0, "SUP08_PAM8403_SNAP_TRAY right floating tenon"),
             # 4x P17_BASE_JOINER interlocking tenon mortises (left & right splice bars)
             m("MORT_JOIN_L1", 80.0, 166.0, 8.0, 4.0, "P17_BASE_JOINER left bar front-L tenon"),
             m("MORT_JOIN_L2", 120.0, 166.0, 8.0, 4.0, "P17_BASE_JOINER left bar front-R tenon"),
@@ -339,11 +339,7 @@ def build_panel_mortise_map(cfg: PrintConfig | None = None) -> dict[str, list[Mo
             # Bedroom FUR05_BEDSIDE_TABLE (world center 256, 350)
             m("MORT_FUR_BEDSIDE", 256.0, 350.0 + p01b_sv, 6.0, 4.0, "FUR05_BEDSIDE_TABLE floor peg"),
         ],
-        "P02_WALL_BACK": [
-            # SUP12_DHT11_SNAP_CRADLE flanking DHT11_Airflow (u=141.75..154.25, v=83..99)
-            m("MORT_DHT11_L", 137.0, 91.0, 3.0, 6.0, "SUP12_DHT11_SNAP_CRADLE left tenon"),
-            m("MORT_DHT11_R", 159.0, 91.0, 3.0, 6.0, "SUP12_DHT11_SNAP_CRADLE right tenon"),
-        ],
+        "P02_WALL_BACK": [],
         "P05_WALL_FRONT": [
             # SUP13_KY037_SNAP_CRADLE flanking KY-037 (centered u=158, v=29; mic at u=148)
             m("MORT_KY037_L", 138.0, 29.0, 3.0, 6.0, "SUP13_KY037_SNAP_CRADLE left tenon"),
@@ -351,6 +347,11 @@ def build_panel_mortise_map(cfg: PrintConfig | None = None) -> dict[str, list[Mo
             # SUP10_DOOR_MORTISE_HINGE jamb slots (world X=72.5 -> u=62.5; world Z=18, 86 -> v=21, 89)
             m("MORT_HINGE_BOT", 62.5, 21.0, 4.0, 6.0, "SUP10_DOOR_MORTISE_HINGE bottom jamb tenon"),
             m("MORT_HINGE_TOP", 62.5, 89.0, 4.0, 6.0, "SUP10_DOOR_MORTISE_HINGE top jamb tenon"),
+        ],
+        "P06_WALL_MID": [
+            # SUP12_DHT11_SNAP_CRADLE flanking DHT11_Airflow on P06 (u=87.75..100.25, v_shifted=83..99)
+            m("MORT_DHT11_L", 83.0, 91.0, 3.0, 6.0, "SUP12_DHT11_SNAP_CRADLE left tenon"),
+            m("MORT_DHT11_R", 105.0, 91.0, 3.0, 6.0, "SUP12_DHT11_SNAP_CRADLE right tenon"),
         ],
         "P07_SERVO_SHELF": [
             # SUP11_SG90_SNAP_SADDLE mortise slots outside SG90 ears (v=9.0 and v=43.2)
@@ -363,10 +364,11 @@ def build_panel_mortise_map(cfg: PrintConfig | None = None) -> dict[str, list[Mo
             m("MORT_DOOR_HTOP", 5.5, 84.0, 4.0, 6.0, "SUP10_DOOR_MORTISE_HINGE top door tenon"),
             m("MORT_DOOR_LINK", 15.0, 28.0, 4.0, 6.0, "SUP10B_SERVO_LINK_CLIP linkage tenon"),
         ],
-        "P12_GARDEN_FRONT": [
-            # SUP14_LM393_SNAP_CRADLE flanking LM393 (u=92, v=27; board 32mm -> 76..108)
-            m("MORT_LM393_L", 73.0, 27.0, 3.0, 6.0, "SUP14_LM393_SNAP_CRADLE left tenon"),
-            m("MORT_LM393_R", 111.0, 27.0, 3.0, 6.0, "SUP14_LM393_SNAP_CRADLE right tenon"),
+        "P12_GARDEN_FRONT": [],
+        "P13_GARDEN_BACK": [
+            # SUP14_LM393_SNAP_CRADLE flanking LM393 dry exterior rear (u=26, v_shifted=27; span 38mm -> u=7, 45)
+            m("MORT_LM393_L", 7.0, 27.0, 3.0, 6.0, "SUP14_LM393_SNAP_CRADLE left tenon"),
+            m("MORT_LM393_R", 45.0, 27.0, 3.0, 6.0, "SUP14_LM393_SNAP_CRADLE right tenon"),
         ],
         "P15_TECH_FASCIA": [
             # SUP09_SPEAKER_SNAP_RETAINER flanking 28mm speaker grille (36mm span)
@@ -896,10 +898,10 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
     p05_cuts = [10.0 + c for c in split_info["P05_WALL_FRONT"]["u_cuts_mm"]]
     p15_cuts = [8.0 + c for c in split_info["P15_TECH_FASCIA"]["u_cuts_mm"]]
 
-    pcb_cx, pcb_cy, _ = hw_map["HW_PCB"].center_xyz  # (82.0, 99.0)
-    rly1_cx, rly1_cy, _ = hw_map["HW_RELAY1"].center_xyz  # (196.0, 136.0)
-    rly2_cx, rly2_cy, _ = hw_map["HW_RELAY2"].center_xyz  # (196.0, 92.0)
-    pam_cx, pam_cy, _ = hw_map["HW_PAM8403"].center_xyz  # (182.0, 52.0)
+    pcb_cx, pcb_cy, _ = hw_map["HW_PCB"].center_xyz  # (122.0, 104.0)
+    rly1_cx, rly1_cy, _ = hw_map["HW_RELAY1"].center_xyz  # (226.0, 136.0)
+    rly2_cx, rly2_cy, _ = hw_map["HW_RELAY2"].center_xyz  # (226.0, 92.0)
+    pam_cx, pam_cy, _ = hw_map["HW_PAM8403"].center_xyz  # (224.0, 52.0)
 
     # SUP01_CORNER_CLIP_WALL: 2x outer top 90-deg corner U-clips (P02+P03 at X=10,Y=382 and P02+P04 at X=396,Y=382)
     # Local clip geometry: outer corner at (0,0), X-channel along Y=[wt..wt+slot_u], Y-channel along X=[wt..wt+slot_u],
@@ -985,8 +987,8 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
 
     # SUP05_P16_TENON_RISER: 4x 6mm risers locking P16_PCB_PLATE onto P01A via top & bottom rectangular tenons
     sup05_placements = tuple(
-        {"x": x, "y": y, "z": 0.0, "rot_z": 0.0}
-        for (x, y) in ((24.0, 147.0), (140.0, 147.0), (24.0, 51.0), (140.0, 51.0))
+        {"x": round(pcb_cx + dx, 3), "y": round(pcb_cy + dy, 3), "z": 0.0, "rot_z": 0.0}
+        for (dx, dy) in ((-58.0, 48.0), (58.0, 48.0), (-58.0, -48.0), (58.0, -48.0))
     )
 
     # SUP06_HUB_PCB_SNAP_CARRIER: 1x integrated 100x80 carrier mounting onto P16_PCB_PLATE (Z=9..19)
@@ -1018,14 +1020,14 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
     # SUP11_SG90_SNAP_SADDLE: 1x snap-on top retention saddle locking SG90 onto P07_SERVO_SHELF (X=51, Y=218.1, Z=29.5)
     sup11_placements = ({"x": 51.0, "y": 218.125, "z": 29.5, "rot_z": 0.0},)
 
-    # SUP12_DHT11_SNAP_CRADLE: 1x wall snap cradle plugging into P02 at X=158, Y=379, Z=88 (inward -Y)
-    sup12_placements = ({"x": 158.0, "y": 379.0, "z": 88.0, "rot_z": 0.0},)
+    # SUP12_DHT11_SNAP_CRADLE: 1x wall snap cradle plugging into P06_WALL_MID Living Room face at X=198.5, Y=286, Z=88 (-X inward)
+    sup12_placements = ({"x": 198.5, "y": 286.0, "z": 88.0, "rot_z": -90.0},)
 
     # SUP13_KY037_SNAP_CRADLE: 1x wall snap cradle plugging into P05 at X=168, Y=195, Z=26 (inward +Y)
     sup13_placements = ({"x": 168.0, "y": 195.0, "z": 26.0, "rot_z": 0.0},)
 
-    # SUP14_LM393_SNAP_CRADLE: 1x exterior snap cradle plugging into P12 at X=358, Y=26, Z=24 (outward -Y)
-    sup14_placements = ({"x": 358.0, "y": 26.0, "z": 24.0, "rot_z": 0.0},)
+    # SUP14_LM393_SNAP_CRADLE: 1x exterior snap cradle plugging into P13_GARDEN_BACK at X=292, Y=152, Z=24 (outward +Y)
+    sup14_placements = ({"x": 292.0, "y": 152.0, "z": 24.0, "rot_z": 0.0},)
 
     # SUP15_WATER_TANK_LINER: 1x one-piece watertight drop-in cup inside P09/P10/P12/P13 (X=269..316.5, Y=29..149, Z=0..54)
     sup15_placements = ({"x": 292.75, "y": 89.0, "z": 0.0, "rot_z": 0.0},)
@@ -1120,18 +1122,18 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
             mating_source="Floating press-fit tenons locking SUP06 (4x), SUP07 (4x), SUP08 (2x) into P16/P01A mortises",
             assembly_placements=(
                 # 4x SUP06 -> P16 (world Z=6..12)
-                {"x": 37.0, "y": 64.0, "z": 6.0, "rot_z": 0.0},
-                {"x": 127.0, "y": 64.0, "z": 6.0, "rot_z": 0.0},
-                {"x": 37.0, "y": 134.0, "z": 6.0, "rot_z": 0.0},
-                {"x": 127.0, "y": 134.0, "z": 6.0, "rot_z": 0.0},
+                {"x": round(pcb_cx - 45.0, 3), "y": round(pcb_cy - 35.0, 3), "z": 6.0, "rot_z": 0.0},
+                {"x": round(pcb_cx + 45.0, 3), "y": round(pcb_cy - 35.0, 3), "z": 6.0, "rot_z": 0.0},
+                {"x": round(pcb_cx - 45.0, 3), "y": round(pcb_cy + 35.0, 3), "z": 6.0, "rot_z": 0.0},
+                {"x": round(pcb_cx + 45.0, 3), "y": round(pcb_cy + 35.0, 3), "z": 6.0, "rot_z": 0.0},
                 # 4x SUP07 -> P01A (world Z=-3..3)
-                {"x": 180.0, "y": 136.0, "z": -3.0, "rot_z": 0.0},
-                {"x": 212.0, "y": 136.0, "z": -3.0, "rot_z": 0.0},
-                {"x": 180.0, "y": 92.0, "z": -3.0, "rot_z": 0.0},
-                {"x": 212.0, "y": 92.0, "z": -3.0, "rot_z": 0.0},
+                {"x": round(rly1_cx - 16.0, 3), "y": rly1_cy, "z": -3.0, "rot_z": 0.0},
+                {"x": round(rly1_cx + 16.0, 3), "y": rly1_cy, "z": -3.0, "rot_z": 0.0},
+                {"x": round(rly2_cx - 16.0, 3), "y": rly2_cy, "z": -3.0, "rot_z": 0.0},
+                {"x": round(rly2_cx + 16.0, 3), "y": rly2_cy, "z": -3.0, "rot_z": 0.0},
                 # 2x SUP08 -> P01A (world Z=-3..3)
-                {"x": 169.0, "y": 52.0, "z": -3.0, "rot_z": 0.0},
-                {"x": 195.0, "y": 52.0, "z": -3.0, "rot_z": 0.0},
+                {"x": round(pam_cx - 13.0, 3), "y": pam_cy, "z": -3.0, "rot_z": 0.0},
+                {"x": round(pam_cx + 13.0, 3), "y": pam_cy, "z": -3.0, "rot_z": 0.0},
             ),
             notes="Chot mong roi in nam phang khong support, ep khit khoa khung SUP06/SUP07/SUP08 vao ranh tam day.",
             color_rgb=(0.86, 0.72, 0.24),
@@ -1299,7 +1301,7 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
         ),
         SupportSpec(
             part_id="SUP12_DHT11_SNAP_CRADLE",
-            vi_name="Gia mong kep cam bien DHT11 tren tuong P02",
+            vi_name="Gia mong kep cam bien DHT11 tren vach giua P06",
             category="wall_cradle",
             qty=1,
             size_xyz=(28.0, 32.4, 11.0),
@@ -1310,7 +1312,7 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
                 "board_z": 7.1,
                 "cavity_x": round(14.0 + 2.0 * cfg.edge_rail_clr_per_side, 2),  # 14.4
                 "cavity_y": round(28.0 + 2.0 * cfg.edge_rail_clr_per_side, 2),  # 28.4
-                "tenon_span": 22.0,  # u=137 and u=159
+                "tenon_span": 22.0,  # P06 u=83 and u=105
                 "tenon_x": 3.0,
                 "tenon_y": 6.0,
                 "tenon_h": 3.0,
@@ -1318,9 +1320,9 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
                 "window_x": 12.5,
                 "window_y": 16.0,
             },
-            mating_source="DHT11 breakout 14.0x28.0x7.1 mm + P02_WALL_BACK mortises (22.0 mm span)",
+            mating_source="DHT11 breakout 14.0x28.0x7.1 mm + P06_WALL_MID mortises (22.0 mm span)",
             assembly_placements=sup12_placements,
-            notes="Gia ranh kep DHT11 gan tuong P02 bang 2 chot mong, mo cua thoang khop dung lo 12.5x16 mm.",
+            notes="Gia ranh kep DHT11 gan vach giua P06 (mat phong khach) bang 2 chot mong, mo cua thoang khop dung lo 12.5x16 mm.",
             color_rgb=(0.14, 0.62, 0.90),
         ),
         SupportSpec(
@@ -1351,7 +1353,7 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
         ),
         SupportSpec(
             part_id="SUP14_LM393_SNAP_CRADLE",
-            vi_name="Gia mong kep mach so sanh LM393 tren vach P12",
+            vi_name="Gia mong kep mach so sanh LM393 tren vach sau vuon P13",
             category="wall_cradle",
             qty=1,
             size_xyz=(44.0, 18.4, 11.0),
@@ -1362,7 +1364,7 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
                 "board_z": 12.0,
                 "cavity_x": round(32.0 + 2.0 * cfg.edge_rail_clr_per_side, 2),  # 32.4
                 "cavity_y": round(14.0 + 2.0 * cfg.edge_rail_clr_per_side, 2),  # 14.4
-                "tenon_span": 38.0,  # u=73 and u=111
+                "tenon_span": 38.0,  # P13 u=7 and u=45
                 "tenon_x": 3.0,
                 "tenon_y": 6.0,
                 "tenon_h": 3.0,
@@ -1370,9 +1372,9 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
                 "window_x": 18.0,
                 "window_y": 10.0,
             },
-            mating_source="LM393 PCB 32.0x14.0x12.0 mm + P12_GARDEN_FRONT exterior mortises (38.0 mm span)",
+            mating_source="LM393 PCB 32.0x14.0x12.0 mm + P13_GARDEN_BACK dry exterior rear mortises (38.0 mm span)",
             assembly_placements=sup14_placements,
-            notes="Gia ranh kep LM393 gam mong vao mat ngoai kho rao cua P12_GARDEN_FRONT, khong dung vit.",
+            notes="Gia ranh kep LM393 gam mong vao mat sau kho rao cua P13_GARDEN_BACK, khong dung vit.",
             color_rgb=(0.16, 0.42, 0.78),
         ),
         SupportSpec(

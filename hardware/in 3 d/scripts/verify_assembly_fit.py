@@ -73,22 +73,31 @@ def build_fit_table(pcb: pcb_ssot.PcbSpec, metas: dict[str, dict[str, Any]], cfg
     sup14 = metas["SUP14_LM393_SNAP_CRADLE"]["params"]
     sup15 = metas["SUP15_WATER_TANK_LINER"]["params"]
 
-    # Verify real KiCad footprint clearance against SUP06 carrier bosses (R=3.7 mm @ 90x70) and frame edges
+    # Verify real KiCad footprint clearance (all 51 footprints incl. on-board C8/C9) against SUP06 carrier bosses (R=3.7 mm @ 90x70)
     min_kp_dist = float("inf")
+    c8_min_dist = float("inf")
+    c9_min_dist = float("inf")
+    kp_refs: set[str] = set()
     for kp in pcb.keepouts:
+        kp_refs.add(kp.ref)
         for mh in pcb.mounting_holes:
             d = math.hypot(kp.x_mm - mh.x_mm, kp.y_mm - mh.y_mm)
             min_kp_dist = min(min_kp_dist, d)
-    pcb_keepout_ok = min_kp_dist >= 4.0  # boss radius 3.7 mm
+            if kp.ref == "C8":
+                c8_min_dist = min(c8_min_dist, d)
+            elif kp.ref == "C9":
+                c9_min_dist = min(c9_min_dist, d)
+    c8_c9_present = ("C8" in kp_refs and "C9" in kp_refs)
+    pcb_keepout_ok = c8_c9_present and (min_kp_dist >= 4.0) and (c8_min_dist >= 4.0) and (c9_min_dist >= 4.0)
 
     rows = [
         {
             "part": "Hub PCB (Type 1)",
-            "source_of_dimension": f"{pcb.source_file} (Edge.Cuts + 4x MountingHole_3.2mm)",
+            "source_of_dimension": f"{pcb.source_file} (Edge.Cuts + 4x MountingHole_3.2mm, {len(pcb.mounting_holes) + len(pcb.keepouts)} footprints incl. C8/C9)",
             "board_size_mm": f"{pcb.width_mm:.1f} x {pcb.height_mm:.1f} x {pcb.thickness_mm:.1f} (holes {pcb.hole_pitch_x_mm:.1f}x{pcb.hole_pitch_y_mm:.1f}, Dia {pcb.hole_dia_mm:.1f})",
             "mount_part": "SUP06_HUB_PCB_SNAP_CARRIER",
             "mount_inner_size_mm": f"Frame 104.0x84.0, 4x split pegs OD {sup06['peg_od']:.2f} @ {sup06['pitch_x']:.1f}x{sup06['pitch_y']:.1f}",
-            "clearance_mm": f"{pcb.hole_dia_mm - sup06['peg_od']:.2f} mm dia (nearest component {min_kp_dist:.1f} mm)",
+            "clearance_mm": f"{pcb.hole_dia_mm - sup06['peg_od']:.2f} mm dia (nearest {min_kp_dist:.1f} mm; C8 {c8_min_dist:.1f} mm, C9 {c9_min_dist:.1f} mm)",
             "holding_method": "4x split snap-fit pegs (0.25mm barb) + 4x SUP05B floor mortise tenons into P16",
             "status": "PASS" if (0.15 <= pcb.hole_dia_mm - sup06["peg_od"] <= 0.30 and pcb_keepout_ok) else "FAIL",
         },
@@ -146,10 +155,10 @@ def build_fit_table(pcb: pcb_ssot.PcbSpec, metas: dict[str, dict[str, Any]], cfg
             "part": "DHT11 Temp/Humidity Breakout",
             "source_of_dimension": "mica_design.py + Aosong/DFRobot DHT11 datasheet",
             "board_size_mm": "28.0 x 14.0 x 7.1 (sensor 15.5 x 12.0)",
-            "mount_part": "SUP12_DHT11_SNAP_CRADLE + P02_WALL_BACK",
+            "mount_part": "SUP12_DHT11_SNAP_CRADLE + P06_WALL_MID",
             "mount_inner_size_mm": f"Cavity {sup12['cavity_x']:.1f} x {sup12['cavity_y']:.1f}, vent window 12.5x16.0",
-            "clearance_mm": f"{(sup12['cavity_x']-14.0)/2:.2f} mm/side X, {(sup12['cavity_y']-28.0)/2:.2f} mm/side Z",
-            "holding_method": "Edge-rail slide-in cradle locked via 2x integral 3x6x3 tenons into P02 mortises",
+            "clearance_mm": f"{(sup12['cavity_x']-14.0)/2:.2f} mm/side Y, {(sup12['cavity_y']-28.0)/2:.2f} mm/side Z",
+            "holding_method": "Edge-rail slide-in cradle locked via 2x integral 3x6x3 tenons into P06_WALL_MID mortises",
             "status": "PASS",
         },
         {
@@ -176,10 +185,10 @@ def build_fit_table(pcb: pcb_ssot.PcbSpec, metas: dict[str, dict[str, Any]], cfg
             "part": "LM393 Soil Comparator (YL-38)",
             "source_of_dimension": "mica_design.py + HandsOnTech Soil Sensor datasheet",
             "board_size_mm": "32.0 x 14.0 x 12.0",
-            "mount_part": "SUP14_LM393_SNAP_CRADLE + P12_GARDEN_FRONT",
+            "mount_part": "SUP14_LM393_SNAP_CRADLE + P13_GARDEN_BACK",
             "mount_inner_size_mm": f"Cavity {sup14['cavity_x']:.1f} x {sup14['cavity_y']:.1f}",
             "clearance_mm": f"{(sup14['cavity_x']-32.0)/2:.2f} mm/side X, {(sup14['cavity_y']-14.0)/2:.2f} mm/side Z",
-            "holding_method": "Exterior edge-rail cradle locked via 2x integral 3x6x3 tenons into P12 mortises",
+            "holding_method": "Dry exterior rear edge-rail cradle locked via 2x integral 3x6x3 tenons into P13 mortises",
             "status": "PASS",
         },
         {
@@ -206,17 +215,261 @@ def build_fit_table(pcb: pcb_ssot.PcbSpec, metas: dict[str, dict[str, Any]], cfg
     return rows
 
 
+def _aabb_gap_mm(bb1: Any, bb2: Any) -> float:
+    gx = max(0.0, bb2.XMin - bb1.XMax, bb1.XMin - bb2.XMax)
+    gy = max(0.0, bb2.YMin - bb1.YMax, bb1.YMin - bb2.YMax)
+    gz = max(0.0, bb2.ZMin - bb1.ZMax, bb1.ZMin - bb2.ZMax)
+    return round(math.sqrt(gx * gx + gy * gy + gz * gz), 3)
+
+
+def _derive_mica_ref_bboxes(cfg: pd_mod.PrintConfig) -> dict[str, dict[str, list[float]]]:
+    """Derive exact SSOT 3D world bounding boxes directly from mica_design.py."""
+    params = md.default_param_values(T_mm=cfg.T_mm, tab_clr=cfg.tab_clr)
+    panels_raw, _ = md.build_design()
+    T = cfg.T_mm
+    ref_map: dict[str, dict[str, list[float]]] = {}
+    for ps in panels_raw:
+        ev = md.evaluate_panel_2d(ps, T_mm=cfg.T_mm, tab_clr=cfg.tab_clr)
+        u0, u1 = -ev["shift_u"], ev["width"] - ev["shift_u"]
+        v0, v1 = -ev["shift_v"], ev["height"] - ev["shift_v"]
+        ox, oy, oz = (md.eval_expr(c, params) for c in ps.origin_xyz)
+        if ps.plane == "XY":
+            bmin = [ox + u0, oy + v0, oz]
+            bmax = [ox + u1, oy + v1, oz + T]
+        elif ps.plane == "XZ":
+            bmin = [ox + u0, oy, oz + v0]
+            bmax = [ox + u1, oy + T, oz + v1]
+        elif ps.plane == "YZ":
+            bmin = [ox, oy + u0, oz + v0]
+            bmax = [ox + T, oy + u1, oz + v1]
+        else:
+            raise ValueError(f"Unknown plane {ps.plane}")
+        ref_map[ps.panel_id] = {
+            "bbox_min": [round(x, 4) for x in bmin],
+            "bbox_max": [round(x, 4) for x in bmax],
+        }
+    return ref_map
+
+
+def build_r3_clearance_checks(
+    pcb: pcb_ssot.PcbSpec,
+    panel_world: list[tuple[str, str, Any]],
+    support_world: list[tuple[str, str, Any]],
+    furniture_world: list[tuple[str, str, Any]],
+    hw_world: list[tuple[str, Any, tuple[float, float, float]]],
+    pcb_keepouts: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    """Explicit R3 physical clearance checks saved to assembly_report.json and verification_report.json."""
+    hw_by_id = {hn: hs for hn, hs, _ in hw_world}
+    panel_by_src: dict[str, list[Any]] = {}
+    for _lbl, spid, sh in panel_world:
+        panel_by_src.setdefault(spid, []).append(sh)
+    sup_by_id: dict[str, list[tuple[str, Any]]] = {}
+    for inst, spid, sh in support_world:
+        sup_by_id.setdefault(spid, []).append((inst, sh))
+    fur_by_id: dict[str, list[Any]] = {}
+    for _lbl, fpid, sh in furniture_world:
+        fur_by_id.setdefault(fpid, []).append(sh)
+
+    def _merged_bb(shapes: list[Any]) -> Any:
+        bb = FreeCAD.BoundBox(shapes[0].BoundBox)
+        for s in shapes[1:]:
+            bb.add(s.BoundBox)
+        return bb
+
+    def _zone_hits(zone: Any, candidates: list[tuple[str, Any]], skip_names: set[str] | None = None) -> list[dict[str, Any]]:
+        skip = skip_names or set()
+        hits: list[dict[str, Any]] = []
+        for name, sh in candidates:
+            if name in skip:
+                continue
+            vol = _brep_intersect_vol(zone, sh)
+            if vol > 0.5:
+                hits.append({"obstacle": name, "vol_mm3": vol})
+        return hits
+
+    all_panels_flat = [(lbl, sh) for lbl, _sp, sh in panel_world]
+    all_sups_flat = [(inst, sh) for inst, _sp, sh in support_world]
+    all_furs_flat = [(lbl, sh) for lbl, _fp, sh in furniture_world]
+    all_hws_flat = [(hn, hs) for hn, hs, _ in hw_world]
+
+    checks: dict[str, dict[str, Any]] = {}
+
+    # 1. PCB & P16 vs walls/mounts + on-board C8/C9 keepouts vs SUP06
+    pcb_bb = hw_by_id["HW_PCB"].BoundBox
+    p16_bb = _merged_bb(panel_by_src["P16_PCB_PLATE"])
+    p15_bb = _merged_bb(panel_by_src["P15_TECH_FASCIA"])
+    p05_bb = _merged_bb(panel_by_src["P05_WALL_FRONT"])
+    p09_bb = _merged_bb(panel_by_src["P09_GARDEN_LEFT"])
+    sup07_bbs = [sh.BoundBox for _, sh in sup_by_id["SUP07_RELAY_SNAP_CADDY"]]
+    sup08_bb = sup_by_id["SUP08_PAM8403_SNAP_TRAY"][0][1].BoundBox
+    sup06_sh = sup_by_id["SUP06_HUB_PCB_SNAP_CARRIER"][0][1]
+
+    kp_colls = []
+    c8_c9_ok = True
+    c8_vol, c9_vol = 0.0, 0.0
+    for kname, ksh in pcb_keepouts:
+        v = _brep_intersect_vol(ksh, sup06_sh)
+        if kname == "PCB_C8":
+            c8_vol = v
+        elif kname == "PCB_C9":
+            c9_vol = v
+        if v > 0.5:
+            kp_colls.append({"keepout": kname, "vol_mm3": v})
+    kp_refs = {kp.ref for kp in pcb.keepouts}
+    if "C8" not in kp_refs or "C9" not in kp_refs or kp_colls:
+        c8_c9_ok = False
+
+    gap_p16_p15 = round(p16_bb.YMin - p15_bb.YMax, 3)
+    gap_p16_p05 = round(p05_bb.YMin - p16_bb.YMax, 3)
+    gap_p16_sup07 = round(min(b.XMin for b in sup07_bbs) - p16_bb.XMax, 3)
+    gap_p16_sup08 = round(sup08_bb.XMin - p16_bb.XMax, 3)
+    gap_pcb_p09 = round(p09_bb.XMin - pcb_bb.XMax, 3)
+    checks["pcb_vs_walls_and_mounts"] = {
+        "passed": bool(
+            gap_p16_p15 >= 10.0
+            and gap_p16_p05 >= 10.0
+            and gap_p16_sup07 >= 8.0
+            and gap_p16_sup08 >= 10.0
+            and gap_pcb_p09 >= 20.0
+            and c8_c9_ok
+        ),
+        "p16_to_p15_fascia_mm": gap_p16_p15,
+        "p16_to_p05_wall_mm": gap_p16_p05,
+        "p16_to_sup07_relay_mm": gap_p16_sup07,
+        "p16_to_sup08_pam_mm": gap_p16_sup08,
+        "pcb_to_p09_garden_mm": gap_pcb_p09,
+        "total_pcb_footprints": len(pcb.mounting_holes) + len(pcb.keepouts),
+        "c8_c9_parsed": ("C8" in kp_refs and "C9" in kp_refs),
+        "c8_sup06_intersect_mm3": c8_vol,
+        "c9_sup06_intersect_mm3": c9_vol,
+        "keepout_collisions": kp_colls,
+    }
+
+    # 2. Module vs module wiring clearance (>= 15.0 mm SSOT check)
+    mod_clr = md.check_hardware_clearances(min_gap_mm=15.0)
+    checks["module_vs_module"] = {
+        "passed": bool(mod_clr["passed"]),
+        "required_min_gap_mm": mod_clr["required_min_gap_mm"],
+        "measured_min_gap_mm": mod_clr["measured_min_gap_mm"],
+        "closest_pair": mod_clr["closest_pair"],
+        "checked_pairs": mod_clr["checked_pairs"],
+        "violations": mod_clr["violations"],
+    }
+
+    # 3. Wire passages: Cable_Front_LR (P05 u=16, X=26, Z=17, Dia 14), Cable_Front_BR (P05 u=214, X=224, Z=17, Dia 14),
+    #    Pump_Wire_Notch (P09 u=68..78 -> Y=94..104, Z=46..54), and P05 Bedroom cutaway (X=214..390, Y=192..195, Z=36..140)
+    z_cable_lr = Part.makeCylinder(6.5, 18.0, FreeCAD.Vector(26.0, 184.5, 17.0), FreeCAD.Vector(0, 1, 0))
+    z_cable_br = Part.makeCylinder(6.5, 18.0, FreeCAD.Vector(224.0, 184.5, 17.0), FreeCAD.Vector(0, 1, 0))
+    z_pump_notch = Part.makeBox(16.0, 9.6, 7.6, FreeCAD.Vector(259.5, 94.2, 46.2))
+    z_p05_cutaway = Part.makeBox(160.0, 10.0, 80.0, FreeCAD.Vector(224.0, 188.5, 42.0))
+
+    wp_obstacles = all_sups_flat + all_furs_flat + all_hws_flat
+    hits_lr = _zone_hits(z_cable_lr, all_panels_flat + wp_obstacles)
+    hits_br = _zone_hits(z_cable_br, all_panels_flat + wp_obstacles)
+    hits_pump = _zone_hits(z_pump_notch, all_panels_flat + wp_obstacles)
+    hits_cut = _zone_hits(z_p05_cutaway, all_panels_flat + wp_obstacles)
+    checks["wire_passages"] = {
+        "passed": (len(hits_lr) == 0 and len(hits_br) == 0 and len(hits_pump) == 0 and len(hits_cut) == 0),
+        "cable_front_lr_clear": len(hits_lr) == 0,
+        "cable_front_br_clear": len(hits_br) == 0,
+        "pump_wire_notch_clear": len(hits_pump) == 0,
+        "p05_cutaway_clear": len(hits_cut) == 0,
+        "obstructions": {
+            "Cable_Front_LR": hits_lr,
+            "Cable_Front_BR": hits_br,
+            "Pump_Wire_Notch": hits_pump,
+            "P05_Cutaway": hits_cut,
+        },
+    }
+
+    # 4. NodeMCU Micro-USB access corridor (X=64..192 through P15 cutaway above Z=19.5 seam-clip cap to NodeMCU front face Y=79.85, Z=31)
+    # P15 low wall top is Z=16.0, SUP03 seam clip cap reaches Z=19.0, HW_PCB top is Z=20.6, NodeMCU sits at Z=27.45..34.55 (center Z=31.0).
+    z_p15_open = Part.makeBox(124.0, 6.0, 28.5, FreeCAD.Vector(66.0, 8.5, 19.5))
+    z_usb_plug = Part.makeBox(28.0, 78.0, 20.0, FreeCAD.Vector(108.0, 0.0, 22.0))
+    hits_p15_open = _zone_hits(z_p15_open, all_panels_flat + wp_obstacles)
+    hits_usb_plug = _zone_hits(z_usb_plug, all_panels_flat + all_sups_flat + all_furs_flat + all_hws_flat)
+    checks["nodemcu_usb_access_corridor"] = {
+        "passed": (len(hits_p15_open) == 0 and len(hits_usb_plug) == 0),
+        "p15_cutaway_x_range_mm": [64.0, 192.0],
+        "p15_cutaway_top_z_mm": 16.0,
+        "p15_seam_clip_top_z_mm": 19.0,
+        "pcb_top_z_mm": round(pcb_bb.ZMax, 2),
+        "nodemcu_usb_y_mm": round(hw_by_id["HW_NODEMCU"].BoundBox.YMin, 2),
+        "nodemcu_center_x_mm": round(hw_by_id["HW_NODEMCU"].BoundBox.Center.x, 2),
+        "nodemcu_center_z_mm": round(hw_by_id["HW_NODEMCU"].BoundBox.Center.z, 2),
+        "p15_opening_obstructions": hits_p15_open,
+        "usb_cable_corridor_obstructions": hits_usb_plug,
+    }
+
+    # 5. Relay separation (Relay 1 vs Relay 2 PCBs & SUP07 caddies, and clearance to P16 & P09)
+    rly1_bb = hw_by_id["HW_RELAY1"].BoundBox
+    rly2_bb = hw_by_id["HW_RELAY2"].BoundBox
+    sup07_sorted = sorted(sup07_bbs, key=lambda b: b.YMin)
+    rly_pcb_gap = round(rly1_bb.YMin - rly2_bb.YMax, 3)
+    rly_caddy_gap = round(sup07_sorted[1].YMin - sup07_sorted[0].YMax, 3)
+    rly_to_p09 = round(p09_bb.XMin - max(b.XMax for b in sup07_bbs), 3)
+    rly_to_pam = round(sup07_sorted[0].YMin - sup08_bb.YMax, 3)
+    checks["relay_separation"] = {
+        "passed": bool(rly_pcb_gap >= 15.0 and rly_caddy_gap >= 10.0 and gap_p16_sup07 >= 8.0 and rly_to_p09 >= 8.0 and rly_to_pam >= 10.0),
+        "relay_pcb_edge_gap_mm": rly_pcb_gap,
+        "sup07_caddy_gap_mm": rly_caddy_gap,
+        "sup07_to_p16_gap_mm": gap_p16_sup07,
+        "sup07_to_p09_gap_mm": rly_to_p09,
+        "sup07_to_sup08_pam_gap_mm": rly_to_pam,
+    }
+
+    # 6. PSU / DC-022 terminal access (rear of DC-022 at X=30, Y=13..45, Z=12..34 + Hub PCB J1 screw terminal access)
+    dc_bb = hw_by_id["HW_DC_JACK"].BoundBox
+    z_dc_rear = Part.makeBox(26.0, 18.0, 22.0, FreeCAD.Vector(17.0, 31.0, 11.0))
+    z_j1_access = Part.makeBox(14.0, 18.0, 24.0, FreeCAD.Vector(60.0, 80.0, 22.0))
+    hits_dc_rear = _zone_hits(z_dc_rear, all_panels_flat + all_sups_flat + all_furs_flat + all_hws_flat, skip_names={"HW_DC_JACK"})
+    hits_j1 = _zone_hits(z_j1_access, all_panels_flat + all_sups_flat + all_furs_flat + all_hws_flat)
+    dc_to_p16 = _aabb_gap_mm(dc_bb, p16_bb)
+    checks["psu_dc022_terminal_access"] = {
+        "passed": bool(len(hits_dc_rear) == 0 and len(hits_j1) == 0 and dc_to_p16 >= 20.0),
+        "dc022_to_p16_gap_mm": dc_to_p16,
+        "dc022_rear_obstructions": hits_dc_rear,
+        "hub_j1_terminal_obstructions": hits_j1,
+    }
+
+    # 7. Ventilation (DHT11_Airflow on P06_WALL_MID: Y=279.75..292.25, Z=80..96; clear on both sides & >=20mm above FUR03 TV)
+    z_dht_br = Part.makeBox(22.0, 12.0, 15.5, FreeCAD.Vector(201.6, 280.0, 80.25))
+    z_dht_lr = Part.makeBox(20.0, 12.0, 15.5, FreeCAD.Vector(170.0, 280.0, 80.25))
+    hits_dht_br = _zone_hits(z_dht_br, all_panels_flat + all_sups_flat + all_furs_flat + all_hws_flat)
+    hits_dht_lr = _zone_hits(z_dht_lr, all_panels_flat + all_sups_flat + all_furs_flat + all_hws_flat)
+    tv_bb = _merged_bb(fur_by_id["FUR03_TV_SCREEN"])
+    sup12_bb = sup_by_id["SUP12_DHT11_SNAP_CRADLE"][0][1].BoundBox
+    dht_bb = hw_by_id["HW_DHT11"].BoundBox
+    gap_sup12_tv = round(sup12_bb.ZMin - tv_bb.ZMax, 3)
+    gap_dht_tv = round(dht_bb.ZMin - tv_bb.ZMax, 3)
+    checks["ventilation_dht11_airflow"] = {
+        "passed": bool(len(hits_dht_br) == 0 and len(hits_dht_lr) == 0 and gap_sup12_tv >= 20.0 and gap_dht_tv >= 28.0),
+        "vent_panel": "P06_WALL_MID",
+        "vent_size_mm": [12.5, 16.0],
+        "sup12_above_tv_mm": gap_sup12_tv,
+        "dht11_above_tv_mm": gap_dht_tv,
+        "bedroom_side_obstructions": hits_dht_br,
+        "living_room_side_obstructions": hits_dht_lr,
+    }
+
+    all_r3_ok = all(bool(c["passed"]) for c in checks.values())
+    return {
+        "all_passed": all_r3_ok,
+        "passed_count": sum(1 for c in checks.values() if c["passed"]),
+        "total_count": len(checks),
+        "checks": checks,
+    }
+
+
 def main() -> int:
     t0 = time.time()
     cfg = pd_mod.PrintConfig()
     pcb = pcb_ssot.parse_kicad_hub_pcb(run_cli_check=False)
     metas = wa.load_all_metas()
 
-    # Load reference panel bboxes from mica_design.py
-    ref_geo_path = MICA_DIR / "panel_geometry_from_freecad.json"
-    ref_geo = json.loads(ref_geo_path.read_text(encoding="utf-8"))
-    ref_raw = ref_geo.get("panels", {})
-    ref_map = ref_raw if isinstance(ref_raw, dict) else {p["panel_id"]: p for p in ref_raw}
+    # Derive exact SSOT reference panel bboxes directly from mica_design.py (never stale cached JSON)
+    ref_map = _derive_mica_ref_bboxes(cfg)
 
     # 1. Verify exact dimensional reconstruction using exported STLs (fast & exact) + un-engraved BRep superset solids
     import Mesh
@@ -306,7 +559,8 @@ def main() -> int:
     finally:
         cc.safe_engrave_top_face = orig_eng
 
-    # 5. Build real KiCad Hub PCB + off-board hardware envelopes + door swing envelope
+    # 5. Build real KiCad Hub PCB + keepout prisms (incl. C8/C9) + off-board hardware envelopes + door swing envelope
+    _pcb_solid, pcb_keepouts = wa.build_real_kicad_pcb_world_solid(pcb)
     hw_world = wa.build_hardware_world_solids(pcb)
     door_swing = wa.build_door_swing_envelope()
 
@@ -382,7 +636,7 @@ def main() -> int:
             if v > COLL_THRESH:
                 furniture_colls.append({"a": fn1, "b": "DOOR_SWING_ARC_95DEG", "vol_mm3": v})
 
-    print(f"[stage 4/4] Checking {len(hw_world)} hardware bodies vs mounts...", flush=True)
+    print(f"[stage 4/4] Checking {len(hw_world)} hardware bodies & {len(pcb_keepouts)} PCB keepouts vs mounts...", flush=True)
     hw_colls: list[dict[str, Any]] = []
     max_hw_v = 0.0
     for hn, hs, _col in hw_world:
@@ -402,8 +656,16 @@ def main() -> int:
                 max_hw_v = v
             if v > COLL_THRESH:
                 hw_colls.append({"a": hn, "b": sn, "vol_mm3": v})
+    for kname, ksh in pcb_keepouts:
+        for sn, _spid, ss in support_world:
+            v = _brep_intersect_vol(ksh, ss, kname, sn)
+            if v > max_hw_v:
+                max_hw_v = v
+            if v > COLL_THRESH:
+                hw_colls.append({"a": kname, "b": sn, "vol_mm3": v})
 
-    # 7. Fit Table
+    # 7. Explicit R3 physical clearance checks & Fit Table
+    r3_clearances = build_r3_clearance_checks(pcb, panel_world, support_world, furniture_world, hw_world, pcb_keepouts)
     fit_rows = build_fit_table(pcb, metas, cfg)
     fit_failed = [r for r in fit_rows if r["status"] != "PASS"]
 
@@ -414,6 +676,7 @@ def main() -> int:
         and len(furniture_colls) == 0
         and len(hw_colls) == 0
         and len(fit_failed) == 0
+        and bool(r3_clearances["all_passed"])
     )
 
     fit_out = {
@@ -421,6 +684,7 @@ def main() -> int:
         "pcb_size_mm": [pcb.width_mm, pcb.height_mm, pcb.thickness_mm],
         "pcb_hole_pitch_mm": [pcb.hole_pitch_x_mm, pcb.hole_pitch_y_mm],
         "pcb_hole_dia_mm": pcb.hole_dia_mm,
+        "pcb_total_footprints": len(pcb.mounting_holes) + len(pcb.keepouts),
         "all_fit_passed": len(fit_failed) == 0,
         "rows": fit_rows,
     }
@@ -431,6 +695,7 @@ def main() -> int:
         "support_instances_checked": len(support_world),
         "furniture_instances_checked": len(furniture_world),
         "hardware_bodies_checked": len(hw_world),
+        "pcb_keepouts_checked": len(pcb_keepouts),
         "reconstruction_checks": recon_checks,
         "reconstruction_failures": recon_failures,
         "panel_collisions": panel_colls,
@@ -441,13 +706,14 @@ def main() -> int:
         "max_furniture_intersection_mm3": round(max_fur_v, 4),
         "hardware_collisions": hw_colls,
         "max_hardware_intersection_mm3": round(max_hw_v, 4),
+        "r3_clearances": r3_clearances,
     }
 
     (META_DIR / "fit_table.json").write_text(json.dumps(fit_out, indent=2), encoding="utf-8")
     (META_DIR / "assembly_report.json").write_text(json.dumps(asm_out, indent=2), encoding="utf-8")
 
     print("=== GATE G2 VIRTUAL ASSEMBLY & FIT REPORT ===")
-    print(f"Elapsed: {asm_out['elapsed_sec']}s | Panels={len(panel_world)}, Supports={len(support_world)}, Furniture={len(furniture_world)}, Hardware={len(hw_world)}")
+    print(f"Elapsed: {asm_out['elapsed_sec']}s | Panels={len(panel_world)}, Supports={len(support_world)}, Furniture={len(furniture_world)}, Hardware={len(hw_world)}, PCBKeepouts={len(pcb_keepouts)}")
     print(f"Reconstruction failures: {len(recon_failures)}")
     for rf in recon_failures:
         print("  [RECON FAIL]", rf)
@@ -463,6 +729,9 @@ def main() -> int:
     print(f"Hardware collisions:  {len(hw_colls)} (max={max_hw_v:.4f} mm3)")
     for c in hw_colls[:10]:
         print("  [HW COLL]", c)
+    print(f"R3 Clearances:        {r3_clearances['passed_count']}/{r3_clearances['total_count']} PASS")
+    for cname, cdata in r3_clearances["checks"].items():
+        print(f"  [{'PASS' if cdata['passed'] else 'FAIL'}] R3 {cname}")
     print(f"Fit table: {len(fit_rows) - len(fit_failed)}/{len(fit_rows)} PASS")
     print(f"GATE G2: {'PASS' if all_ok else 'FAIL'}")
     return 0 if all_ok else 1

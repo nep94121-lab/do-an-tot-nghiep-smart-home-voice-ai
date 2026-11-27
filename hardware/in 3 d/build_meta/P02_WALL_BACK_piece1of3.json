@@ -26,29 +26,25 @@
     0.0
   ],
   "local_bbox_max": [
-    118.45,
+    121.95,
     150.0,
     3.0
   ],
   "print_bbox_mm": [
-    118.45,
+    121.95,
     150.0,
     3.0
   ],
   "print_z_min": 0.0,
-  "volume_mm3": 50972.951,
+  "volume_mm3": 52588.553,
   "solids": 1,
   "valid": true,
   "engraved_ok": true,
-  "engrave_text": "P02 p1/3 | 118x150x3mm",
+  "engrave_text": "P02 p1/3 | 122x150x3mm",
   "dovetail_count": 2,
   "mortise_count": 0,
-  "stripped_fastener_holes": [
-    "DHT11_Mount_M3"
-  ],
+  "stripped_fastener_holes": [],
   "kept_functional_holes": [
-    "LED_Living_5mm",
-    "LED_Bedroom_5mm",
     "Cable_Rear_LR",
     "Cable_Rear_BR"
   ],
@@ -60,5 +56,5 @@
   ],
   "step_file": "parts/P02_WALL_BACK_piece1of3.step",
   "stl_file": "parts/P02_WALL_BACK_piece1of3.stl",
-  "stl_facets": 7000
+  "stl_facets": 6382
 }

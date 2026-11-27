@@ -10,15 +10,16 @@
     70.0
   ],
   "pcb_hole_dia_mm": 3.2,
+  "pcb_total_footprints": 51,
   "all_fit_passed": true,
   "rows": [
     {
       "part": "Hub PCB (Type 1)",
-      "source_of_dimension": "hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb (Edge.Cuts + 4x MountingHole_3.2mm)",
+      "source_of_dimension": "hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb (Edge.Cuts + 4x MountingHole_3.2mm, 51 footprints incl. C8/C9)",
       "board_size_mm": "100.0 x 80.0 x 1.6 (holes 90.0x70.0, Dia 3.2)",
       "mount_part": "SUP06_HUB_PCB_SNAP_CARRIER",
       "mount_inner_size_mm": "Frame 104.0x84.0, 4x split pegs OD 3.00 @ 90.0x70.0",
-      "clearance_mm": "0.20 mm dia (nearest component 7.9 mm)",
+      "clearance_mm": "0.20 mm dia (nearest 7.9 mm; C8 14.9 mm, C9 20.7 mm)",
       "holding_method": "4x split snap-fit pegs (0.25mm barb) + 4x SUP05B floor mortise tenons into P16",
       "status": "PASS"
     },
@@ -76,10 +77,10 @@
       "part": "DHT11 Temp/Humidity Breakout",
       "source_of_dimension": "mica_design.py + Aosong/DFRobot DHT11 datasheet",
       "board_size_mm": "28.0 x 14.0 x 7.1 (sensor 15.5 x 12.0)",
-      "mount_part": "SUP12_DHT11_SNAP_CRADLE + P02_WALL_BACK",
+      "mount_part": "SUP12_DHT11_SNAP_CRADLE + P06_WALL_MID",
       "mount_inner_size_mm": "Cavity 14.4 x 28.4, vent window 12.5x16.0",
-      "clearance_mm": "0.20 mm/side X, 0.20 mm/side Z",
-      "holding_method": "Edge-rail slide-in cradle locked via 2x integral 3x6x3 tenons into P02 mortises",
+      "clearance_mm": "0.20 mm/side Y, 0.20 mm/side Z",
+      "holding_method": "Edge-rail slide-in cradle locked via 2x integral 3x6x3 tenons into P06_WALL_MID mortises",
       "status": "PASS"
     },
     {
@@ -106,10 +107,10 @@
       "part": "LM393 Soil Comparator (YL-38)",
       "source_of_dimension": "mica_design.py + HandsOnTech Soil Sensor datasheet",
       "board_size_mm": "32.0 x 14.0 x 12.0",
-      "mount_part": "SUP14_LM393_SNAP_CRADLE + P12_GARDEN_FRONT",
+      "mount_part": "SUP14_LM393_SNAP_CRADLE + P13_GARDEN_BACK",
       "mount_inner_size_mm": "Cavity 32.4 x 14.4",
       "clearance_mm": "0.20 mm/side X, 0.20 mm/side Z",
-      "holding_method": "Exterior edge-rail cradle locked via 2x integral 3x6x3 tenons into P12 mortises",
+      "holding_method": "Dry exterior rear edge-rail cradle locked via 2x integral 3x6x3 tenons into P13 mortises",
       "status": "PASS"
     },
     {

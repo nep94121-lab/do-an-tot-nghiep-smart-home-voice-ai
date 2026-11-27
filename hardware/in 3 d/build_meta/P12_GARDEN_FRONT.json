@@ -36,16 +36,14 @@
     3.0
   ],
   "print_z_min": 0.0,
-  "volume_mm3": 19310.844,
+  "volume_mm3": 19435.584,
   "solids": 1,
   "valid": true,
   "engraved_ok": true,
   "engrave_text": "P12 | 130x57x3mm",
   "dovetail_count": 0,
-  "mortise_count": 2,
-  "stripped_fastener_holes": [
-    "LM393_Mount_M3"
-  ],
+  "mortise_count": 0,
+  "stripped_fastener_holes": [],
   "kept_functional_holes": [],
   "bed_fit": true,
   "color_rgb": [
@@ -55,5 +53,5 @@
   ],
   "step_file": "parts/P12_GARDEN_FRONT.step",
   "stl_file": "parts/P12_GARDEN_FRONT.stl",
-  "stl_facets": 4472
+  "stl_facets": 4432
 }

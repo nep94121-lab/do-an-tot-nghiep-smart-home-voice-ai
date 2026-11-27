@@ -190,6 +190,8 @@ def place_support_in_world(shape: Any, meta: dict[str, Any], pl: dict[str, Any])
         rot_hint = meta.get("print_rotation_for_world", "rot_x_90")
         angle = -90.0 if rot_hint == "rot_x_-90" else 90.0
         s.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1, 0, 0), angle)
+        if abs(rot_z) > 1e-6:
+            s.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(0, 0, 1), rot_z)
         s.translate(FreeCAD.Vector(x, y, z))
         return [(pid, s)]
 
@@ -288,7 +290,7 @@ def build_real_kicad_pcb_world_solid(pcb: pcb_ssot.PcbSpec) -> tuple[Any, list[t
     ]
     board = board.cut(Part.makeCompound(holes)).removeSplitter()
 
-    # Build top-side keepout prisms for NodeMCU sockets & terminal blocks (proves carrier never hits components)
+    # Build top-side keepout prisms for NodeMCU sockets, terminal blocks & on-board capacitors (C1-C9)
     keepouts: list[tuple[str, Any]] = []
     for kp in pcb.keepouts:
         fp_l = kp.footprint.lower()
@@ -296,6 +298,12 @@ def build_real_kicad_pcb_world_solid(pcb: pcb_ssot.PcbSpec) -> tuple[Any, list[t
             keepouts.append((f"PCB_{kp.ref}", Part.makeBox(2.6, 38.2, 8.5, FreeCAD.Vector(x0 + kp.x_mm - 1.3, y0 + kp.y_mm - 19.1, z0 + t))))
         elif "terminalblock" in fp_l:
             keepouts.append((f"PCB_{kp.ref}", Part.makeBox(10.0, 10.0, 10.0, FreeCAD.Vector(x0 + kp.x_mm - 5.0, y0 + kp.y_mm - 5.0, z0 + t))))
+        elif "cp_radial" in fp_l:
+            rad = 4.0 if "d8.0" in fp_l else (3.15 if "d6.3" in fp_l else 2.5)
+            h_cap = 11.5 if "d8.0" in fp_l else 11.0
+            keepouts.append((f"PCB_{kp.ref}", Part.makeCylinder(rad, h_cap, FreeCAD.Vector(x0 + kp.x_mm, y0 + kp.y_mm, z0 + t))))
+        elif "c_disc" in fp_l:
+            keepouts.append((f"PCB_{kp.ref}", Part.makeBox(5.0, 2.6, 6.0, FreeCAD.Vector(x0 + kp.x_mm - 2.5, y0 + kp.y_mm - 1.3, z0 + t))))
     return board, keepouts
 
 

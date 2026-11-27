@@ -779,7 +779,7 @@ def _build_wall_cradle(sup: pd_mod.SupportSpec) -> tuple[Any, dict[str, Any]]:
         rot_hint = "rot_x_90"
     else:
         eng_spec = pd_mod.EngraveSpec("SUP14", "", 9.4, oy / 2.0, 1.9, True)
-        rot_hint = "rot_x_-90"
+        rot_hint = "rot_x_90"
 
     shape, eng_ok = cc.safe_engrave_top_face(shape, eng_spec, frame_t, 0.40)
 
