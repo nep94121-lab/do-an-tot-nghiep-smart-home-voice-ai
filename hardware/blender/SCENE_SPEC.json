@@ -1,7 +1,11 @@
 {
-  "schema_version": "3.1",
+  "schema_version": "3.2",
   "architecture": "pcb_direct_no_breadboard",
   "breadboard_used": false,
+  "furniture_removed": true,
+  "wall_thinning_mm": 2.2,
+  "honeycomb_cutouts_enabled": true,
+  "honeycomb_cutout_count": 139,
   "routed_wires_count": 40,
   "authoritative_module_count": 14,
   "contract_node_count": 20,
@@ -499,6 +503,28 @@
     "ac",
     "ir_vs1838b",
     "ir_led_940nm",
-    "breadboard"
+    "breadboard",
+    "LivingSofa",
+    "LivingPillow",
+    "CoffeeTable",
+    "BedFrame",
+    "BedHeadboard",
+    "BedMattress",
+    "BedDuvet",
+    "BedPillow",
+    "Nightstand",
+    "GardenStem",
+    "GardenFoliage"
+  ],
+  "removed_furniture_ids": [
+    "FUR01_SOFA",
+    "FUR02_TV_STAND",
+    "FUR03_TV_SCREEN",
+    "FUR04_BED",
+    "FUR05_BEDSIDE_TABLE",
+    "FUR06_PLANT_POT_LARGE",
+    "FUR07_MINI_TREE",
+    "FUR08_PLANT_POT_SMALL",
+    "FUR09_FLOOR_TENON_PEG"
   ]
 }

@@ -35,6 +35,7 @@ CAT_COLORS = {
     "relay":    (14, 165, 233),   # Sky cyan (Relays 1/2 / Switched outputs)
     "garden":   (16, 185, 129),   # Teal-green (Pump / Soil / LM393)
     "sensor":   (244, 114, 182),  # Pink-rose (DHT11 / KY-037)
+    "struct":   (148, 163, 184),  # Cool slate (Lightweight honeycomb / Closed tech bay)
 }
 
 
@@ -232,11 +233,85 @@ def render_labeled_image(
     print(f"[LABEL] Wrote {out_path} ({out_path.stat().st_size} bytes, {len(placed)} Vietnamese labels)")
 
 
+def render_hw14_labels(proj_json: pathlib.Path, out_dir: pathlib.Path) -> int:
+    data = json.loads(proj_json.read_text(encoding="utf-8"))
+    views = data["views"]
+    footer_hw14 = (
+        "Smart Home Voice AI (HW14 Giảm Nhựa) · Vách tổ ong 2,2 mm · Khoang Rơ-le/Nguồn đóng kín · "
+        "0 nội thất trang trí · 14 mô-đun · 40 dây ≤ 30 cm · 0 vít/keo/breadboard"
+    )
+
+    # 1. HW14 Isometric Overview (Lightweight walls + 0 furniture + closed tech bay + all 14 modules)
+    render_labeled_image(
+        pathlib.Path(views["overview_lightweight"]["raw_png"]),
+        out_dir / "hw14_blender_overview_lightweight.png",
+        "Tổng Quan 3D Nhà Thông Minh Giảm Nhựa — Vách Tổ Ong 2,2 mm & 0 Nội Thất Trang Trí",
+        "Loại bỏ toàn bộ nội thất/cây trang trí · Khoét tổ ong vách không chịu lực (P02/P03/P04/P06) · Giữ kín khoang Rơ-le/Nguồn & 14 mô-đun",
+        [
+            ("Wall_Honeycomb_Cutout", "Vách tổ ong 2,2 mm (khung gờ 3,0 mm · P02/P03)",  "struct",  "left"),
+            ("SG90_DoorServo",        "1. Servo SG90 đồng trục cửa chính (D1 · J3)",       "servo",   "left"),
+            ("main_door_leaf",        "Cửa chính 56×100 mm (trục đồng trục P07/SUP10)",    "coupler", "left"),
+            ("sensor_mic_ky037",      "6. Cảm biến âm thanh KY-037 (D5 · J15)",            "sensor",  "left"),
+            ("nodemcu_esp8266",       "NodeMCU ESP8266 v2 Amica (U1/U2)",                  "pcb",     "left"),
+            ("kicad_pcb_hub",         "PCB Hub DIY v3 (100×80 mm · 0 breadboard)",         "pcb",     "left"),
+            ("psu_5v_dc_jack",        "2. Nguồn 5V 2A · Giắc DC-022 → J1 (W01–W02)",       "power",   "left"),
+            ("TechBay_Closed_Safety", "Khoang kỹ thuật P15/P01A/P05 đóng kín an toàn",     "struct",  "left"),
+            ("sensor_dht11",          "7. Cảm biến nhiệt/ẩm DHT11 (D2 · J13)",             "sensor",  "right"),
+            ("led_living_room",       "3. Đèn LED 5mm Phòng khách (D0 · J4)",              "light",   "right"),
+            ("led_bedroom",           "4. Đèn LED 5mm Phòng ngủ (D4 · J5)",                "light",   "right"),
+            ("buzzer_alarm",          "5. Còi báo động 5V TMB12A05 (D8 · J6)",             "audio",   "right"),
+            ("soil_lm393_board",      "8. Mạch so sánh độ ẩm đất LM393 (A0 · J14)",        "garden",  "right"),
+            ("relay1_pump",           "13. Rơ-le 1 Bơm (D6 · J7/J8)",                      "relay",   "right"),
+            ("relay2_speaker",        "14. Rơ-le 2 Loa (D7 · J9/J10)",                     "relay",   "right"),
+            ("pump_unit",             "10. Máy bơm chìm 5V + Ống nước tưới (J2)",          "garden",  "right"),
+            ("sensor_soil",           "9. Đầu dò độ ẩm đất YL-69 (chậu đất P14)",          "garden",  "right"),
+            ("pam8403_module",        "12. Mạch khuếch đại PAM8403 (J11/J12)",             "audio",   "right"),
+            ("speaker_mini",          "11. Loa tròn mini 28 mm (8Ω · mặt trước P15)",      "audio",   "right"),
+        ],
+        views["overview_lightweight"]["points"],
+        footer_hw14,
+    )
+
+    # 2. HW14 Cutaway 14 Modules + NodeMCU + Hub PCB + 40 Wires
+    render_labeled_image(
+        pathlib.Path(views["cutaway_14modules"]["raw_png"]),
+        out_dir / "hw14_blender_cutaway_14modules.png",
+        "Mặt Cắt Toàn Phần 14 Mô-Đun, NodeMCU v2, PCB Hub & 40 Dây Nối 3D Thực Tế (≤ 30 cm)",
+        "Không gian phòng sạch hoàn toàn (0 nội thất trang trí) · Hiển thị rõ toàn bộ 14 mô-đun, 40 dây & cơ cấu cửa SG90 đồng trục",
+        [
+            ("sensor_dht11",     "7. Cảm biến nhiệt/ẩm DHT11 (D2 · J13)",            "sensor",  "left"),
+            ("led_living_room",  "3. Đèn LED 5mm Phòng khách (D0 · SUP17)",          "light",   "left"),
+            ("SG90_DoorServo",   "1. Servo SG90 đỉnh cửa đồng trục (D1 · J3)",       "servo",   "left"),
+            ("sensor_mic_ky037", "6. Cảm biến âm thanh KY-037 (D5 · J15)",           "sensor",  "left"),
+            ("nodemcu_esp8266",  "NodeMCU ESP8266 v2 Amica (U1/U2)",                 "pcb",     "left"),
+            ("kicad_pcb_hub",    "PCB Hub DIY v3 (100×80 mm · 51 linh kiện)",        "pcb",     "left"),
+            ("PCB_J1_Input",     "Cầu đấu J1: Nguồn vào +5V / GND (từ DC-022)",      "power",   "left"),
+            ("psu_5v_dc_jack",   "2. Nguồn 5V 2A + Giắc DC-022 & SUP16",             "power",   "left"),
+            ("led_bedroom",      "4. Đèn LED 5mm Phòng ngủ (D4 · SUP17)",            "light",   "right"),
+            ("buzzer_alarm",     "5. Còi báo động 5V TMB12A05 (D8 · SUP18)",         "audio",   "right"),
+            ("soil_lm393_board", "8. Mạch so sánh đất LM393 (A0 · J14)",             "garden",  "right"),
+            ("relay1_pump",      "13. Rơ-le 1 Bơm (D6 · Ngõ ra J2/J8)",              "relay",   "right"),
+            ("relay2_speaker",   "14. Rơ-le 2 Loa (D7 · Ngõ ra J10/J11)",            "relay",   "right"),
+            ("pump_unit",        "10. Máy bơm chìm 5V + Ống silicone (J2)",          "garden",  "right"),
+            ("sensor_soil",      "9. Đầu dò độ ẩm đất YL-69 (trên cầu P14)",         "garden",  "right"),
+            ("pam8403_module",   "12. Mạch loa PAM8403 3W Class-D (J11/J12)",        "audio",   "right"),
+            ("speaker_mini",     "11. Loa tròn mini 28 mm (8Ω · mặt trước P15)",     "audio",   "right"),
+        ],
+        views["cutaway_14modules"]["points"],
+        footer_hw14,
+    )
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--proj-json", type=pathlib.Path, default=PROJ_JSON)
     ap.add_argument("--out-dir", type=pathlib.Path, required=True)
+    ap.add_argument("--mode", choices=("hw13", "hw14"), default="hw13")
     args = ap.parse_args()
+
+    if args.mode == "hw14":
+        return render_hw14_labels(args.proj_json, args.out_dir)
 
     data = json.loads(args.proj_json.read_text(encoding="utf-8"))
     views = data["views"]

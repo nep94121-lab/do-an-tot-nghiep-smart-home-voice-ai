@@ -163,6 +163,7 @@ window.SmartHome3D = (() => {
     ky037Mats: [],
     pinBindings: [],
     boundNodes: [],
+    furnitureNodes: [],
   };
 
   // Hệ thống Đường Dây Điện 3D nối từ PCB Hub DIY v3 (40 dây thực tế từ wiring_contract.json — KHÔNG Breadboard)
@@ -252,6 +253,7 @@ window.SmartHome3D = (() => {
     glbHandles.ky037Mats = [];
     glbHandles.pinBindings = [];
     glbHandles.boundNodes = [];
+    glbHandles.furnitureNodes = [];
     glbWireEntries.length = 0;
     contractWireEntries.length = 0;
     Object.keys(contractWireMetaById).forEach((k) => delete contractWireMetaById[k]);
@@ -1370,6 +1372,13 @@ window.SmartHome3D = (() => {
     return boundCount;
   }
 
+  function isDecorativeFurnitureNode(node) {
+    if (!node) return false;
+    if (node.userData && node.userData.isFurniture) return true;
+    const n = String(node.name || "");
+    return /^(?:FUR\d{2}_|Furniture|Decor)/i.test(n);
+  }
+
   function buildGroundAndLoadBlenderVilla() {
     // Mặt đất sân vườn bên ngoài
     const groundGeo = new THREE.PlaneGeometry(34, 30);
@@ -1393,8 +1402,12 @@ window.SmartHome3D = (() => {
         (gltf) => {
           const villaRoot = gltf.scene;
           activeVillaRoot = villaRoot;
+          glbHandles.furnitureNodes = [];
           if (villaRoot && typeof villaRoot.traverse === "function") {
             villaRoot.traverse((child) => {
+              if (isDecorativeFurnitureNode(child)) {
+                glbHandles.furnitureNodes.push(child.name || "furniture");
+              }
               if (child.isMesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
@@ -1510,98 +1523,6 @@ window.SmartHome3D = (() => {
     const beamBed = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.12, 0.22), wallTrimMat);
     beamBed.position.set(2.9, 3.35, -0.3);
     scene.add(beamBed);
-
-    buildFurniture();
-  }
-
-  function buildFurniture() {
-    // 1. Thảm phòng khách
-    const rug = new THREE.Mesh(
-      new THREE.BoxGeometry(3.2, 0.03, 2.4),
-      new THREE.MeshStandardMaterial({ color: 0x1e3a5f, roughness: 0.9 })
-    );
-    rug.position.set(-2.6, 0.06, -0.8);
-    rug.receiveShadow = true;
-    scene.add(rug);
-
-    // 2. Ghế Sofa phòng khách
-    const sofaGroup = new THREE.Group();
-    const sofaMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.6 });
-    const sofaSeat = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.42, 0.95), sofaMat);
-    sofaSeat.position.set(0, 0.26, 0);
-    sofaSeat.castShadow = true;
-    sofaSeat.receiveShadow = true;
-    sofaGroup.add(sofaSeat);
-
-    const sofaBack = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.85, 0.22), sofaMat);
-    sofaBack.position.set(0, 0.48, -0.38);
-    sofaBack.castShadow = true;
-    sofaGroup.add(sofaBack);
-
-    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.62, 0.95), sofaMat);
-    armL.position.set(-1.2, 0.36, 0);
-    sofaGroup.add(armL);
-    const armR = armL.clone();
-    armR.position.x = 1.2;
-    sofaGroup.add(armR);
-
-    sofaGroup.position.set(-2.6, 0.05, -2.2);
-    scene.add(sofaGroup);
-
-    // 3. Bàn trà phòng khách
-    const tableTop = new THREE.Mesh(
-      new THREE.BoxGeometry(1.5, 0.08, 0.8),
-      new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.3 })
-    );
-    tableTop.position.set(-2.6, 0.45, -0.75);
-    tableTop.castShadow = true;
-    scene.add(tableTop);
-
-    const tableBase = new THREE.Mesh(
-      new THREE.BoxGeometry(1.2, 0.38, 0.55),
-      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 })
-    );
-    tableBase.position.set(-2.6, 0.24, -0.75);
-    scene.add(tableBase);
-
-    // 4. Giường ngủ
-    const bedGroup = new THREE.Group();
-    const woodMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.7 });
-    const mattressMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.6 });
-    const blanketMat = new THREE.MeshStandardMaterial({ color: 0x6366f1, roughness: 0.65 });
-
-    const bedFrame = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.32, 2.9), woodMat);
-    bedFrame.position.set(0, 0.21, 0);
-    bedFrame.castShadow = true;
-    bedGroup.add(bedFrame);
-
-    const headboard = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.25, 0.18), woodMat);
-    headboard.position.set(0, 0.68, -1.38);
-    headboard.castShadow = true;
-    bedGroup.add(headboard);
-
-    const mattress = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.28, 2.65), mattressMat);
-    mattress.position.set(0, 0.45, 0.05);
-    mattress.receiveShadow = true;
-    bedGroup.add(mattress);
-
-    const blanket = new THREE.Mesh(new THREE.BoxGeometry(2.32, 0.3, 1.75), blanketMat);
-    blanket.position.set(0, 0.46, 0.5);
-    bedGroup.add(blanket);
-
-    const pillow1 = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.16, 0.48), mattressMat);
-    pillow1.position.set(-0.55, 0.64, -0.92);
-    bedGroup.add(pillow1);
-    const pillow2 = pillow1.clone();
-    pillow2.position.x = 0.55;
-    bedGroup.add(pillow2);
-
-    bedGroup.position.set(3.0, 0.05, -1.7);
-    scene.add(bedGroup);
-
-    const nightStand = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.58, 0.58), woodMat);
-    nightStand.position.set(1.25, 0.34, -2.8);
-    scene.add(nightStand);
   }
 
   function buildSmartDevices() {
@@ -3426,6 +3347,8 @@ window.SmartHome3D = (() => {
       contractWireCount: contractWireEntries.length,
       wiresVisible: Boolean(wiringDisplayState.visible),
       breadboardUsed: false,
+      furnitureRemoved: glbHandles.furnitureNodes.length === 0,
+      furnitureNodesCount: glbHandles.furnitureNodes.length,
     };
   }
 

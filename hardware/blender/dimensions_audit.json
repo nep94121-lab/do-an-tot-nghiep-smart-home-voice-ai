@@ -1,0 +1,1144 @@
+{
+  "schema_version": "2.0",
+  "ssot_source": "hardware/component_dimensions_ssot.py",
+  "kicad_pcb": {
+    "board_mm": [
+      100.0,
+      80.0,
+      1.6
+    ],
+    "hole_pitch_xy_mm": [
+      90.0,
+      70.0
+    ],
+    "hole_dia_mm": 3.2,
+    "footprint_count": 51,
+    "u1_u2_row_spacing_mm": 22.86,
+    "has_onboard_c8": true,
+    "has_onboard_c9": true,
+    "by_ref": {
+      "H1": {
+        "ref": "H1",
+        "footprint": "DIY_Hub:MountingHole_3.2mm_M3_DIY",
+        "at_xy": [
+          55.0,
+          50.0
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 1,
+        "drills_mm": [
+          3.2
+        ],
+        "min_pitch_mm": null
+      },
+      "H2": {
+        "ref": "H2",
+        "footprint": "DIY_Hub:MountingHole_3.2mm_M3_DIY",
+        "at_xy": [
+          145.0,
+          50.0
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 1,
+        "drills_mm": [
+          3.2
+        ],
+        "min_pitch_mm": null
+      },
+      "H3": {
+        "ref": "H3",
+        "footprint": "DIY_Hub:MountingHole_3.2mm_M3_DIY",
+        "at_xy": [
+          55.0,
+          120.0
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 1,
+        "drills_mm": [
+          3.2
+        ],
+        "min_pitch_mm": null
+      },
+      "H4": {
+        "ref": "H4",
+        "footprint": "DIY_Hub:MountingHole_3.2mm_M3_DIY",
+        "at_xy": [
+          145.0,
+          120.0
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 1,
+        "drills_mm": [
+          3.2
+        ],
+        "min_pitch_mm": null
+      },
+      "U1": {
+        "ref": "U1",
+        "footprint": "DIY_Hub:PinSocket_1x15_P2.54mm_DIY",
+        "at_xy": [
+          87.0,
+          66.0
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 15,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "U2": {
+        "ref": "U2",
+        "footprint": "DIY_Hub:PinSocket_1x15_P2.54mm_DIY",
+        "at_xy": [
+          109.86,
+          66.0
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 15,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "J2": {
+        "ref": "J2",
+        "footprint": "DIY_Hub:TerminalBlock_MKDS_1x02_P5.08mm_DIY",
+        "at_xy": [
+          59.0,
+          67.0
+        ],
+        "rot_deg": -90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          1.3
+        ],
+        "min_pitch_mm": 5.08
+      },
+      "D1": {
+        "ref": "D1",
+        "footprint": "DIY_Hub:D_DO41_P10.16mm_DIY",
+        "at_xy": [
+          66.5,
+          67.0
+        ],
+        "rot_deg": -90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 10.16
+      },
+      "J8": {
+        "ref": "J8",
+        "footprint": "DIY_Hub:PinHeader_1x02_P2.54mm_DIY",
+        "at_xy": [
+          73.5,
+          69.54
+        ],
+        "rot_deg": 180.0,
+        "pad_count": 2,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "J1": {
+        "ref": "J1",
+        "footprint": "DIY_Hub:TerminalBlock_MKDS_1x02_P5.08mm_DIY",
+        "at_xy": [
+          59.0,
+          98.5
+        ],
+        "rot_deg": -90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          1.3
+        ],
+        "min_pitch_mm": 5.08
+      },
+      "C1": {
+        "ref": "C1",
+        "footprint": "DIY_Hub:CP_Radial_D8.0mm_P3.50mm_DIY",
+        "at_xy": [
+          73.5,
+          82.5
+        ],
+        "rot_deg": 180.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 3.5
+      },
+      "C2": {
+        "ref": "C2",
+        "footprint": "DIY_Hub:CP_Radial_D8.0mm_P3.50mm_DIY",
+        "at_xy": [
+          73.5,
+          92.5
+        ],
+        "rot_deg": 180.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 3.5
+      },
+      "C3": {
+        "ref": "C3",
+        "footprint": "DIY_Hub:C_Disc_D5.0mm_P5.00mm_DIY",
+        "at_xy": [
+          79.0,
+          101.56
+        ],
+        "rot_deg": 90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 5.0
+      },
+      "R8": {
+        "ref": "R8",
+        "footprint": "DIY_Hub:R_Axial_P10.16mm_DIY",
+        "at_xy": [
+          72.0,
+          108.0
+        ],
+        "rot_deg": 180.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 10.16
+      },
+      "D3": {
+        "ref": "D3",
+        "footprint": "DIY_Hub:LED_D3.0mm_P5.08mm_DIY",
+        "at_xy": [
+          57.5,
+          112.5
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 5.08
+      },
+      "J14": {
+        "ref": "J14",
+        "footprint": "DIY_Hub:PinHeader_1x03_P2.54mm_DIY",
+        "at_xy": [
+          66.5,
+          54.0
+        ],
+        "rot_deg": 90.0,
+        "pad_count": 3,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "C8": {
+        "ref": "C8",
+        "footprint": "DIY_Hub:C_Disc_D5.0mm_P5.00mm_DIY",
+        "at_xy": [
+          66.5,
+          59.5
+        ],
+        "rot_deg": 180.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 5.0
+      },
+      "C7": {
+        "ref": "C7",
+        "footprint": "DIY_Hub:C_Disc_D5.0mm_P5.00mm_DIY",
+        "at_xy": [
+          76.5,
+          58.5
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 5.0
+      },
+      "J4": {
+        "ref": "J4",
+        "footprint": "DIY_Hub:PinHeader_1x02_P2.54mm_DIY",
+        "at_xy": [
+          90.5,
+          54.0
+        ],
+        "rot_deg": 90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "R1": {
+        "ref": "R1",
+        "footprint": "DIY_Hub:R_Axial_P10.16mm_DIY",
+        "at_xy": [
+          104.0,
+          59.5
+        ],
+        "rot_deg": 180.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 10.16
+      },
+      "J3": {
+        "ref": "J3",
+        "footprint": "DIY_Hub:PinHeader_1x03_P2.54mm_DIY",
+        "at_xy": [
+          108.0,
+          54.0
+        ],
+        "rot_deg": 90.0,
+        "pad_count": 3,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "J13": {
+        "ref": "J13",
+        "footprint": "DIY_Hub:PinHeader_1x03_P2.54mm_DIY",
+        "at_xy": [
+          131.58,
+          52.5
+        ],
+        "rot_deg": -90.0,
+        "pad_count": 3,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "R3": {
+        "ref": "R3",
+        "footprint": "DIY_Hub:R_Axial_P10.16mm_DIY",
+        "at_xy": [
+          126.0,
+          60.9
+        ],
+        "rot_deg": 180.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 10.16
+      },
+      "J5": {
+        "ref": "J5",
+        "footprint": "DIY_Hub:PinHeader_1x02_P2.54mm_DIY",
+        "at_xy": [
+          141.0,
+          63.0
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 2,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "R2": {
+        "ref": "R2",
+        "footprint": "DIY_Hub:R_Axial_P10.16mm_DIY",
+        "at_xy": [
+          126.0,
+          64.2
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 10.16
+      },
+      "R7": {
+        "ref": "R7",
+        "footprint": "DIY_Hub:R_Axial_P10.16mm_DIY",
+        "at_xy": [
+          126.0,
+          67.5
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 10.16
+      },
+      "J15": {
+        "ref": "J15",
+        "footprint": "DIY_Hub:PinHeader_1x03_P2.54mm_DIY",
+        "at_xy": [
+          141.0,
+          78.0
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 3,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "J7": {
+        "ref": "J7",
+        "footprint": "DIY_Hub:PinHeader_1x03_P2.54mm_DIY",
+        "at_xy": [
+          141.0,
+          96.58
+        ],
+        "rot_deg": 180.0,
+        "pad_count": 3,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "J9": {
+        "ref": "J9",
+        "footprint": "DIY_Hub:PinHeader_1x03_P2.54mm_DIY",
+        "at_xy": [
+          141.0,
+          109.58
+        ],
+        "rot_deg": 180.0,
+        "pad_count": 3,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "J10": {
+        "ref": "J10",
+        "footprint": "DIY_Hub:PinHeader_1x02_P2.54mm_DIY",
+        "at_xy": [
+          66.5,
+          116.5
+        ],
+        "rot_deg": 90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "C9": {
+        "ref": "C9",
+        "footprint": "DIY_Hub:CP_Radial_D6.3mm_P3.50mm_DIY",
+        "at_xy": [
+          74.0,
+          111.8
+        ],
+        "rot_deg": -90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 3.5
+      },
+      "J11": {
+        "ref": "J11",
+        "footprint": "DIY_Hub:PinHeader_1x02_P2.54mm_DIY",
+        "at_xy": [
+          79.0,
+          116.5
+        ],
+        "rot_deg": 90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "C6": {
+        "ref": "C6",
+        "footprint": "DIY_Hub:C_Disc_D5.0mm_P5.00mm_DIY",
+        "at_xy": [
+          83.5,
+          110.5
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 5.0
+      },
+      "R4": {
+        "ref": "R4",
+        "footprint": "DIY_Hub:R_Axial_P10.16mm_DIY",
+        "at_xy": [
+          93.0,
+          73.62
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 10.16
+      },
+      "C4": {
+        "ref": "C4",
+        "footprint": "DIY_Hub:CP_Radial_D5.0mm_P3.50mm_DIY",
+        "at_xy": [
+          93.5,
+          110.5
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 3.5
+      },
+      "R5": {
+        "ref": "R5",
+        "footprint": "DIY_Hub:R_Axial_P10.16mm_DIY",
+        "at_xy": [
+          100.0,
+          108.5
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 10.16
+      },
+      "R6": {
+        "ref": "R6",
+        "footprint": "DIY_Hub:R_Axial_P10.16mm_DIY",
+        "at_xy": [
+          110.16,
+          112.2
+        ],
+        "rot_deg": 180.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 10.16
+      },
+      "C5": {
+        "ref": "C5",
+        "footprint": "DIY_Hub:C_Disc_D5.0mm_P5.00mm_DIY",
+        "at_xy": [
+          110.0,
+          116.5
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 5.0
+      },
+      "J12": {
+        "ref": "J12",
+        "footprint": "DIY_Hub:PinHeader_1x02_P2.54mm_DIY",
+        "at_xy": [
+          103.5,
+          116.5
+        ],
+        "rot_deg": 90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "R9": {
+        "ref": "R9",
+        "footprint": "DIY_Hub:R_Axial_P10.16mm_DIY",
+        "at_xy": [
+          125.5,
+          94.8
+        ],
+        "rot_deg": 180.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 10.16
+      },
+      "R10": {
+        "ref": "R10",
+        "footprint": "DIY_Hub:R_Axial_P10.16mm_DIY",
+        "at_xy": [
+          125.5,
+          98.5
+        ],
+        "rot_deg": -90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 10.16
+      },
+      "Q1": {
+        "ref": "Q1",
+        "footprint": "DIY_Hub:TO-92_Wide_DIY",
+        "at_xy": [
+          119.0,
+          114.5
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 3,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 3.592
+      },
+      "D2": {
+        "ref": "D2",
+        "footprint": "DIY_Hub:D_DO41_P10.16mm_DIY",
+        "at_xy": [
+          130.5,
+          102.9
+        ],
+        "rot_deg": -90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 10.16
+      },
+      "J6": {
+        "ref": "J6",
+        "footprint": "DIY_Hub:PinHeader_1x02_P2.54mm_DIY",
+        "at_xy": [
+          135.0,
+          117.0
+        ],
+        "rot_deg": -90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          1.1
+        ],
+        "min_pitch_mm": 2.54
+      },
+      "JP1": {
+        "ref": "JP1",
+        "footprint": "DIY_Hub:WireJumper_P12.70mm_DIY",
+        "at_xy": [
+          93.0,
+          78.7
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 12.7
+      },
+      "JP2": {
+        "ref": "JP2",
+        "footprint": "DIY_Hub:WireJumper_P17.78mm_DIY",
+        "at_xy": [
+          90.5,
+          63.0
+        ],
+        "rot_deg": 180.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 17.78
+      },
+      "JP3": {
+        "ref": "JP3",
+        "footprint": "DIY_Hub:WireJumper_P7.62mm_DIY",
+        "at_xy": [
+          126.0,
+          78.3
+        ],
+        "rot_deg": 90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 7.62
+      },
+      "JP4": {
+        "ref": "JP4",
+        "footprint": "DIY_Hub:WireJumper_P35.56mm_DIY",
+        "at_xy": [
+          86.5,
+          105.0
+        ],
+        "rot_deg": 0.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 35.56
+      },
+      "JP5": {
+        "ref": "JP5",
+        "footprint": "DIY_Hub:WireJumper_P12.70mm_DIY",
+        "at_xy": [
+          135.5,
+          109.28
+        ],
+        "rot_deg": 90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 12.7
+      },
+      "JP6": {
+        "ref": "JP6",
+        "footprint": "DIY_Hub:WireJumper_P20.32mm_DIY",
+        "at_xy": [
+          135.5,
+          92.0
+        ],
+        "rot_deg": 90.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 20.32
+      },
+      "JP7": {
+        "ref": "JP7",
+        "footprint": "DIY_Hub:WireJumper_P25.40mm_DIY",
+        "at_xy": [
+          135.5,
+          57.7
+        ],
+        "rot_deg": 180.0,
+        "pad_count": 2,
+        "drills_mm": [
+          0.9
+        ],
+        "min_pitch_mm": 25.4
+      }
+    }
+  },
+  "scene_spec_version": "3.2",
+  "house3d_bindings": {
+    "loads_villa_glb": true,
+    "loads_scene_spec": true,
+    "hides_fallback_breadboard_on_glb": true,
+    "bound_glb_nodes": [
+      "SG90_DoorServo",
+      "SG90_WhiteHorn",
+      "buzzer_alarm",
+      "door_pivot",
+      "kicad_pcb_hub",
+      "led_bedroom",
+      "led_living_room",
+      "main_door_leaf",
+      "nodemcu_esp8266",
+      "pam8403_module",
+      "psu_5v_dc_jack",
+      "pump_unit",
+      "relay1_pump",
+      "relay2_speaker",
+      "sensor_dht11",
+      "sensor_mic_ky037",
+      "sensor_soil",
+      "sg90_horn_pivot",
+      "soil_lm393_board",
+      "speaker_mini",
+      "water_tube"
+    ]
+  },
+  "mica_clearance": {
+    "hardware_count": 17,
+    "checked_pairs": 135,
+    "excluded_mated_pairs": [
+      [
+        "HW_PCB",
+        "HW_NODEMCU"
+      ]
+    ],
+    "required_min_gap_mm": 15.0,
+    "measured_min_gap_mm": 18.0,
+    "closest_pair": [
+      "HW_RELAY1",
+      "HW_RELAY2"
+    ],
+    "violations": [],
+    "passed": true
+  },
+  "policy_checks": {
+    "nodemcu_v2_amica_verified": true,
+    "nodemcu_v3_lolin_incompatible_documented": true,
+    "zero_breadboard_kicad": true,
+    "zero_breadboard_blender": true,
+    "zero_breadboard_web_glb": true,
+    "onboard_c8_present": true,
+    "onboard_c9_present": true,
+    "kicad_footprint_count": 51,
+    "blender_routed_wires_count": 40,
+    "mica_clearance_passed": true,
+    "mica_min_gap_mm": 18.0
+  },
+  "summary": {
+    "total_components": 26,
+    "ok_count": 14,
+    "fixed_count": 12,
+    "fail_count": 0,
+    "mismatches": [],
+    "overall_pass": true
+  },
+  "components": [
+    {
+      "component_id": "hub_pcb",
+      "component": "Central Hub DIY PCB v3 (100x80mm, 1-Layer B.Cu)",
+      "category": "pcb",
+      "datasheet_size": "100.00×80.00×1.60 mm (H=17.30); P=2.54; holes 90.0×70.0",
+      "kicad_footprint": "`Edge.Cuts` 100.0×80.0×1.6mm; H1–H4 Ø3.2 @ 90×70 (51 FPs)",
+      "web_3d": "GLB node `kicad_pcb_hub` (1:1 via `smarthome_villa.glb`)",
+      "blender": "100.0×17.3×80.0 mm (`kicad_pcb_hub`)",
+      "print_mount": "`SUP06_HUB_PCB_SNAP_CARRIER` (104.0×84.0×14.8mm; 4× Ø3.0mm snap pegs @ 90×70mm on `P16_PCB_PLATE`) @ `(122,104,20)`",
+      "status": "FIXED",
+      "tolerance_mm": 0.3,
+      "source_url": "https://www.iso.org/standard/4185.html"
+    },
+    {
+      "component_id": "nodemcu",
+      "component": "ESP8266 NodeMCU v2 Amica (CP2102)",
+      "category": "module",
+      "datasheet_size": "48.26×25.40×1.60 mm (H=7.14); P=2.54; holes 43.2×20.3",
+      "kicad_footprint": "`U1,U2` PinSocket_1x15 P=2.54mm, row=22.86mm (v2 Amica)",
+      "web_3d": "GLB node `nodemcu_esp8266` (1:1 via `smarthome_villa.glb`)",
+      "blender": "25.4×7.1×49.4 mm (`nodemcu_esp8266`)",
+      "print_mount": "`SUP06` + `P15_TECH_FASCIA` 128mm open USB cutaway (v2 Amica 22.86mm pitch only) @ `(122,104,31)`",
+      "status": "FIXED",
+      "tolerance_mm": 0.3,
+      "source_url": "https://components101.com/development-boards/nodemcu-esp8266-pinout-features-and-datasheet"
+    },
+    {
+      "component_id": "psu_5v",
+      "component": "5V 2A Power Supply + DC-022 Barrel Jack",
+      "category": "module",
+      "datasheet_size": "34.00×22.00×16.00 mm; P=5.08",
+      "kicad_footprint": "`J1` TerminalBlock_MKDS_1x02_P5.08mm_DIY (P=5.08 Ø1.3)",
+      "web_3d": "kicad_pcb_hub (J1) + psu_5v_dc_jack (1:1 via `smarthome_villa.glb`)",
+      "blender": "DC-022 Ø14×21mm (`psu_5v_dc_jack` on `P15`)",
+      "print_mount": "`SUP16_DC022_STRAIN_RELIEF` (32.0×16.4×16.5mm; `P15_TECH_FASCIA` M12 hole `Ø12.5mm` + rear snap strain-relief collar (0 screws)) @ `(30,20,22)`",
+      "status": "OK",
+      "tolerance_mm": 1.0,
+      "source_url": "https://www.adafruit.com/product/610"
+    },
+    {
+      "component_id": "sg90_servo",
+      "component": "SG90 9g Micro Servo (Main Door D1)",
+      "category": "module",
+      "datasheet_size": "22.80×12.20×22.50 mm (H=31.00); P=2.54",
+      "kicad_footprint": "`J3` PinHeader_1x03_P2.54mm_DIY (P=2.54 Ø1.1)",
+      "web_3d": "door_pivot / SG90_DoorServo (1:1 via `smarthome_villa.glb`)",
+      "blender": "22.8×22.5×12.2 mm (`sg90_servo_body`)",
+      "print_mount": "`SUP11_SG90_SNAP_SADDLE` (45.0×16.6×8.6mm; Coaxial top-jamb `P07_SERVO_SHELF` `23.3×12.7mm` + `SUP10`/`SUP10B` coupler (0 screws)) @ `(72,202,119)`",
+      "status": "FIXED",
+      "tolerance_mm": 1.0,
+      "source_url": "https://www.handsontec.com/dataspecs/SG90-Servo.pdf"
+    },
+    {
+      "component_id": "led_living",
+      "component": "5mm LED (Living Room, D0)",
+      "category": "module",
+      "datasheet_size": "5.80×5.80×8.60 mm; P=2.54",
+      "kicad_footprint": "`J4` PinHeader_1x02_P2.54mm_DIY (P=2.54 Ø1.1)",
+      "web_3d": "GLB node `led_living_room` (1:1 via `smarthome_villa.glb`)",
+      "blender": "8.6×5.8×5.8 mm (`led_5mm_body`)",
+      "print_mount": "`SUP17_LED5MM_RETAINING_COLLAR` (22.0×11.0×8.0mm; `P06_WALL_MID` `LED_Living_5mm` `Ø5.5mm` @ u=40, v=126 (0 screws)) @ `(197,232,126)`",
+      "status": "FIXED",
+      "tolerance_mm": 1.0,
+      "source_url": "https://www.kingbrightusa.com/images/catalog/spec/wp7113id.pdf"
+    },
+    {
+      "component_id": "led_bedroom",
+      "component": "5mm LED (Bedroom, D4 Active-LOW)",
+      "category": "module",
+      "datasheet_size": "5.80×5.80×8.60 mm; P=2.54",
+      "kicad_footprint": "`J5` PinHeader_1x02_P2.54mm_DIY (P=2.54 Ø1.1)",
+      "web_3d": "GLB node `led_bedroom` (1:1 via `smarthome_villa.glb`)",
+      "blender": "8.6×5.8×5.8 mm (`led_5mm_body`)",
+      "print_mount": "`SUP17_LED5MM_RETAINING_COLLAR` (22.0×11.0×8.0mm; `P06_WALL_MID` `LED_Bedroom_5mm` `Ø5.5mm` @ u=66, v=126 (0 screws)) @ `(203,258,126)`",
+      "status": "FIXED",
+      "tolerance_mm": 1.0,
+      "source_url": "https://www.kingbrightusa.com/images/catalog/spec/wp7113id.pdf"
+    },
+    {
+      "component_id": "relay1_pump",
+      "component": "Relay 1 (Blue 5V 1-ch Songle SRD-05VDC, D6)",
+      "category": "module",
+      "datasheet_size": "50.00×26.00×18.50 mm; P=2.54; holes 44.5×20.5",
+      "kicad_footprint": "`J7, J8` PinHeader_1x03_P2.54mm_DIY (P=2.54 Ø1.1)",
+      "web_3d": "GLB node `relay1_pump` (1:1 via `smarthome_villa.glb`)",
+      "blender": "50.0×18.5×26.0 mm (`relay1_pump`)",
+      "print_mount": "`SUP07_RELAY_SNAP_CADDY` (54.4×30.4×13.0mm; 4× Ø2.9mm snap pegs @ 44.5×20.5mm on `P01A`) @ `(226,136,17)`",
+      "status": "FIXED",
+      "tolerance_mm": 1.0,
+      "source_url": "https://www.reichelt.com/de/en/shop/product/developer_boards_-_relay_1_channel_srd-05vdc-sl-c-371953"
+    },
+    {
+      "component_id": "relay2_speaker",
+      "component": "Relay 2 (Red Opto 5V 1-ch PC817, Jumper=H, D7)",
+      "category": "module",
+      "datasheet_size": "50.00×26.00×18.50 mm; P=2.54; holes 44.5×20.5",
+      "kicad_footprint": "`J9, J10` PinHeader_1x03_P2.54mm_DIY (P=2.54 Ø1.1)",
+      "web_3d": "GLB node `relay2_speaker` (1:1 via `smarthome_villa.glb`)",
+      "blender": "50.0×18.5×26.0 mm (`relay2_speaker`)",
+      "print_mount": "`SUP07_RELAY_SNAP_CADDY` (54.4×30.4×13.0mm; 4× Ø2.9mm snap pegs @ 44.5×20.5mm on `P01A`) @ `(226,92,17)`",
+      "status": "FIXED",
+      "tolerance_mm": 1.0,
+      "source_url": "https://www.electrokit.com/en/rela-srd-1-pol-vaxlande-5v"
+    },
+    {
+      "component_id": "pump_unit",
+      "component": "Mini Submersible Water Pump (3-6V DC)",
+      "category": "module",
+      "datasheet_size": "45.00×24.00×33.00 mm; P=5.08",
+      "kicad_footprint": "`J2` TerminalBlock_MKDS_1x02_P5.08mm_DIY (P=5.08 Ø1.3)",
+      "web_3d": "GLB node `pump_unit` (1:1 via `smarthome_villa.glb`)",
+      "blender": "24.0×33.0×45.0 mm (`pump_unit`)",
+      "print_mount": "Free-standing inside `P09/P10/P12/P13` water tank (52×126×54mm) + `Ø10.0mm` tube hole @ `(292,89,16)`",
+      "status": "OK",
+      "tolerance_mm": 1.0,
+      "source_url": "https://www.mouser.lt/datasheet/2/1398/Soldered_101844_mini_water_pump-3532437.pdf"
+    },
+    {
+      "component_id": "buzzer_alarm",
+      "component": "Active 5V Buzzer (TMB12A05, D8)",
+      "category": "module",
+      "datasheet_size": "12.00×12.00×9.50 mm; P=7.60",
+      "kicad_footprint": "`J6` PinHeader_1x02_P2.54mm_DIY (P=2.54 Ø1.1)",
+      "web_3d": "GLB node `buzzer_alarm` (1:1 via `smarthome_villa.glb`)",
+      "blender": "12.0×12.0×9.5 mm (`buzzer_alarm`)",
+      "print_mount": "`SUP18_BUZZER_SNAP_COLLAR` (17.0×26.0×12.5mm; `P05_WALL_FRONT` `Buzzer_12mm` `Ø12.5mm` + rear mortise snap cup (0 screws)) @ `(200,197,126)`",
+      "status": "OK",
+      "tolerance_mm": 1.0,
+      "source_url": "https://osoyoo.com/2017/05/05/buzzer-5v-breadboard-friendlytmb12a05/"
+    },
+    {
+      "component_id": "pam8403_amp",
+      "component": "PAM8403 3W Class-D Audio Amplifier",
+      "category": "module",
+      "datasheet_size": "21.00×18.00×3.10 mm; P=2.54",
+      "kicad_footprint": "`J11, J12` PinHeader_1x02_P2.54mm_DIY (P=2.54 Ø1.1)",
+      "web_3d": "GLB node `pam8403_module` (1:1 via `smarthome_villa.glb`)",
+      "blender": "21.0×3.1×18.0 mm (`pam8403_module`)",
+      "print_mount": "`SUP08_PAM8403_SNAP_TRAY` (34.0×23.0×9.0mm; 21.4×18.4mm edge-rail cavity (+0.20mm/side) on `P01A`) @ `(224,52,3)`",
+      "status": "FIXED",
+      "tolerance_mm": 1.0,
+      "source_url": "https://www.elecrow.com/download/PAM8403-datasheet.pdf"
+    },
+    {
+      "component_id": "speaker_mini",
+      "component": "Mini Round Speaker (28mm, 8 Ohm 0.5W)",
+      "category": "module",
+      "datasheet_size": "28.00×28.00×5.20 mm",
+      "kicad_footprint": "Off-board (PAM8403 L_OUT+/-) (Off-board 2-wire BTL pair)",
+      "web_3d": "GLB node `speaker_mini` (1:1 via `smarthome_villa.glb`)",
+      "blender": "28.0×28.0×5.2 mm (`speaker_mini`)",
+      "print_mount": "`SUP09_SPEAKER_SNAP_RETAINER` (44.0×14.0×12.0mm; `P15` 19-hole Ø3.0mm grille behind Ø28mm frame) @ `(223,16,26)`",
+      "status": "OK",
+      "tolerance_mm": 1.0,
+      "source_url": "https://puiaudio.com/file/specs-AS02808MR-R.pdf"
+    },
+    {
+      "component_id": "dht11_sensor",
+      "component": "DHT11 3-Pin Temp & Humidity Breakout (D2)",
+      "category": "module",
+      "datasheet_size": "28.00×14.00×7.10 mm; P=2.54",
+      "kicad_footprint": "`J13` PinHeader_1x03_P2.54mm_DIY (P=2.54 Ø1.1)",
+      "web_3d": "GLB node `sensor_dht11` (1:1 via `smarthome_villa.glb`)",
+      "blender": "7.1×28.0×14.0 mm (`sensor_dht11`)",
+      "print_mount": "`SUP12_DHT11_SNAP_CRADLE` (28.0×32.4×11.0mm; `P06_WALL_MID` vent `12.5×16.0mm` (relocated to u=94, v=88)) @ `(195,286,92)`",
+      "status": "FIXED",
+      "tolerance_mm": 1.0,
+      "source_url": "https://image.dfrobot.com/image/data/KIT0003/DHT11%20datasheet.pdf"
+    },
+    {
+      "component_id": "soil_lm393",
+      "component": "LM393 Soil Moisture Comparator Board (A0)",
+      "category": "module",
+      "datasheet_size": "32.00×14.00×12.10 mm; P=2.54",
+      "kicad_footprint": "`J14` PinHeader_1x03_P2.54mm_DIY (P=2.54 Ø1.1)",
+      "web_3d": "GLB node `soil_lm393_board` (1:1 via `smarthome_villa.glb`)",
+      "blender": "32.0×14.0×12.1 mm (`soil_lm393_board`)",
+      "print_mount": "`SUP14_LM393_SNAP_CRADLE` (44.0×18.4×11.0mm; `P13_GARDEN_BACK` dry exterior rear (relocated to u=26, v=24)) @ `(292,158,24)`",
+      "status": "FIXED",
+      "tolerance_mm": 1.0,
+      "source_url": "https://handsontec.com/dataspecs/sensor/Soil%20Moisture%20Sensor.pdf"
+    },
+    {
+      "component_id": "soil_probe",
+      "component": "YL-69 Soil Moisture 2-Prong Probe",
+      "category": "module",
+      "datasheet_size": "60.00×20.00×1.60 mm; P=2.54",
+      "kicad_footprint": "Off-board (LM393 Probe P1/P2) (Off-board 2-wire Dupont F-F)",
+      "web_3d": "GLB node `sensor_soil` (1:1 via `smarthome_villa.glb`)",
+      "blender": "1.6×60.0×20.0 mm (`soil_probe_yl69`)",
+      "print_mount": "`P14_SOIL_BRIDGE` vertical slot `22.0×3.5mm` (+2.0/+1.9mm clearance) @ `(358,89,32)`",
+      "status": "OK",
+      "tolerance_mm": 1.0,
+      "source_url": "https://handsontec.com/dataspecs/sensor/Soil%20Moisture%20Sensor.pdf"
+    },
+    {
+      "component_id": "ky037_sound",
+      "component": "KY-037 / KY-038 Sound Sensor Module (D5)",
+      "category": "module",
+      "datasheet_size": "35.00×15.00×13.10 mm; P=2.54",
+      "kicad_footprint": "`J15` PinHeader_1x03_P2.54mm_DIY (P=2.54 Ø1.1)",
+      "web_3d": "GLB node `sensor_mic_ky037` (1:1 via `smarthome_villa.glb`)",
+      "blender": "35.0×15.0×13.1 mm (`sensor_mic_ky037`)",
+      "print_mount": "`SUP13_KY037_SNAP_CRADLE` (46.0×19.4×11.0mm; `P05` `Ø10.5mm` mic aperture + 35.4×15.4mm rail) @ `(168,202,26)`",
+      "status": "OK",
+      "tolerance_mm": 1.0,
+      "source_url": "https://sensorkit.joy-it.net/en/sensors/ky-038"
+    },
+    {
+      "component_id": "screw_terminal_508",
+      "component": "Phoenix MKDS 1,5/2-5,08 Screw Terminal (J1, J2)",
+      "category": "connector",
+      "datasheet_size": "10.16×9.80×13.80 mm (H=17.30); P=5.08",
+      "kicad_footprint": "`J1, J2` TerminalBlock_MKDS_1x02_P5.08mm_DIY (P=5.08 Ø1.3)",
+      "web_3d": "via kicad_pcb_hub GLB (1:1 via `smarthome_villa.glb`)",
+      "blender": "Imported via `kicad_pcb_hub` (`smarthome_hub.glb`, 1:1 KiCad STEP)",
+      "print_mount": "On-board `smarthome_hub.kicad_pcb` (inside `SUP06` keepout zone)",
+      "status": "OK",
+      "tolerance_mm": 0.3,
+      "source_url": "https://www.phoenixcontact.com/en-pc/products/pcb-terminal-block-mkds-15-2-508-1715721"
+    },
+    {
+      "component_id": "headers_dupont_254",
+      "component": "2.54mm Male Pin Headers & Female Sockets (J3-J15, U1-U2)",
+      "category": "connector",
+      "datasheet_size": "7.62×2.54×11.50 mm (H=14.00); P=2.54",
+      "kicad_footprint": "`J3-J15, U1, U2` PinHeader_1x03_P2.54mm_DIY (P=2.54 Ø1.1)",
+      "web_3d": "via kicad_pcb_hub GLB (1:1 via `smarthome_villa.glb`)",
+      "blender": "Imported via `kicad_pcb_hub` (`smarthome_hub.glb`, 1:1 KiCad STEP)",
+      "print_mount": "On-board `smarthome_hub.kicad_pcb` (inside `SUP06` keepout zone)",
+      "status": "OK",
+      "tolerance_mm": 0.3,
+      "source_url": "https://www.amtek-co.com.tw/wp-content/uploads/02-Header-Socket-connectors-2.54mm-2.pdf"
+    },
+    {
+      "component_id": "cap_470uf_16v",
+      "component": "Electrolytic Capacitor 470uF 16V (C1, C2)",
+      "category": "passive",
+      "datasheet_size": "8.00×8.00×11.50 mm (H=12.00); P=3.50",
+      "kicad_footprint": "`C1, C2` CP_Radial_D8.0mm_P3.50mm_DIY (P=3.50 Ø0.9)",
+      "web_3d": "via kicad_pcb_hub GLB (1:1 via `smarthome_villa.glb`)",
+      "blender": "Imported via `kicad_pcb_hub` (`smarthome_hub.glb`, 1:1 KiCad STEP)",
+      "print_mount": "On-board `smarthome_hub.kicad_pcb` (inside `SUP06` keepout zone)",
+      "status": "OK",
+      "tolerance_mm": 0.3,
+      "source_url": "https://www.nichicon.com/en/products/catalogs/images/pdfs/uvr.pdf"
+    },
+    {
+      "component_id": "cap_100uf_16v",
+      "component": "Electrolytic Capacitor 100uF 16V (C9 On-Board)",
+      "category": "passive",
+      "datasheet_size": "6.30×6.30×11.00 mm; P=3.50",
+      "kicad_footprint": "`C9` CP_Radial_D6.3mm_P3.50mm_DIY (P=3.50 Ø0.9)",
+      "web_3d": "via kicad_pcb_hub GLB (1:1 via `smarthome_villa.glb`)",
+      "blender": "Imported via `kicad_pcb_hub` (`smarthome_hub.glb`, 1:1 KiCad STEP)",
+      "print_mount": "On-board `smarthome_hub.kicad_pcb` (inside `SUP06` keepout zone)",
+      "status": "FIXED",
+      "tolerance_mm": 0.3,
+      "source_url": "https://www.nichicon.com/en/products/catalogs/images/pdfs/uvr.pdf"
+    },
+    {
+      "component_id": "cap_10uf_16v",
+      "component": "Electrolytic Capacitor 10uF 16V (C4)",
+      "category": "passive",
+      "datasheet_size": "5.00×5.00×11.00 mm; P=3.50",
+      "kicad_footprint": "`C4` CP_Radial_D5.0mm_P3.50mm_DIY (P=3.50 Ø0.9)",
+      "web_3d": "via kicad_pcb_hub GLB (1:1 via `smarthome_villa.glb`)",
+      "blender": "Imported via `kicad_pcb_hub` (`smarthome_hub.glb`, 1:1 KiCad STEP)",
+      "print_mount": "On-board `smarthome_hub.kicad_pcb` (inside `SUP06` keepout zone)",
+      "status": "OK",
+      "tolerance_mm": 0.3,
+      "source_url": "https://www.nichicon.com/en/products/catalogs/images/pdfs/uvr.pdf"
+    },
+    {
+      "component_id": "cap_ceramic_disc",
+      "component": "Ceramic Disc Capacitors 100nF / 10nF 50V (C3, C5, C6, C7, C8)",
+      "category": "passive",
+      "datasheet_size": "5.00×2.50×5.00 mm (H=6.00); P=5.00",
+      "kicad_footprint": "`C3, C5, C6, C7, C8` C_Disc_D5.0mm_P5.00mm_DIY (P=5.00 Ø0.9)",
+      "web_3d": "via kicad_pcb_hub GLB (1:1 via `smarthome_villa.glb`)",
+      "blender": "Imported via `kicad_pcb_hub` (`smarthome_hub.glb`, 1:1 KiCad STEP)",
+      "print_mount": "On-board `smarthome_hub.kicad_pcb` (inside `SUP06` keepout zone)",
+      "status": "FIXED",
+      "tolerance_mm": 0.3,
+      "source_url": "https://www.vishay.com/docs/28535/cseries.pdf"
+    },
+    {
+      "component_id": "diode_1n4007",
+      "component": "1N4007 Flyback Diode DO-41 (D1, D2)",
+      "category": "passive",
+      "datasheet_size": "5.20×2.70×2.70 mm (H=3.00); P=10.16",
+      "kicad_footprint": "`D1, D2` D_DO41_P10.16mm_DIY (P=10.16 Ø1.1)",
+      "web_3d": "via kicad_pcb_hub GLB (1:1 via `smarthome_villa.glb`)",
+      "blender": "Imported via `kicad_pcb_hub` (`smarthome_hub.glb`, 1:1 KiCad STEP)",
+      "print_mount": "On-board `smarthome_hub.kicad_pcb` (inside `SUP06` keepout zone)",
+      "status": "OK",
+      "tolerance_mm": 0.3,
+      "source_url": "https://www.vishay.com/docs/88503/1n4001.pdf"
+    },
+    {
+      "component_id": "led_3mm_power",
+      "component": "3mm Green Power LED (D3)",
+      "category": "passive",
+      "datasheet_size": "3.80×3.80×5.30 mm (H=8.00); P=5.08",
+      "kicad_footprint": "`D3` LED_D3.0mm_P5.08mm_DIY (P=5.08 Ø0.9)",
+      "web_3d": "via kicad_pcb_hub GLB + led_power_3mm (1:1 via `smarthome_villa.glb`)",
+      "blender": "Imported via `kicad_pcb_hub` (`smarthome_hub.glb`, 1:1 KiCad STEP)",
+      "print_mount": "On-board `smarthome_hub.kicad_pcb` (inside `SUP06` keepout zone) @ `(57,12,22)`",
+      "status": "OK",
+      "tolerance_mm": 0.3,
+      "source_url": "http://www.kingbrightusa.com/webimages/catalog/2012-2013%20KC%20eCatalog.pdf"
+    },
+    {
+      "component_id": "resistor_quarter_watt",
+      "component": "1/4W Axial Resistors DIN 0207 (R1-R10)",
+      "category": "passive",
+      "datasheet_size": "6.30×2.50×2.50 mm (H=2.80); P=10.16",
+      "kicad_footprint": "`R1-R10` R_Axial_P10.16mm_DIY (P=10.16 Ø0.9)",
+      "web_3d": "via kicad_pcb_hub GLB (1:1 via `smarthome_villa.glb`)",
+      "blender": "Imported via `kicad_pcb_hub` (`smarthome_hub.glb`, 1:1 KiCad STEP)",
+      "print_mount": "On-board `smarthome_hub.kicad_pcb` (inside `SUP06` keepout zone)",
+      "status": "OK",
+      "tolerance_mm": 0.3,
+      "source_url": "https://www.vishay.com/docs/28767/mba0204.pdf"
+    },
+    {
+      "component_id": "bjt_s8050",
+      "component": "NPN Transistor S8050 TO-92 Wide (Q1)",
+      "category": "passive",
+      "datasheet_size": "4.58×3.45×4.58 mm (H=8.50); P=2.54; holes 5.1×2.5",
+      "kicad_footprint": "`Q1` TO-92_Wide_DIY (P=3.59 Ø0.9)",
+      "web_3d": "via kicad_pcb_hub GLB (1:1 via `smarthome_villa.glb`)",
+      "blender": "Imported via `kicad_pcb_hub` (`smarthome_hub.glb`, 1:1 KiCad STEP)",
+      "print_mount": "On-board `smarthome_hub.kicad_pcb` (inside `SUP06` keepout zone)",
+      "status": "OK",
+      "tolerance_mm": 0.3,
+      "source_url": "http://www.unisonic.com.tw/datasheet/S8050.pdf"
+    }
+  ]
+}

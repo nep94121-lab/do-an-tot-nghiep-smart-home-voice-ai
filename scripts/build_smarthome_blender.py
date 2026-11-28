@@ -37,9 +37,13 @@ if str(REPO_ROOT) not in sys.path:
 MICA_DIR = REPO_ROOT / "hardware" / "mica"
 if str(MICA_DIR) not in sys.path:
     sys.path.insert(0, str(MICA_DIR))
+PRINT3D_SCRIPTS = REPO_ROOT / "hardware" / "in 3 d" / "scripts"
+if str(PRINT3D_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(PRINT3D_SCRIPTS))
 
 from hardware.component_dimensions_ssot import COMPONENT_DIM_MAP, SG90_MECHANICAL_SPECS  # noqa: E402
 from hardware.wiring_contract import HUB_CONNECTOR_MAP, HUB_CONNECTORS  # noqa: E402
+import lightweight_policy as lw_policy  # noqa: E402
 import mica_design as md  # noqa: E402
 
 KICAD_PCB_GLB = REPO_ROOT / "hardware" / "kicad" / "smarthome_hub" / "3d" / "smarthome_hub.glb"
@@ -297,8 +301,142 @@ def add_tube(
     return obj
 
 
+def add_honeycomb_wall_house(
+    name: str,
+    plane: str,
+    fixed_0: float,
+    fixed_1: float,
+    u0: float,
+    u1: float,
+    v0: float,
+    v1: float,
+    mat_rim: bpy.types.Material,
+    mat_web: bpy.types.Material,
+    parent=None,
+    keepout_uvs: tuple[tuple[float, float, float, float], ...] = (),
+    rim_mm: float = 8.0,
+    web_thick_mm: float = lw_policy.WEB_THICKNESS_MM,
+    web_align: str = "high",
+) -> int:
+    """Build a coffered 3.0mm-rim / 2.2mm-web wall with regular hexagonal honeycomb through-cutouts.
+
+    Coordinates are in mica_design.py house world mm:
+      - plane == "Y": thickness along Y [fixed_0..fixed_1], u = X, v = Z.
+      - plane == "X": thickness along X [fixed_0..fixed_1], u = Y, v = Z.
+    Returns the exact number of hexagonal through-cutouts punched into the 2.2 mm web.
+    """
+    wu0, wu1 = u0 + rim_mm, u1 - rim_mm
+    wv0, wv1 = v0 + rim_mm, v1 - rim_mm
+    if wu1 - wu0 < 22.0 or wv1 - wv0 < 18.0:
+        if plane == "Y":
+            add_box_house(name, u0, u1, fixed_0, fixed_1, v0, v1, mat_rim, parent=parent, bevel_mm=0.2)
+        else:
+            add_box_house(name, fixed_0, fixed_1, u0, u1, v0, v1, mat_rim, parent=parent, bevel_mm=0.2)
+        return 0
+
+    def _box(bname: str, bu0: float, bu1: float, bv0: float, bv1: float) -> None:
+        if bu1 - bu0 <= 0.05 or bv1 - bv0 <= 0.05:
+            return
+        if plane == "Y":
+            add_box_house(bname, bu0, bu1, fixed_0, fixed_1, bv0, bv1, mat_rim, parent=parent, bevel_mm=0.15)
+        else:
+            add_box_house(bname, fixed_0, fixed_1, bu0, bu1, bv0, bv1, mat_rim, parent=parent, bevel_mm=0.15)
+
+    # Full 3.0 mm perimeter frame (bottom, top, left, right)
+    _box(f"{name}_RimBot",   u0, u1, v0, wv0)
+    _box(f"{name}_RimTop",   u0, u1, wv1, v1)
+    _box(f"{name}_RimLeft",  u0, wu0, wv0, wv1)
+    _box(f"{name}_RimRight", wu1, u1, wv0, wv1)
+
+    # Full 3.0 mm solid keepout islands (e.g. DHT11 mounting collar on P06)
+    for k_idx, (ku0, kv0, ku1, kv1) in enumerate(keepout_uvs):
+        _box(f"{name}_Keepout_{k_idx}", max(wu0, ku0), min(wu1, ku1), max(wv0, kv0), min(wv1, kv1))
+
+    # Recessed 2.2 mm coffered web (flush on outer/aligned face -> visible 0.8 mm coffered step)
+    if web_align == "low":
+        f_mid = fixed_0 + 0.5 * web_thick_mm
+    elif web_align == "center":
+        f_mid = 0.5 * (fixed_0 + fixed_1)
+    else:  # "high"
+        f_mid = fixed_1 - 0.5 * web_thick_mm
+
+    # Regular pointy-top hexagon grid matching lightweight_policy.py (15.0 mm flat-to-flat, 3.2 mm rib)
+    hex_f = float(lw_policy.HEX_FLAT_TO_FLAT_MM)
+    hex_r = hex_f / math.sqrt(3.0)
+    hex_half_w = 0.5 * hex_f
+    pitch_u = hex_f + float(lw_policy.HEX_MIN_RIB_MM)
+    pitch_v = pitch_u * math.sqrt(3.0) / 2.0
+    web_margin = max(2.5, float(lw_policy.HEX_EDGE_MARGIN_MM) - rim_mm + 2.5)
+    keepout_margin = float(lw_policy.HEX_EDGE_MARGIN_MM)
+
+    u_mid = 0.5 * (wu0 + wu1)
+    v_mid = 0.5 * (wv0 + wv1)
+
+    hex_centers: list[tuple[float, float]] = []
+    n_rows = int(math.floor((wv1 - wv0) / pitch_v)) + 2
+    n_cols = int(math.floor((wu1 - wu0) / pitch_u)) + 2
+    for row in range(-n_rows, n_rows + 1):
+        hv = v_mid + row * pitch_v
+        if hv - hex_r < wv0 + web_margin or hv + hex_r > wv1 - web_margin:
+            continue
+        row_shift = 0.5 * pitch_u if (row % 2 != 0) else 0.0
+        for col in range(-n_cols, n_cols + 1):
+            hu = u_mid + col * pitch_u + row_shift
+            if hu - hex_half_w < wu0 + web_margin or hu + hex_half_w > wu1 - web_margin:
+                continue
+            blocked = False
+            for (ku0, kv0, ku1, kv1) in keepout_uvs:
+                if (hu + hex_half_w > ku0 - keepout_margin and hu - hex_half_w < ku1 + keepout_margin
+                        and hv + hex_r > kv0 - keepout_margin and hv - hex_r < kv1 + keepout_margin):
+                    blocked = True
+                    break
+            if not blocked:
+                hex_centers.append((hu, hv))
+
+    # Build extruded 2D curve mesh (outer web rectangle minus hexagonal hole splines -> zero Boolean artifacts)
+    curve_data = bpy.data.curves.new(name + "_WebCurve", type="CURVE")
+    curve_data.dimensions = "2D"
+    curve_data.fill_mode = "BOTH"
+    curve_data.extrude = 0.5 * web_thick_mm * MM
+    curve_data.resolution_u = 1
+
+    half_wu = 0.5 * (wu1 - wu0) * MM
+    half_wv = 0.5 * (wv1 - wv0) * MM
+    outer = curve_data.splines.new("POLY")
+    outer.points.add(3)
+    for idx, (lx, ly) in enumerate([(-half_wu, -half_wv), (half_wu, -half_wv), (half_wu, half_wv), (-half_wu, half_wv)]):
+        outer.points[idx].co = (lx, ly, 0.0, 1.0)
+    outer.use_cyclic_u = True
+
+    for hu, hv in hex_centers:
+        sp = curve_data.splines.new("POLY")
+        sp.points.add(5)
+        for k in range(6):
+            ang = math.radians(30.0 + 60.0 * k)  # pointy-top hexagon (flat sides vertical)
+            lx = (hu + hex_r * math.cos(ang) - u_mid) * MM
+            ly = (hv + hex_r * math.sin(ang) - v_mid) * MM
+            sp.points[k].co = (lx, ly, 0.0, 1.0)
+        sp.use_cyclic_u = True
+
+    web_obj = bpy.data.objects.new(f"{name}_HoneycombWeb", curve_data)
+    bpy.context.collection.objects.link(web_obj)
+    web_obj.data.materials.append(mat_web)
+    if parent is not None:
+        web_obj.parent = parent
+    if plane == "Y":
+        tx, ty, tz = house_to_three_mm(u_mid, f_mid, v_mid)
+        web_obj.location = to_bpos_mm(tx, ty, tz)
+        web_obj.rotation_euler = Euler((math.pi / 2.0, 0.0, 0.0), "XYZ")
+    else:
+        tx, ty, tz = house_to_three_mm(f_mid, u_mid, v_mid)
+        web_obj.location = to_bpos_mm(tx, ty, tz)
+        web_obj.rotation_euler = Euler((math.pi / 2.0, 0.0, math.pi / 2.0), "XYZ")
+
+    return len(hex_centers)
+
+
 def convert_curves_to_meshes() -> None:
-    """Convert all CURVE wire/tube objects to clean low-poly MESH before GLB export."""
+    """Convert all CURVE wire/tube/honeycomb objects to clean low-poly MESH before GLB export."""
     bpy.ops.object.select_all(action="DESELECT")
     curves = [o for o in bpy.data.objects if o.type == "CURVE"]
     for obj in curves:
@@ -321,20 +459,14 @@ def build_materials() -> dict[str, bpy.types.Material]:
         "oak_floor":   make_mat("OakFloorLiving",   (0.56, 0.39, 0.23, 1.0), roughness=0.40),
         "walnut_flr":  make_mat("WalnutFloorBed",   (0.38, 0.25, 0.16, 1.0), roughness=0.42),
         "wall_cream":  make_mat("WallOffWhite",     (0.92, 0.91, 0.88, 1.0), roughness=0.65),
+        "wall_web":    make_mat("WallHoneycombWeb", (0.86, 0.85, 0.82, 1.0), roughness=0.62),
         "wall_trim":   make_mat("WallCharcoalCap",  (0.16, 0.20, 0.27, 1.0), roughness=0.40, metallic=0.20),
-        "wood_warm":   make_mat("WarmTeakWood",     (0.52, 0.31, 0.16, 1.0), roughness=0.45),
         "door_wood":   make_mat("MainDoorOak",      (0.45, 0.26, 0.13, 1.0), roughness=0.38),
         "glass":       make_mat("ClearGlass",       (0.68, 0.88, 0.98, 0.30), roughness=0.06, metallic=0.08, alpha=0.30),
         "water_tank":  make_mat("WaterReservoir",   (0.30, 0.72, 0.95, 0.45), roughness=0.05, alpha=0.45),
         "water_tube":  make_mat("SiliconeTube",     (0.76, 0.92, 0.98, 0.62), roughness=0.18, alpha=0.62),
-        "sofa_blue":   make_mat("SofaNordicBlue",   (0.22, 0.42, 0.68, 1.0), roughness=0.65),
-        "cushion":     make_mat("CushionWarm",      (0.92, 0.72, 0.35, 1.0), roughness=0.65),
-        "bed_white":   make_mat("BedLinenWhite",    (0.95, 0.95, 0.97, 1.0), roughness=0.65),
-        "bed_indigo":  make_mat("BedDuvetIndigo",   (0.26, 0.34, 0.64, 1.0), roughness=0.68),
         "terracotta":  make_mat("PlanterClay",      (0.56, 0.27, 0.15, 1.0), roughness=0.72),
         "soil_dark":   make_mat("GardenSoil",       (0.16, 0.10, 0.06, 1.0), roughness=0.92),
-        "leaf_dark":   make_mat("PlantLeafDark",    (0.11, 0.46, 0.20, 1.0), roughness=0.52),
-        "leaf_bright": make_mat("PlantLeafBright",  (0.19, 0.64, 0.28, 1.0), roughness=0.48),
 
         # Real electronic component materials
         "pcb_black":   make_mat("PCB_NodeMCU_Blk",  (0.06, 0.07, 0.09, 1.0), roughness=0.36, metallic=0.08),
@@ -379,10 +511,11 @@ def build_materials() -> dict[str, bpy.types.Material]:
 # ==============================================================================
 # 1. OPEN-CUTAWAY ARCHITECTURAL HOUSE (EXACT MATCH TO mica_design.py 406x390 mm)
 # ==============================================================================
-def build_open_cutaway_house(mats: dict[str, bpy.types.Material]) -> bpy.types.Object:
+def build_open_cutaway_house(mats: dict[str, bpy.types.Material]) -> tuple[bpy.types.Object, int]:
     arch = make_group("OpenCutawayHouse", 0.0, 0.0, 0.0)
+    honeycomb_total = 0
 
-    # Tabletop base plinth: 406 x 390 x 9 mm (top surface at house Z = 0.0 mm)
+    # Tabletop base plinth: 406 x 390 x 9 mm (top surface at house Z = 0.0 mm) — CLOSED under electrical tech bay & water/planter
     add_box_house("TabletopPlinth", 0.0, 406.0, 0.0, 390.0, -9.0, 0.0, mats["plinth"], parent=arch, bevel_mm=1.0)
     add_box_house("PlinthTrim",     4.0, 402.0, 4.0, 386.0, -0.6, 0.2, mats["plinth_trim"], parent=arch)
 
@@ -390,7 +523,7 @@ def build_open_cutaway_house(mats: dict[str, bpy.types.Material]) -> bpy.types.O
     add_box_house("LivingRoomFloor",  13.0, 198.5, 195.0, 379.0, 0.0, 1.5, mats["oak_floor"], parent=arch)
     add_box_house("BedroomFloor",    201.5, 393.0, 195.0, 379.0, 0.0, 1.5, mats["walnut_flr"], parent=arch)
 
-    # Technical Bay Deck (X: 8..258, Y: 10..174, thin 1.2mm mat so all module Zs match mica_design.py)
+    # Technical Bay Deck (X: 8..258, Y: 10..174, thin 1.2mm CLOSED solid mat so all module Zs match mica_design.py)
     add_box_house("TechBayDeck", 8.0, 258.0, 10.0, 174.0, 0.0, 1.2, mats["tech_deck"], parent=arch)
 
     # P16_PCB_PLATE (130x110x3 mm at X=57..187, Y=49..159, Z=6..9) + 4 corner risers (Z=0..6)
@@ -405,13 +538,22 @@ def build_open_cutaway_house(mats: dict[str, bpy.types.Material]) -> bpy.types.O
             tx, ty, tz = house_to_three_mm(rcx + dx, rcy + dy, 4.0)
             add_cyl(f"Relay{r_idx}_Standoff_{k}", tx, ty, tz, 2.2, 8.0, mats["plinth_trim"], parent=arch, segs=10)
 
-    # WALLS (Exact 3.0 mm mica_design.py layout, open roof, crisp cutaway)
+    # WALLS (3.0 mm full-thickness structural rims/joints + 2.2 mm coffered honeycomb webs on non-load-bearing living/bedroom walls)
     WALL_H = 147.0
     CUT_H = 34.0
 
     # P02_WALL_BACK: X in [10..396], Y in [379..382], Bedroom window X in [238..362], Z in [46..110]
-    add_box_house("BackWallLiving",    10.0, 238.0, 379.0, 382.0,   0.0, WALL_H, mats["wall_cream"], parent=arch, bevel_mm=0.2)
-    add_box_house("BackWallBedBot",   238.0, 362.0, 379.0, 382.0,   0.0,   46.0, mats["wall_cream"], parent=arch, bevel_mm=0.2)
+    # Center T-spine X=[190..210] stays full 3.0 mm solid; Living Room field X=[10..190] & below-window field X=[238..362] get 2.2 mm honeycomb cutouts
+    honeycomb_total += add_honeycomb_wall_house(
+        "BackWallLiving", "Y", 379.0, 382.0, 10.0, 190.0, 0.0, WALL_H,
+        mats["wall_cream"], mats["wall_web"], parent=arch, web_align="high",
+    )
+    add_box_house("BackWallMidSpine", 190.0, 210.0, 379.0, 382.0,   0.0, WALL_H, mats["wall_cream"], parent=arch, bevel_mm=0.2)
+    add_box_house("BackWallBedLeft",  210.0, 238.0, 379.0, 382.0,   0.0, WALL_H, mats["wall_cream"], parent=arch, bevel_mm=0.2)
+    honeycomb_total += add_honeycomb_wall_house(
+        "BackWallBedBot", "Y", 379.0, 382.0, 238.0, 362.0, 0.0, 46.0,
+        mats["wall_cream"], mats["wall_web"], parent=arch, rim_mm=7.5, web_align="high",
+    )
     add_box_house("BackWallBedTop",   238.0, 362.0, 379.0, 382.0, 110.0, WALL_H, mats["wall_cream"], parent=arch, bevel_mm=0.2)
     add_box_house("BackWallBedRight", 362.0, 396.0, 379.0, 382.0,   0.0, WALL_H, mats["wall_cream"], parent=arch, bevel_mm=0.2)
     add_box_house("BedWindowGlass",   238.0, 362.0, 379.6, 381.4,  46.0,  110.0, mats["glass"],      parent=arch)
@@ -419,30 +561,37 @@ def build_open_cutaway_house(mats: dict[str, bpy.types.Material]) -> bpy.types.O
     add_box_house("BedWindowFrmBot",  236.0, 364.0, 378.5, 382.5,  44.0,   47.0, mats["wall_trim"],  parent=arch)
     add_box_house("BackWallCap",       10.0, 396.0, 378.5, 382.5, WALL_H, WALL_H + 2.5, mats["wall_trim"], parent=arch)
 
-    # P03_WALL_LEFT: X in [10..13], Y in [192..382], step at Y = 256
-    add_box_house("LeftWallBack",      10.0, 13.0, 256.0, 379.0, 0.0, WALL_H, mats["wall_cream"], parent=arch, bevel_mm=0.2)
+    # P03_WALL_LEFT: X in [10..13], Y in [192..382], step at Y = 256 (decorative wood slats removed; 2.2 mm honeycomb web on tall section)
+    honeycomb_total += add_honeycomb_wall_house(
+        "LeftWallBack", "X", 10.0, 13.0, 256.0, 379.0, 0.0, WALL_H,
+        mats["wall_cream"], mats["wall_web"], parent=arch, web_align="low",
+    )
     add_box_house("LeftWallFrontLow",  10.0, 13.0, 195.0, 256.0, 0.0,  CUT_H, mats["wall_cream"], parent=arch, bevel_mm=0.2)
     add_box_house("LeftWallCapBack",    9.5, 13.5, 256.0, 382.0, WALL_H, WALL_H + 2.5, mats["wall_trim"], parent=arch)
     add_box_house("LeftWallCapFront",   9.5, 13.5, 192.0, 256.0, CUT_H,  CUT_H + 2.0,  mats["wall_trim"], parent=arch)
-    # Decorative vertical teak wood slats on Living Room left wall
-    for i in range(6):
-        sy0 = 274.0 + i * 16.0
-        add_box_house(f"LivingWoodSlat_{i}", 13.0, 14.8, sy0, sy0 + 5.0, 10.0, 134.0, mats["wood_warm"], parent=arch)
 
-    # P04_WALL_RIGHT: X in [393..396], Y in [192..382], step at Y = 264
-    add_box_house("RightWallBack",     393.0, 396.0, 264.0, 379.0, 0.0, WALL_H, mats["wall_cream"], parent=arch, bevel_mm=0.2)
+    # P04_WALL_RIGHT: X in [393..396], Y in [192..382], step at Y = 264 (2.2 mm honeycomb web on tall section)
+    honeycomb_total += add_honeycomb_wall_house(
+        "RightWallBack", "X", 393.0, 396.0, 264.0, 379.0, 0.0, WALL_H,
+        mats["wall_cream"], mats["wall_web"], parent=arch, web_align="high",
+    )
     add_box_house("RightWallFrontLow", 393.0, 396.0, 195.0, 264.0, 0.0,  CUT_H, mats["wall_cream"], parent=arch, bevel_mm=0.2)
     add_box_house("RightWallCapBack",  392.5, 396.5, 264.0, 382.0, WALL_H, WALL_H + 2.5, mats["wall_trim"], parent=arch)
     add_box_house("RightWallCapFront", 392.5, 396.5, 192.0, 264.0, CUT_H,  CUT_H + 2.0,  mats["wall_trim"], parent=arch)
 
     # P06_WALL_MID: X in [198.5..201.5], Y in [195..379], interior doorway Y in [214..266] Z in [0..104]
-    # Top-front buzzer relief: Y in [195..214] capped at Z = 112
+    # Keep LED top band (MidWallDoorHeader) & buzzer front post (MidWallFrontLower) & DHT11 zone (Y=[266..314], Z=[68..114]) SOLID 3.0 mm!
     add_box_house("MidWallFrontLower", 198.5, 201.5, 195.0, 214.0,   0.0,  112.0, mats["wall_cream"], parent=arch)
     add_box_house("MidWallDoorHeader", 198.5, 201.5, 214.0, 266.0, 104.0, WALL_H, mats["wall_cream"], parent=arch)
-    add_box_house("MidWallBack",       198.5, 201.5, 266.0, 379.0,   0.0, WALL_H, mats["wall_cream"], parent=arch)
+    honeycomb_total += add_honeycomb_wall_house(
+        "MidWallBack", "X", 198.5, 201.5, 266.0, 379.0, 0.0, WALL_H,
+        mats["wall_cream"], mats["wall_web"], parent=arch,
+        keepout_uvs=((266.0, 68.0, 314.0, 114.0),),  # P06_DHT11_ZONE solid 3.0 mm collar
+        web_align="center",
+    )
     add_box_house("MidWallBackCap",    198.0, 202.0, 214.0, 379.0, WALL_H, WALL_H + 2.5, mats["wall_trim"], parent=arch)
 
-    # P05_WALL_FRONT: X in [10..396], Y in [192..195]
+    # P05_WALL_FRONT: X in [10..396], Y in [192..195] — CLOSED & SOLID 3.0 mm (lower waist faces relays/PSU + door jamb + servo load path + center pillar)
     # Main Door opening X in [76..136], Z in [0..104]
     add_box_house("FrontCutawayLeft",  10.0,  38.0, 192.0, 195.0,   0.0,  CUT_H, mats["wall_cream"], parent=arch)
     add_box_house("FrontDoorPostL",    38.0,  76.0, 192.0, 195.0,   0.0,  120.0, mats["wall_cream"], parent=arch)
@@ -506,31 +655,14 @@ def build_open_cutaway_house(mats: dict[str, bpy.types.Material]) -> bpy.types.O
         bevel_res=3,
     )
 
-    # P15_TECH_FASCIA: Front Technical Bay Power & Speaker Fascia (X in [8..254], Y in [10..13])
+    # P15_TECH_FASCIA: Front Technical Bay Power & Speaker Fascia (X in [8..254], Y in [10..13]) — CLOSED & SOLID 3.0 mm
     add_box_house("P15_PowerZone",     8.0,  64.0, 10.0, 13.0, 0.0, 42.0, mats["wall_trim"], parent=arch, bevel_mm=0.2)
     add_box_house("P15_USBCutaway",   64.0, 192.0, 10.0, 13.0, 0.0, 16.0, mats["wall_trim"], parent=arch, bevel_mm=0.2)
     add_box_house("P15_SpkBaffle",   192.0, 254.0, 10.0, 13.0, 0.0, 48.0, mats["wall_trim"], parent=arch, bevel_mm=0.2)
 
-    # Minimalist Modern Furniture (clear of P06 DHT11 at Y=286, Z=92 and interior doorway!)
-    # Living room sofa against rear wall (X in [34..122], Y in [336..372])
-    add_box_house("LivingSofaBase",  34.0, 122.0, 336.0, 372.0,  1.5, 15.5, mats["sofa_blue"], parent=arch, bevel_mm=1.5)
-    add_box_house("LivingSofaBack",  34.0, 122.0, 362.0, 372.0, 15.5, 36.0, mats["sofa_blue"], parent=arch, bevel_mm=1.5)
-    add_box_house("LivingSofaArmL",  34.0,  42.0, 336.0, 372.0, 15.5, 27.0, mats["sofa_blue"], parent=arch, bevel_mm=1.2)
-    add_box_house("LivingSofaArmR", 114.0, 122.0, 336.0, 372.0, 15.5, 27.0, mats["sofa_blue"], parent=arch, bevel_mm=1.2)
-    add_box_house("LivingPillow1",   48.0,  66.0, 355.0, 361.0, 15.5, 29.0, mats["cushion"],   parent=arch, bevel_mm=1.2)
-    add_box_house("LivingPillow2",   90.0, 108.0, 355.0, 361.0, 15.5, 29.0, mats["cushion"],   parent=arch, bevel_mm=1.2)
-    # Coffee table (X in [54..106], Y in [282..310])
-    add_box_house("CoffeeTableTop",  54.0, 106.0, 282.0, 310.0, 13.5, 16.5, mats["wood_warm"], parent=arch, bevel_mm=0.5)
-    add_box_house("CoffeeTableBase", 60.0, 100.0, 288.0, 304.0,  1.5, 13.5, mats["wall_trim"], parent=arch)
-
-    # Bedroom bed + nightstand (X in [286..368], Y in [280..374])
-    add_box_house("BedFrame",       286.0, 368.0, 280.0, 374.0,  1.5, 14.0, mats["wood_warm"],  parent=arch, bevel_mm=0.8)
-    add_box_house("BedHeadboard",   284.0, 370.0, 369.0, 375.0, 14.0, 46.0, mats["wood_warm"],  parent=arch, bevel_mm=0.6)
-    add_box_house("BedMattress",    289.0, 365.0, 283.0, 369.0, 14.0, 23.0, mats["bed_white"],  parent=arch, bevel_mm=1.5)
-    add_box_house("BedDuvet",       288.0, 366.0, 283.0, 340.0, 15.0, 24.5, mats["bed_indigo"], parent=arch, bevel_mm=1.5)
-    add_box_house("BedPillowL",     293.0, 321.0, 350.0, 366.0, 23.0, 29.0, mats["bed_white"],  parent=arch, bevel_mm=1.2)
-    add_box_house("BedPillowR",     333.0, 361.0, 350.0, 366.0, 23.0, 29.0, mats["bed_white"],  parent=arch, bevel_mm=1.2)
-    add_box_house("Nightstand",     244.0, 268.0, 344.0, 368.0,  1.5, 25.5, mats["wood_warm"],  parent=arch, bevel_mm=0.6)
+    # R6 Lightweight Policy: ALL decorative furniture (LivingSofa*, LivingPillow*, CoffeeTable*,
+    # BedFrame, BedHeadboard, BedMattress, BedDuvet, BedPillow*, Nightstand, GardenStem_*, GardenFoliage*)
+    # removed to save PLA and leave living/bedroom/garden inspection views 100% unobstructed.
 
     # Front-Right Water Tank (X in [266..318], Y in [26..152], H=54) & Garden Planter (X in [318..396], Y in [26..152], H=48)
     # Clear Water Reservoir walls (open top so pump & water level are clearly visible!)
@@ -540,7 +672,7 @@ def build_open_cutaway_house(mats: dict[str, bpy.types.Material]) -> bpy.types.O
     add_box_house("WaterTankBack",   269.0, 316.5, 149.0, 152.0,  0.0, 54.0, mats["glass"], parent=arch)
     add_box_house("WaterLevel",      270.0, 315.5,  30.0, 148.0,  1.0, 26.0, mats["water_tank"], parent=arch)
 
-    # Garden Planter walls + soil bed + P14_SOIL_BRIDGE
+    # Garden Planter walls + soil bed + P14_SOIL_BRIDGE (functional parts kept 100% intact; decorative stems/foliage removed)
     add_box_house("PlanterFront",    319.5, 396.0,  26.0,  29.0,  0.0, 48.0, mats["terracotta"], parent=arch)
     add_box_house("PlanterBack",     319.5, 396.0, 149.0, 152.0,  0.0, 48.0, mats["terracotta"], parent=arch)
     add_box_house("PlanterRight",    393.0, 396.0,  29.0, 149.0,  0.0, 48.0, mats["terracotta"], parent=arch)
@@ -548,14 +680,9 @@ def build_open_cutaway_house(mats: dict[str, bpy.types.Material]) -> bpy.types.O
     # P14_SOIL_BRIDGE across X in [342..374], Y in [29..149], Z in [45..48] (with visual rails flanking probe)
     add_box_house("P14_SoilBridge_F", 342.0, 374.0,  29.0,  76.0, 45.0, 48.0, mats["wall_trim"], parent=arch)
     add_box_house("P14_SoilBridge_B", 342.0, 374.0, 102.0, 149.0, 45.0, 48.0, mats["wall_trim"], parent=arch)
-    # 2 clean tabletop plants inside soil bed (clear of probe at (358, 89))
-    for idx, (phx, phy, h) in enumerate([(336.0, 126.0, 32.0), (376.0, 52.0, 28.0)]):
-        px, _py, pz = house_to_three_mm(phx, phy, 30.0)
-        add_cyl(f"GardenStem_{idx}", px, 30.0 + h * 0.3, pz, 2.0, h * 0.6, mats["wood_warm"], parent=arch)
-        add_sphere(f"GardenFoliageA_{idx}", px, 30.0 + h * 0.72, pz, 11.5, mats["leaf_dark"], parent=arch, scale_xyz=(1.1, 0.85, 1.1))
-        add_sphere(f"GardenFoliageB_{idx}", px + 3.5, 30.0 + h * 0.95, pz - 2.0, 8.0, mats["leaf_bright"], parent=arch)
 
-    return arch
+    print(f"[HOUSE] Built lightweight open-cutaway house (2.2 mm coffered webs, {honeycomb_total} honeycomb cutouts, 0 furniture)")
+    return arch, honeycomb_total
 
 
 # ==============================================================================
@@ -1122,7 +1249,7 @@ def collect_contract_nodes() -> list[str]:
     ]
 
 
-def write_scene_spec(wire_count: int) -> None:
+def write_scene_spec(wire_count: int, honeycomb_count: int = 0) -> None:
     bpy.context.view_layer.update()
     gmin = [1e9, 1e9, 1e9]
     gmax = [-1e9, -1e9, -1e9]
@@ -1149,9 +1276,13 @@ def write_scene_spec(wire_count: int) -> None:
             }
 
     spec = {
-        "schema_version": "3.1",
+        "schema_version": "3.2",
         "architecture": "pcb_direct_no_breadboard",
         "breadboard_used": False,
+        "furniture_removed": True,
+        "wall_thinning_mm": float(lw_policy.WEB_THICKNESS_MM),
+        "honeycomb_cutouts_enabled": True,
+        "honeycomb_cutout_count": int(honeycomb_count),
         "routed_wires_count": wire_count,
         "authoritative_module_count": 14,
         "contract_node_count": len(node_positions),
@@ -1205,7 +1336,15 @@ def write_scene_spec(wire_count: int) -> None:
             "board":    spherical_from_eye_target((-60.0, 175.0, 305.0), (-55.0, 25.0, 131.0)),
         },
         "contract_nodes": node_positions,
-        "removed_devices": ["fan", "ac", "ir_vs1838b", "ir_led_940nm", "breadboard"],
+        "removed_devices": [
+            "fan",
+            "ac",
+            "ir_vs1838b",
+            "ir_led_940nm",
+            "breadboard",
+            *lw_policy.REMOVED_BLENDER_FURNITURE_PREFIXES,
+        ],
+        "removed_furniture_ids": list(lw_policy.REMOVED_FURNITURE_IDS),
     }
     OUT_SPEC.parent.mkdir(parents=True, exist_ok=True)
     OUT_SPEC.write_text(json.dumps(spec, indent=2), encoding="utf-8")
@@ -1290,6 +1429,8 @@ def _collect_callout_anchors_blender() -> dict[str, Vector]:
         "PCB_J8_Rly1Sw":      ("PCB_CalloutMarker_J8", Vector((0.0, 0.0, 0.0))),
         "PCB_J10_Rly2Sw":     ("PCB_CalloutMarker_J10", Vector((0.0, 0.0, 0.0))),
         "PCB_J11_AmpPwr":     ("PCB_CalloutMarker_J11", Vector((0.0, 0.0, 0.0))),
+        "Wall_Honeycomb_Cutout": ("BackWallLiving_HoneycombWeb", Vector((0.0, 0.0, 12.0 * MM))),
+        "TechBay_Closed_Safety": ("P15_PowerZone", Vector((24.0 * MM, 0.0, 0.0))),
     }
     for key, (oname, offset) in obj_targets.items():
         obj = bpy.data.objects.get(oname)
@@ -1303,6 +1444,53 @@ def _collect_callout_anchors_blender() -> dict[str, Vector]:
         else:
             anchors[key] = obj.matrix_world.translation + offset
     return anchors
+
+
+def render_hw14_views(raw_dir: pathlib.Path, proj_json: pathlib.Path) -> None:
+    """Render the 2 HW14 lightweight presentation views (1600x1000 Eevee) + exact 2D projections."""
+    scene = bpy.context.scene
+    scene.render.engine = "BLENDER_EEVEE"
+    scene.render.resolution_x = 1600
+    scene.render.resolution_y = 1000
+    scene.render.resolution_percentage = 100
+    scene.render.image_settings.file_format = "PNG"
+    vt_items = [i.identifier for i in scene.view_settings.bl_rna.properties["view_transform"].enum_items]
+    scene.view_settings.view_transform = "AgX" if "AgX" in vt_items else "Filmic"
+    scene.view_settings.exposure = -0.15
+
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    W, H = scene.render.resolution_x, scene.render.resolution_y
+
+    views = [
+        ("overview_lightweight", "Cam_HW14_Overview",  (220.0, 368.0, 545.0), (-8.0, 42.0, 48.0), 36.0),
+        ("cutaway_14modules",    "Cam_HW14_Cutaway14", (-14.0, 625.0, 195.0), ( 2.0, 34.0, 58.0), 33.0),
+    ]
+
+    projections: dict[str, dict] = {"resolution": [W, H], "views": {}}
+    for vkey, cname, eye_mm, tgt_mm, lens_mm in views:
+        bpy.context.view_layer.update()
+        cam = create_camera(cname, eye_mm, tgt_mm, lens_mm=lens_mm)
+        scene.camera = cam
+        out_png = raw_dir / f"raw_{vkey}.png"
+        scene.render.filepath = str(out_png)
+        bpy.ops.render.render(write_still=True)
+        print(f"[HW14 RENDER] {vkey} -> {out_png} ({out_png.stat().st_size} bytes)")
+
+        anchors = _collect_callout_anchors_blender()
+        pts_2d: dict[str, list[float]] = {}
+        for akey, wpos in anchors.items():
+            co = world_to_camera_view(scene, cam, wpos)
+            px = round(float(co.x) * W, 1)
+            py = round((1.0 - float(co.y)) * H, 1)
+            pts_2d[akey] = [px, py, round(float(co.z), 3)]
+        projections["views"][vkey] = {
+            "raw_png": str(out_png),
+            "points": pts_2d,
+        }
+
+    proj_json.parent.mkdir(parents=True, exist_ok=True)
+    proj_json.write_text(json.dumps(projections, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"[HW14 PROJ] Saved exact 2D label projections to {proj_json}")
 
 
 def render_hw13_views(raw_dir: pathlib.Path, proj_json: pathlib.Path) -> None:
@@ -1378,6 +1566,7 @@ def main() -> None:
     overview_png = None
     interior_png = None
     hw13_raw_dir = None
+    hw14_raw_dir = None
     render_only = False
     if "--" in sys.argv:
         args = sys.argv[sys.argv.index("--") + 1:]
@@ -1397,8 +1586,20 @@ def main() -> None:
             idx = args.index("--hw13-raw-dir")
             if idx + 1 < len(args):
                 hw13_raw_dir = pathlib.Path(args[idx + 1])
+        if "--hw14-raw-dir" in args:
+            idx = args.index("--hw14-raw-dir")
+            if idx + 1 < len(args):
+                hw14_raw_dir = pathlib.Path(args[idx + 1])
         if "--render-only" in args:
             render_only = True
+
+    if render_only and hw14_raw_dir is not None and OUT_BLEND.exists():
+        bpy.ops.wm.open_mainfile(filepath=str(OUT_BLEND))
+        render_hw14_views(
+            raw_dir=hw14_raw_dir,
+            proj_json=REPO_ROOT / "hardware" / "blender" / "render_projections_hw14.json",
+        )
+        return
 
     if render_only and hw13_raw_dir is not None and OUT_BLEND.exists():
         bpy.ops.wm.open_mainfile(filepath=str(OUT_BLEND))
@@ -1410,7 +1611,7 @@ def main() -> None:
 
     clear_scene()
     mats = build_materials()
-    build_open_cutaway_house(mats)
+    _arch, honeycomb_count = build_open_cutaway_house(mats)
     import_kicad_pcb_and_nodemcu(mats)
     build_hardware_devices_and_sensors(mats)
     _harness, wire_count = build_routed_40_wires(mats)
@@ -1424,7 +1625,7 @@ def main() -> None:
     bpy.ops.wm.save_as_mainfile(filepath=str(OUT_BLEND))
     print(f"[BLEND] Saved {OUT_BLEND} ({OUT_BLEND.stat().st_size} bytes)")
 
-    write_scene_spec(wire_count)
+    write_scene_spec(wire_count, honeycomb_count=honeycomb_count)
 
     # Export optimized PBR GLB (exclude lights & cameras)
     bpy.ops.object.select_all(action="DESELECT")
@@ -1452,6 +1653,12 @@ def main() -> None:
         render_hw13_views(
             raw_dir=hw13_raw_dir,
             proj_json=REPO_ROOT / "hardware" / "blender" / "render_projections.json",
+        )
+
+    if hw14_raw_dir is not None:
+        render_hw14_views(
+            raw_dir=hw14_raw_dir,
+            proj_json=REPO_ROOT / "hardware" / "blender" / "render_projections_hw14.json",
         )
 
 

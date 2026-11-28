@@ -20,6 +20,11 @@ import sys
 import trimesh
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+PRINT3D_SCRIPTS = REPO_ROOT / "hardware" / "in 3 d" / "scripts"
+if str(PRINT3D_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(PRINT3D_SCRIPTS))
+import lightweight_policy as lw_policy  # noqa: E402
+
 VILLA_GLB = REPO_ROOT / "web" / "models" / "smarthome_villa.glb"
 KICAD_GLB = REPO_ROOT / "hardware" / "kicad" / "smarthome_hub" / "3d" / "smarthome_hub.glb"
 BLEND_FILE = REPO_ROOT / "hardware" / "blender" / "smarthome_open_house.blend"
@@ -49,6 +54,7 @@ REQUIRED_NODES = [
 ]
 
 FORBIDDEN_TOKENS = ("fan", "ac", "vs1838", "ir", "breadboard")
+REMOVED_FURNITURE_PREFIXES = tuple(lw_policy.REMOVED_BLENDER_FURNITURE_PREFIXES)
 
 
 def is_forbidden(node_name: str) -> bool:
@@ -60,9 +66,14 @@ def is_forbidden(node_name: str) -> bool:
     return False
 
 
+def is_removed_furniture(node_name: str) -> bool:
+    return any(node_name.startswith(pref) for pref in REMOVED_FURNITURE_PREFIXES)
+
+
 def verify_glbs() -> dict:
     assert KICAD_GLB.exists(), f"Missing KiCad GLB: {KICAD_GLB}"
     assert VILLA_GLB.exists(), f"Missing Villa GLB: {VILLA_GLB}"
+    assert SCENE_SPEC.exists(), f"Missing SCENE_SPEC.json: {SCENE_SPEC}"
 
     k_scene = trimesh.load(str(KICAD_GLB))
     k_ext_mm = [round(float(v) * 1000.0, 2) for v in k_scene.extents]
@@ -76,10 +87,20 @@ def verify_glbs() -> dict:
     nodes = set(v_scene.graph.nodes)
     missing = [n for n in REQUIRED_NODES if n not in nodes]
     forbidden = sorted(n for n in nodes if is_forbidden(n))
+    furniture_nodes = sorted(n for n in nodes if is_removed_furniture(n))
     wire_nodes = sorted(n for n in nodes if re.match(r"^Wire_W\d{2}_", n))
+
+    spec = json.loads(SCENE_SPEC.read_text(encoding="utf-8"))
+    assert spec.get("furniture_removed") is True, f"SCENE_SPEC furniture_removed must be True: {spec.get('furniture_removed')}"
+    assert abs(float(spec.get("wall_thinning_mm", 0.0)) - float(lw_policy.WEB_THICKNESS_MM)) <= 0.05, (
+        f"SCENE_SPEC wall_thinning_mm mismatch: {spec.get('wall_thinning_mm')}"
+    )
+    assert spec.get("honeycomb_cutouts_enabled") is True, "SCENE_SPEC honeycomb_cutouts_enabled must be True"
+    assert "breadboard" in (spec.get("removed_devices") or []), "breadboard missing from SCENE_SPEC removed_devices"
 
     assert not missing, f"Missing required contract nodes: {missing}"
     assert not forbidden, f"Forbidden nodes found: {forbidden}"
+    assert not furniture_nodes, f"Removed decorative furniture nodes still in GLB: {furniture_nodes}"
     assert len(wire_nodes) == 40, f"Expected 40 routed wire nodes (Wire_W01..W40), found {len(wire_nodes)}"
 
     summary = {
@@ -92,9 +113,15 @@ def verify_glbs() -> dict:
         "routed_wire_node_count": len(wire_nodes),
         "missing_required_nodes": missing,
         "forbidden_nodes": forbidden,
+        "furniture_nodes": furniture_nodes,
+        "furniture_node_count": len(furniture_nodes),
+        "zero_furniture_nodes": len(furniture_nodes) == 0,
         "required_contract_node_count": len(REQUIRED_NODES),
         "all_16_contract_nodes_present": True,
         "all_20_contract_nodes_present": True,
+        "scene_spec_furniture_removed": spec.get("furniture_removed"),
+        "scene_spec_wall_thinning_mm": spec.get("wall_thinning_mm"),
+        "scene_spec_honeycomb_cutouts_enabled": spec.get("honeycomb_cutouts_enabled"),
     }
     print(json.dumps(summary, indent=2))
     return summary
@@ -157,6 +184,13 @@ for g in groups:
         out['groups'][g] = group_bbox_mm(obj)
 
 out['wire_count'] = sum(1 for o in bpy.data.objects if o.name.startswith('Wire_W'))
+furniture_prefixes = (
+    'LivingSofa', 'LivingPillow', 'CoffeeTable', 'BedFrame', 'BedHeadboard',
+    'BedMattress', 'BedDuvet', 'BedPillow', 'Nightstand', 'GardenStem', 'GardenFoliage',
+)
+out['furniture_objects'] = sorted(
+    o.name for o in bpy.data.objects if any(o.name.startswith(p) for p in furniture_prefixes)
+)
 
 for lname in ('led_living_room', 'led_bedroom'):
     lobj = bpy.data.objects.get(lname)
@@ -210,6 +244,7 @@ with open(sys.argv[-1], 'w', encoding='utf-8') as f:
             tmp_out.unlink()
 
     assert data["wire_count"] == 40, f"Expected 40 Wire_W* objects in .blend, found {data['wire_count']}"
+    assert not data.get("furniture_objects"), f"Removed decorative furniture objects found in .blend: {data.get('furniture_objects')}"
 
     # Assert key datasheet envelopes within +-0.5 mm tolerance
     expected = {

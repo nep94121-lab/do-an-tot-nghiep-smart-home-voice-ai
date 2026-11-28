@@ -43,7 +43,7 @@ SCENE_SPEC_PATH = REPO_ROOT / "hardware" / "blender" / "SCENE_SPEC.json"
 BLENDER_SCRIPT_PATH = REPO_ROOT / "scripts" / "build_smarthome_blender.py"
 HOUSE3D_JS_PATH = REPO_ROOT / "web" / "house3d.js"
 OUT_MD_PATH = REPO_ROOT / "docs" / "phan_cung" / "DIMENSIONS_AUDIT.md"
-DEFAULT_RECEIPT_PATH = pathlib.Path(r"C:\Users\LENOVO\datn-wt\agyhw13_20261127\build_receipts\dimensions_audit.json")
+DEFAULT_RECEIPT_PATH = REPO_ROOT / "hardware" / "blender" / "dimensions_audit.json"
 
 
 def parse_kicad_footprints_detailed(pcb_path: pathlib.Path) -> dict[str, Any]:
@@ -412,7 +412,7 @@ def run_audit(receipt_out: pathlib.Path) -> dict[str, Any]:
         "## 3. Automated Audit Summary",
         f"- **Total SSOT components audited:** `{len(rows)}` (`OK`: **{ok_count}**, `FIXED`: **{fixed_count}**, `FAIL`: **{fail_count}**)",
         f"- **KiCad Hub PCB (`smarthome_hub.kicad_pcb`):** `{kicad['board_mm'][0]:.1f} × {kicad['board_mm'][1]:.1f} × {kicad['board_mm'][2]:.1f} mm`, `{kicad['footprint_count']}` footprints, `U1`↔`U2` = `{kicad['u1_u2_row_spacing_mm']:.2f} mm`, `C8` on-board = `{kicad['has_onboard_c8']}`, `C9` on-board = `{kicad['has_onboard_c9']}`.",
-        f"- **Blender House Scene (`SCENE_SPEC.json` v{scene_spec.get('schema_version')}):** `breadboard_used = {scene_spec.get('breadboard_used')}`, `routed_wires_count = {scene_spec.get('routed_wires_count')}` (40/40 from `hardware/wire_lengths.json`).",
+        f"- **Blender House Scene (`SCENE_SPEC.json` v{scene_spec.get('schema_version')}):** `breadboard_used = {scene_spec.get('breadboard_used')}`, `furniture_removed = {scene_spec.get('furniture_removed')}`, `wall_thinning_mm = {scene_spec.get('wall_thinning_mm')}`, `honeycomb_cutouts_enabled = {scene_spec.get('honeycomb_cutouts_enabled')}`, `routed_wires_count = {scene_spec.get('routed_wires_count')}` (40/40 from `hardware/wire_lengths.json`).",
         f"- **House Module Clearances (`mica_design.check_hardware_clearances`):** `passed = {mica_clear['passed']}`, minimum non-mated gap = `{mica_clear['measured_min_gap_mm']} mm` (`{mica_clear['closest_pair']}`).",
         f"- **Machine-readable receipt:** `{receipt_out}`",
         "",
