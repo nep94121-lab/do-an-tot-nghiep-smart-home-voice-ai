@@ -52,3 +52,7 @@ login_rate_limit.json
 hardware/wifi_local.json
 *.wifi.local.json
 
+# Generated optimized image cache for graduation report
+docs/bao_cao/assets/optimized/
+
+

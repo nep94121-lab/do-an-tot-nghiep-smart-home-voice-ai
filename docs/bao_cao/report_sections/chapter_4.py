@@ -1,324 +1,610 @@
-"""Chapter 4: Thiết kế và triển khai (Backend, Voice AI, Web 3D, Android, ESP8266, KiCad PCB, 3D-Print House)."""
+"""Chapter 4: Thiết kế và triển khai (Quy trình vận hành, chức năng chi tiết, ngoại tuyến, giao diện & so sánh)."""
 
 from __future__ import annotations
 
 import pathlib
 
+from .code_excerpts import load_code_excerpt
 from .docx_helpers import ReportBuilder
 
 
+def _embed_listing(rb: ReportBuilder, excerpt_key: str) -> None:
+    caption, source_ref, start_line, lines = load_code_excerpt(excerpt_key)
+    rb.add_code_listing(
+        caption=caption,
+        code_lines=lines,
+        source_ref=source_ref,
+        start_line=start_line,
+        font_pt=10.0,
+    )
+
+
 def build_chapter_4(rb: ReportBuilder, assets_dir: pathlib.Path) -> None:
+    diag_dir = assets_dir / "diagrams"
     demo_dir = assets_dir / "demo"
     sw_dir = assets_dir / "software"
 
     rb.add_chapter(4, "THIẾT KẾ VÀ TRIỂN KHAI")
     rb.add_para(
-        "Trong Chương 4, báo cáo trình bày thiết kế kiến trúc chi tiết và phương án triển khai kỹ thuật cho toàn bộ bảy phân hệ cốt lõi "
-        "của hệ thống Smart Home Voice AI: máy chủ FastAPI và cơ sở dữ liệu SQLite WAL, cầu nối giọng nói thời gian thực Gemini 3.8 Live, "
-        "giao diện Web 3D Digital Twin kèm trang /wokwi PCB-Direct, ứng dụng di động Android Kotlin/Compose, firmware ESP8266 nạp Wi-Fi runtime "
-        "với cơ chế ngoại tuyến A1–A4, bo mạch PCB Hub DIY v3 (KiCad 10.0) và mô hình nhà in 3D lắp mộng tối ưu giảm nhựa (FreeCAD 1.1.4 + PrusaSlicer 2.9.7)."
+        "Trong Chương 4, em trình bày thiết kế chi tiết và phương án triển khai thực tế của hệ thống nhà thông minh "
+        "điều khiển bằng giọng nói tiếng Việt. Nội dung chương đi từ quy trình vận hành tổng thể và luồng xử lý "
+        "đầu–cuối của một câu lệnh giọng nói, tiếp đến phân tích cơ chế hoạt động bên trong từng phân hệ chức năng "
+        "(giọng nói tự nhiên, điều khiển thiết bị và cơ sở dữ liệu, tự động hóa hai bể và lệnh tùy chỉnh, phân quyền "
+        "ba tầng kèm mã QR động, chế độ hoạt động ngoại tuyến), sau đó mô tả giao diện Web 3D, ứng dụng Android, "
+        "vỏ mô hình nhà in 3D, và cuối cùng đối chiếu khách quan hệ thống với các sản phẩm nhà thông minh thương mại "
+        "phổ biến hiện nay."
     )
 
-    # ===== 4.1 THIẾT KẾ MÁY CHỦ BACKEND, CSDL VÀ PHÂN QUYỀN =====
-    rb.add_h2("4.1. Thiết kế máy chủ Backend FastAPI, Cơ sở dữ liệu SQLite 3NF và RBAC")
+    # ===== 4.1 QUY TRÌNH VẬN HÀNH TỔNG THỂ & LUỒNG XỬ LÝ LỆNH GIỌNG NÓI =====
+    rb.add_h2("4.1. Quy trình vận hành tổng thể và luồng xử lý lệnh giọng nói")
 
-    rb.add_h3("4.1.1. Kiến trúc mô-đun hóa của máy chủ FastAPI")
+    rb.add_h3("4.1.1. Quy trình vận hành tổng thể của hệ thống")
     rb.add_para(
-        "Máy chủ trung tâm được khởi chạy tại điểm vào backend/server.py bằng Uvicorn ASGI trên cổng cục bộ 8088 (môi trường kiểm thử cô lập "
-        "sử dụng cổng 8097 với tệp cơ sở dữ liệu tạm độc lập). Để đảm bảo tính dễ bảo trì và phân tách trách nhiệm rõ ràng, "
-        "tầng API được chia thành các router chuyên biệt: routes_devices.py (điều khiển 6 thiết bị, nhận telemetry 3 cảm biến, đồng bộ MQTT và Wokwi), "
-        "routes_auth.py (đăng nhập, đăng ký, OTP Gmail, quản lý tài khoản 3 tầng và khóa mã PIN Chủ nhà), routes_qr.py và routes_guest.py "
-        "(phát hành/xác minh mã QR động TOTP 10 giây, bắt tay 180 giây và thu hồi phiên Khách Cấp 3), routes_automation.py "
-        "(quản lý 2 bể tự động hóa độc lập TimersPool và RulesPool cùng lệnh tùy chỉnh) và routes_logs.py (nhật ký kiểm toán và tri thức RAG)."
+        "Toàn bộ hệ thống được tổ chức theo mô hình bốn tầng phối hợp chặt chẽ nhằm bảo đảm tính phản hồi tức thì "
+        "trong mạng gia đình và giữ an toàn phần cứng khi mất kết nối mạng. Ở tầng trung tâm, máy chủ điều phối viết "
+        "bằng FastAPI kết hợp cơ sở dữ liệu quan hệ SQLite được vận hành trực tiếp trên máy tính xách tay (laptop) "
+        "đặt trong mạng nội bộ. Người dùng tương tác với ngôi nhà thông qua giao diện Web 3D trên trình duyệt hoặc "
+        "ứng dụng Android cài trên điện thoại; các thiết bị đầu cuối này có thể truy cập máy chủ qua mạng LAN nội bộ "
+        "khi ở trong nhà hoặc qua kết nối Internet khi ở bên ngoài."
     )
     rb.add_para(
-        "Các sự kiện thay đổi trạng thái từ bất kỳ nguồn nào (nút bấm Web, Android APK, giọng nói Gemini Live, cảm biến phần cứng hay luật tự động) "
-        "đều đi qua một trung tâm phát sóng thời gian thực (Realtime Hub — backend/realtime_hub.py) sử dụng đồng thời Server-Sent Events (SSE) "
-        "và danh sách cầu nối WebSocket đang hoạt động (_ACTIVE_BRIDGES). Nhờ vậy, mọi trình duyệt và điện thoại đều cập nhật tức thì mà không cần tải lại trang. "
-        "Bảng 4.1 liệt kê các nhóm điểm cuối API chính của máy chủ."
+        "Ở nhánh xử lý hội thoại, máy chủ duy trì kết nối WebSocket song công tới dịch vụ nhận dạng và hội thoại "
+        "giọng nói Gemini Live để hiểu tiếng Việt tự nhiên và gọi các hàm công cụ tương ứng. Ở nhánh phần cứng, máy "
+        "chủ trao đổi lệnh điều khiển và dữ liệu cảm biến với vi điều khiển NodeMCU ESP8266 gắn trên bo mạch PCB Hub "
+        "trung tâm qua giao thức MQTT và HTTP trong mạng LAN. Từ bo mạch PCB Hub, tín hiệu điện áp 5V và 3,3V được "
+        "phân phối ổn định tới 6 thiết bị chấp hành (cửa chính dùng Servo SG90, đèn phòng khách, đèn phòng ngủ, máy "
+        "bơm tưới cây, còi báo động, nguồn mạch loa PAM8403) và thu nhận liên tục dữ liệu từ 3 cảm biến (nhiệt độ và "
+        "độ ẩm không khí DHT11, độ ẩm đất YL-69 qua mạch LM393, cảm biến âm thanh KY-037). Khi máy chủ hoặc đường "
+        "truyền mạng gián đoạn, thiết bị đầu cuối trong cùng mạng LAN vẫn có thể gửi lệnh bật/tắt cơ bản trực tiếp "
+        "tới máy chủ HTTP cục bộ cổng 80 của ESP8266 theo chế độ dự phòng ngoại tuyến. Hình 4.1 thể hiện sơ đồ khối "
+        "vận hành tổng thể của hệ thống."
+    )
+    rb.add_figure(
+        diag_dir / "diag_system_block.png",
+        "Sơ đồ khối vận hành tổng thể hệ thống nhà thông minh điều khiển giọng nói",
+        max_width_cm=13.4,
+        max_height_cm=6.4,
+        kind="diagram",
+    )
+
+    rb.add_h3("4.1.2. Luồng xử lý đầu–cuối của một câu lệnh giọng nói")
+    rb.add_para(
+        "Để người dùng có thể ra lệnh bằng tiếng Việt tự nhiên mà vẫn bảo đảm tuyệt đối kỷ luật phân quyền và đồng "
+        "bộ trạng thái vật lý, mỗi câu lệnh giọng nói đi qua bảy bước xử lý liên hoàn trên Hình 4.2. Trước hết, "
+        "micro trên giao diện Web hoặc ứng dụng Android thu âm tín hiệu tiếng nói chuẩn PCM 16 kHz, 16-bit đơn kênh, "
+        "chia đều từng khung 20 ms và truyền qua WebSocket lên máy chủ. Tại đây, bộ lọc chống dội âm phía máy chủ "
+        "(ServerEchoGuard) kết hợp phát hiện hoạt động tiếng nói (VAD) loại bỏ tiếng vọng phát ra từ loa để tránh "
+        "trợ lý tự nghe nhầm giọng của chính mình."
+    )
+    rb.add_para(
+        "Tiếp theo, luồng âm thanh sạch được chuyển tiếp tới dịch vụ Gemini Live. Mô hình nhận dạng tiếng nói tiếng "
+        "Việt theo thời gian thực, hiểu ý định ngữ cảnh và lựa chọn hàm công cụ phù hợp (chẳng hạn control_device, "
+        "schedule_action hoặc gọi lệnh tùy chỉnh) kèm tham số thiết bị đã chuẩn hóa. Nếu câu lệnh thuộc nhánh lệnh "
+        "tùy chỉnh, hệ thống tách làm hai trường hợp rõ ràng: khi người dùng tạo hoặc chỉnh sửa một lệnh mới, máy "
+        "chủ lưu tạm vào hàng đợi chờ và hỏi xác nhận đúng một lần duy nhất; còn khi gọi lại lệnh đã lưu từ các lần "
+        "sau, bộ đối khớp cụm từ kích hoạt sẽ bỏ qua bước hỏi lại và chuyển thẳng danh sách thao tác đi thực thi ngay."
+    )
+    rb.add_para(
+        "Trước khi bất kỳ tín hiệu điều khiển nào được phép rời khỏi máy chủ, bước kiểm tra phân quyền RBAC ba tầng "
+        "(1/2/3) luôn được thực thi bắt buộc dựa trên phiên đăng nhập thực tế của người dùng, hoàn toàn không phụ "
+        "thuộc vào suy luận của mô hình AI. Nếu phiên không đủ quyền (ví dụ Khách Cấp 3 yêu cầu mở cửa chính hoặc "
+        "bật còi báo động), máy chủ lập tức chặn yêu cầu với mã HTTP 403, ghi nhận sự kiện từ chối vào nhật ký kiểm "
+        "toán và trả câu từ chối tiếng Việt cố định để trợ lý đọc lại. Ngược lại, khi yêu cầu hợp lệ, máy chủ áp "
+        "dụng nguyên tắc Actuate-First: gửi ngay lệnh điều khiển xuống ESP8266 qua MQTT hoặc HTTP LAN trước, chờ "
+        "xác nhận cập nhật trạng thái vào SQLite WAL và phát sự kiện SSE làm mới tức thì giao diện Web 3D cùng ứng "
+        "dụng Android, sau cùng mới để trợ lý phát câu phản hồi tiếng Việt ngắn gọn khớp đúng kết quả vừa thực thi "
+        "(ví dụ: \"Đã bật đèn phòng khách.\")."
+    )
+    rb.add_figure(
+        diag_dir / "diag_voice_e2e.png",
+        "Luồng xử lý đầu–cuối của một câu lệnh giọng nói tiếng Việt kèm nhánh lệnh tùy chỉnh và phân quyền RBAC",
+        max_width_cm=13.4,
+        max_height_cm=6.4,
+        kind="diagram",
+    )
+
+    # ===== 4.2 THIẾT KẾ VÀ CƠ CHẾ HOẠT ĐỘNG TỪNG CHỨC NĂNG CHÍNH =====
+    rb.add_h2("4.2. Thiết kế và cơ chế hoạt động từng chức năng chính")
+
+    # --- 4.2.1 ---
+    rb.add_h3("4.2.1. Điều khiển giọng nói tiếng Việt tự nhiên")
+    rb.add_para(
+        "Phân hệ trợ lý giọng nói được triển khai trong cụm mô-đun backend/live/ (gồm gemini_bridge.py, "
+        "tool_dispatcher_mixin.py, prompt_builder.py và echo_and_speech_guard.py). Máy chủ thiết lập cầu nối "
+        "WebSocket song công toàn phần giữa trình duyệt hoặc điện thoại với Gemini Live API thông qua thư viện "
+        "google-genai. Luồng âm thanh đầu vào chuẩn PCM 16 kHz (320 mẫu tương đương 640 byte mỗi khung 20 ms) được "
+        "đẩy liên tục theo thời gian thực, trong khi luồng âm thanh phản hồi từ giọng đọc tiếng Việt Aoede có tần số "
+        "lấy mẫu 24 kHz PCM 16-bit được trả về để phát ngay qua AudioWorklet trên Web hoặc AudioTrack trên Android."
+    )
+    rb.add_para(
+        "Trong thử nghiệm hội thoại thực tế trên loa điện thoại và laptop, hiện tượng loa phát câu trả lời rồi lọt "
+        "ngược vào micro rất dễ làm mô hình hiểu nhầm thành lệnh mới hoặc lặp vô hạn. Em giải quyết bài toán này "
+        "bằng lớp bảo vệ ServerEchoGuard đặt ngay trên máy chủ: trong suốt thời gian trợ lý đang phát âm thanh cộng "
+        "thêm khoảng đuôi 400 ms và cửa sổ đối chiếu bản ghi 8 giây, hệ thống theo dõi mức năng lượng RMS cùng hệ "
+        "số tương quan đường bao tín hiệu để triệt tiêu tiếng vọng, nhưng vẫn nhận biết khi người dùng chủ động nói "
+        "đè vào (barge-in) với biên độ vượt trội để dừng câu trả lời hiện tại và nghe lệnh mới. Song song đó, cơ chế "
+        "tái kết nối không rơi khung âm thanh (Zero-Drop Reconnect) đệm các khung PCM đang nói vào hàng đợi bộ nhớ "
+        "khi kết nối thượng nguồn gặp gián đoạn ngắn, giúp câu lệnh không bị đứt giữa chừng."
+    )
+    rb.add_para(
+        "Về phong cách phản hồi và kỷ luật thực thi, hệ thống kết hợp mô hình Actuate-First với bộ lọc văn bản "
+        "sanitize_spoken_vietnamese_text nhằm loại bỏ hoàn toàn tên hàm, chuỗi JSON hay ký hiệu định dạng kỹ thuật "
+        "trước khi hiển thị phụ đề và phát âm. Nhờ vậy, câu trả lời của trợ lý luôn ngắn gọn, tự nhiên, 100% tiếng "
+        "Việt và chỉ xác nhận sau khi lệnh đã thực sự đi qua tầng kiểm tra quyền và tầng điều khiển thiết bị. Bảng "
+        "4.1 tóm tắt các nhóm hàm công cụ chính được cấp cho trợ lý giọng nói, và Đoạn mã 4.1 trích trực tiếp phần "
+        "chuẩn hóa định danh thiết bị kèm kiểm tra phân quyền RBAC trong bộ điều phối công cụ control_device."
     )
     rb.add_table(
-        "Danh mục các nhóm giao diện lập trình API REST, WebSocket và SSE của máy chủ Backend",
-        ["Nhóm API", "Đường dẫn tiêu biểu", "Quyền yêu cầu", "Chức năng nghiệp vụ chính"],
+        "Danh mục các nhóm hàm công cụ (Function Declarations) cấp cho dịch vụ giọng nói Gemini Live",
+        ["Tên hàm công cụ", "Tham số cốt lõi", "Hành vi thực thi & Kiểm tra RBAC"],
         [
-            ("Hệ thống & Sức khỏe", "GET /api/version, GET /api/health", "Công khai", "Trả về mã phiên bản Git, trạng thái máy chủ, tình trạng kết nối bo mạch ESP8266."),
-            ("Thiết bị & Cảm biến", "GET /api/state, POST /api/device/{id}", "Cấp 1 / 2 / 3 (lọc)", "Đọc trạng thái 6 thiết bị & 3 cảm biến; bật/tắt thiết bị sau kiểm tra RBAC."),
-            ("Đồng bộ Phần cứng", "POST /api/hardware/resync, /api/sound_sensor", "Hardware Key / LAN", "Nhận dữ liệu DHT11, đất A0, KY-037 D5; đồng bộ ngược sau giai đoạn ngoại tuyến A4."),
-            ("Xác thực & Tài khoản", "POST /api/auth/login, /otp, /users", "Công khai / Cấp 1", "Đăng nhập mật khẩu/OTP, quản lý danh sách email được mời, đặt PIN Chủ nhà."),
-            ("Mã QR động Khách", "POST /api/qr/generate, /api/qr/claim", "Cấp 1 / Khách", "Tạo mã QR đổi chữ ký TOTP mỗi 10 giây (chờ 180 giây), cấp/thu hồi phiên Cấp 3."),
-            ("Tự động hóa 2 Pool", "GET/POST /api/automation/*, /schedules", "Cấp 1 / Cấp 2", "Quản lý TimersPool (hẹn giờ/lịch lặp), RulesPool (luật cảm biến) và custom_commands."),
-            ("Nhật ký & Tri thức", "GET /api/logs, /api/rag/query", "Chỉ Cấp 1", "Truy vấn lịch sử audit_logs theo thời gian/thiết bị/người dùng và tra cứu RAG."),
-            ("Thời gian thực Live", "WS /ws/live, GET /api/events (SSE)", "Phiên hợp lệ", "Kênh âm thanh hai chiều Gemini 3.8 Live (PCM 16/24 kHz) và đẩy trạng thái SSE."),
+            (
+                "control_device",
+                "device_id, action",
+                "Bật/tắt/mở/đóng ngay 1 trong 6 thiết bị hoặc nhóm all_lights/all_devices; kiểm tra quyền Cấp 1/2/3 trên máy chủ trước khi gửi lệnh.",
+            ),
+            (
+                "schedule_action",
+                "device_id, action, thời gian trễ / giờ đồng hồ, repeat",
+                "Đặt bộ hẹn giờ đếm ngược hoặc lịch lặp theo chu kỳ (once/hourly/daily/weekly/monthly) vào bể TimersPool.",
+            ),
+            (
+                "update_timer",
+                "device_id, thao tác sửa/hủy, mốc thời gian mới",
+                "Điều chỉnh giờ kích hoạt hoặc hủy bỏ hẹn giờ đang chờ mà không cần xóa tạo lại thủ công.",
+            ),
+            (
+                "set_if_else_rule",
+                "điều kiện cảm biến / thiết bị, chuỗi hành động, cooldown",
+                "Tạo luật tự động hóa phản ứng cảm biến hoặc trạng thái liên động lưu vào bể RulesPool.",
+            ),
+            (
+                "create_alias_rule & confirm_pending_action",
+                "phrase, steps / quyết định xác nhận",
+                "Dạy lệnh tùy chỉnh mới qua bước hỏi xác nhận đúng 1 lần, lưu vào custom_commands sau khi người dùng đồng ý.",
+            ),
+            (
+                "execute_alias_rule",
+                "phrase",
+                "Đối khớp cụm từ lệnh tùy chỉnh đã lưu và thực thi ngay chuỗi thiết bị mà không hỏi xác nhận lại (chặn đối với Cấp 3).",
+            ),
+            (
+                "read_sensors / query_knowledge_rag",
+                "phạm vi thiết bị / câu hỏi tiếng Việt",
+                "Đọc số liệu DHT11, độ ẩm đất, âm thanh KY-037, trạng thái lịch hẹn và tra cứu nhật ký tri thức.",
+            ),
         ],
-        col_widths_cm=[2.8, 4.4, 2.5, 5.8],
-        font_pt=9.8,
+        col_widths_cm=[3.9, 4.4, 7.2],
+        font_pt=9.6,
     )
+    _embed_listing(rb, "be_voice_control")
 
-    rb.add_h3("4.1.2. Thiết kế cơ sở dữ liệu SQLite 3.53.2 chuẩn hóa 3NF (chế độ WAL)")
+    # --- 4.2.2 ---
+    rb.add_h3("4.2.2. Điều khiển thiết bị và giám sát cảm biến")
     rb.add_para(
-        "Cơ sở dữ liệu quan hệ được quản trị bằng cơ chế di trú phiên bản tự động (backend/db_migrations.py), bật đồng thời hai cờ quan trọng là "
-        "PRAGMA journal_mode = WAL (Write-Ahead Logging) để cho phép nhiều yêu cầu đọc SSE/REST diễn ra song song với giao dịch ghi nhật ký mà không gặp lỗi khóa bảng, "
-        "và PRAGMA foreign_keys = ON để cưỡng chế toàn vẹn tham chiếu. Lược đồ chuẩn hóa 3NF gồm trên 20 bảng chia làm 4 cụm nghiệp vụ chính: "
-        "(1) Cụm danh tính và bảo mật (roles, users, user_sessions, invites, otp_challenges, trusted_devices, owner_pin_security, login_rate_limits); "
-        "(2) Cụm thiết bị và trạng thái (devices, device_state, system_state_meta); "
-        "(3) Cụm tự động hóa hai bể và lệnh tùy chỉnh (timers_pool, schedules, rules_pool, automation_rules, compound_automation_rules, custom_commands, pending_confirmations); "
-        "(4) Cụm nhật ký kiểm toán và tri thức (audit_logs, knowledge_rag, aoede_audio_cache, durable_kv). Hình 4.1 minh họa lược đồ thực thể liên kết (ERD)."
+        "Máy chủ trung tâm khởi chạy bằng Uvicorn ASGI trên cổng cục bộ 8088 tại điểm vào backend/server.py và "
+        "được phân tách rõ ràng thành các router FastAPI theo từng miền nghiệp vụ: routes_devices.py đảm nhiệm điều "
+        "khiển 6 thiết bị chấp hành, tiếp nhận dữ liệu cảm biến và đồng bộ phần cứng ESP8266; routes_auth.py xử lý "
+        "đăng nhập, đăng ký, mã OTP qua email, quản lý tài khoản và mã PIN Chủ nhà; routes_qr.py và routes_guest.py "
+        "phụ trách vòng đời mã QR động mời khách; routes_automation.py quản lý hai bể tự động hóa cùng lệnh tùy "
+        "chỉnh; và routes_logs.py phục vụ truy vấn nhật ký kiểm toán cùng cơ sở tri thức RAG. Bảng 4.2 tổng hợp "
+        "các nhóm giao diện lập trình chính của máy chủ."
+    )
+    rb.add_table(
+        "Danh mục các nhóm giao diện lập trình API REST, WebSocket và SSE của máy chủ FastAPI",
+        ["Nhóm API", "Đường dẫn tiêu biểu", "Tầng quyền", "Chức năng nghiệp vụ chính"],
+        [
+            (
+                "Hệ thống & Sức khỏe",
+                "GET /api/version, GET /api/health",
+                "Công khai",
+                "Trả thông tin phiên bản, tình trạng máy chủ và trạng thái kết nối bo mạch ESP8266.",
+            ),
+            (
+                "Thiết bị & Cảm biến",
+                "GET /api/state, POST /api/device/{id}",
+                "Cấp 1 / 2 / 3 (lọc)",
+                "Trả snapshot thiết bị lọc theo đúng phiên và thực thi bật/tắt/mở/đóng sau kiểm tra RBAC.",
+            ),
+            (
+                "Đồng bộ Phần cứng",
+                "POST /api/hardware/resync, /api/sound_sensor",
+                "Khóa phần cứng / LAN",
+                "Nhận telemetry DHT11, độ ẩm đất A0, cảm biến âm thanh D5 và đồng bộ ngược sau khi mất mạng.",
+            ),
+            (
+                "Xác thực & Tài khoản",
+                "POST /api/auth/login, /otp, /users",
+                "Công khai / Cấp 1",
+                "Đăng nhập mật khẩu/OTP, quản lý danh sách email thành viên và bảo vệ PIN Chủ nhà.",
+            ),
+            (
+                "Mã QR động Khách",
+                "POST /api/qr/generate, /api/qr/claim",
+                "Cấp 1 / Khách",
+                "Sinh mã QR đổi chữ ký mỗi 10 giây, xác thực bắt tay 180 giây và thu hồi phiên khách tức thì.",
+            ),
+            (
+                "Tự động hóa & Lệnh",
+                "GET/POST /api/automation/*, /schedules",
+                "Cấp 1 / Cấp 2",
+                "Quản lý TimersPool, RulesPool và danh sách lệnh tùy chỉnh custom_commands.",
+            ),
+            (
+                "Nhật ký & Thời gian thực",
+                "GET /api/logs, WS /ws/live, GET /api/events",
+                "Cấp 1 / Phiên hợp lệ",
+                "Truy vấn lịch sử kiểm toán audit_logs, kênh thoại Gemini Live và luồng đồng bộ SSE.",
+            ),
+        ],
+        col_widths_cm=[2.8, 4.3, 2.5, 5.9],
+        font_pt=9.6,
+    )
+    rb.add_para(
+        "Toàn bộ dữ liệu bền vững được lưu trữ trong cơ sở dữ liệu SQLite chuẩn hóa dạng chuẩn 3 (3NF) do mô-đun "
+        "backend/db_migrations.py tự động khởi tạo và nâng cấp lược đồ. Em bật đồng thời hai tùy chọn cốt lõi là "
+        "PRAGMA journal_mode = WAL (Write-Ahead Logging) để nhiều yêu cầu đọc trạng thái và kênh SSE diễn ra song "
+        "song với giao dịch ghi nhật ký mà không phát sinh lỗi khóa tệp, và PRAGMA foreign_keys = ON để bảo đảm "
+        "toàn vẹn khóa ngoại. Hơn 20 bảng dữ liệu được quy hoạch thành bốn cụm nghiệp vụ rõ ràng như trên Hình 4.3: "
+        "cụm danh tính và bảo mật (roles, users, user_sessions, invites, otp_challenges, trusted_devices), cụm "
+        "thiết bị và trạng thái cảm biến (devices, device_state, system_state_meta), cụm tự động hóa và lệnh tùy "
+        "chỉnh (timers_pool, schedules, rules_pool, compound_automation_rules, custom_commands, "
+        "pending_confirmations) và cụm nhật ký kiểm toán cùng tri thức (audit_logs, knowledge_rag, durable_kv)."
     )
     rb.add_figure(
         sw_dir / "sw_arch_db_erd.png",
-        "Sơ đồ thực thể liên kết (ERD) cơ sở dữ liệu SQLite 3.53.2 chuẩn hóa 3NF chế độ WAL",
-        max_width_cm=15.0,
-        max_height_cm=9.0,
+        "Sơ đồ thực thể liên kết (ERD) cơ sở dữ liệu SQLite chuẩn hóa 3NF ở chế độ WAL",
+        max_width_cm=14.0,
+        max_height_cm=7.0,
+        kind="diagram",
     )
+    rb.add_para(
+        "Mọi thay đổi trạng thái thiết bị hoặc số liệu cảm biến mới từ DHT11, YL-69 và KY-037 sau khi cập nhật "
+        "vào lõi điều phối đều đi qua trung tâm phát sóng thời gian thực backend/realtime_hub.py. Trung tâm này "
+        "phát đồng thời sự kiện qua Server-Sent Events (SSE) tới tất cả trình duyệt Web 3D và ứng dụng Android đang "
+        "mở, nhờ đó trạng thái hiển thị đồng bộ gần như tức thì mà không cần tải lại trang. Đoạn mã 4.2 minh họa "
+        "hàm xử lý yêu cầu điều khiển thiết bị trên FastAPI: mọi thao tác đều truyền đầy đủ tầng quyền và thông tin "
+        "người gọi xuống lõi xử lý (bypass_rbac=False), rồi chỉ trả về bản chụp snapshot đã lọc đúng theo quyền của "
+        "phiên đó."
+    )
+    _embed_listing(rb, "be_fastapi_device")
 
-    rb.add_h3("4.1.3. Cơ chế Tự động hóa 2 Pool độc lập và Bảo mật QR động TOTP 10 giây")
+    # --- 4.2.3 ---
+    rb.add_h3("4.2.3. Tự động hóa, hẹn giờ, lịch lặp và lệnh tùy chỉnh")
     rb.add_para(
-        "Để tránh xung đột giữa các bộ hẹn giờ một lần (như '5 phút nữa tắt đèn phòng khách') và các luật phản ứng cảm biến liên tục "
-        "(như 'khi độ ẩm đất nhỏ hơn 40% thì bật bơm tưới'), kiến trúc bộ máy quy tắc (backend/rule_engine.py) tách thành hai bể thực thi hoàn toàn độc lập: "
-        "TimersPool (backend/engine/timers_pool.py) chuyên quản lý lịch đếm ngược và lịch đồng hồ lặp (once/hourly/daily/weekly/monthly) với khả năng sửa/hủy tức thì, "
-        "và RulesPool (backend/engine/rules_pool.py kết hợp compound_automation_rules) chuyên đánh giá điều kiện tổ hợp đa cảm biến kèm khoảng nghỉ chống dao động (cooldown)."
+        "Trong thực tế vận hành nhà thông minh, các tác vụ theo thời gian (ví dụ \"5 phút nữa tắt đèn phòng khách\" "
+        "hoặc \"6 giờ sáng mỗi ngày bật máy bơm\") và các quy tắc phản ứng theo cảm biến (ví dụ \"nếu độ ẩm đất "
+        "dưới 40% thì bật máy bơm tưới cây\") có vòng đời và cơ chế kích hoạt rất khác nhau. Nếu gộp chung vào một "
+        "bảng duy nhất sẽ dễ phát sinh xung đột khi người dùng yêu cầu hủy lịch hẹn hoặc chỉnh sửa luật cảm biến. "
+        "Vì vậy, bộ máy tự động hóa (backend/rule_engine.py) được thiết kế tách biệt thành hai bể độc lập: "
+        "TimersPool (backend/engine/timers_pool.py) chuyên quản lý hẹn giờ đếm ngược một lần và lịch đồng hồ lặp "
+        "(một lần, theo giờ, hàng ngày, hàng tuần, hàng tháng) với khả năng cập nhật hoặc hủy tức thì; còn RulesPool "
+        "(backend/engine/rules_pool.py kết hợp compound_automation_rules) chuyên đánh giá điều kiện cảm biến hoặc "
+        "tổ hợp đa điều kiện có kèm thời gian nghỉ chống bật/tắt liên tục (cooldown)."
     )
     rb.add_para(
-        "Đối với tính năng mời Khách Cấp 3 (backend/auth/qr_totp_mixin.py), mỗi khi Chủ nhà bấm tạo mã QR, máy chủ sinh một phiên chờ bắt tay "
-        "có hiệu lực tối đa 180 giây kèm khóa bí mật ngẫu nhiên. Mã QR hiển thị trên màn hình Chủ nhà tự động đổi chữ ký HMAC-SHA256 theo cửa sổ thời gian "
-        "TOTP đúng 10 giây (cho phép độ lệch nhỏ ở biên chuyển cửa sổ). Cơ chế này vô hiệu hóa hoàn toàn nguy cơ chụp ảnh màn hình mã QR gửi cho người ngoài "
-        "sử dụng sau đó, đồng thời Chủ nhà có thể bấm thu hồi phiên khách ngay lập tức làm ngắt mọi kết nối WebSocket đang hoạt động."
+        "Bên cạnh hẹn giờ và luật cảm biến, tính năng lệnh tùy chỉnh cho phép Chủ nhà và Thành viên tự định nghĩa "
+        "khẩu lệnh ngữ cảnh theo thói quen riêng, chẳng hạn \"Từ giờ khi tôi nói chế độ đi ngủ thì tắt tất cả đèn "
+        "và đóng cửa chính\". Để vừa tránh tạo nhầm lệnh do nghe sai, vừa không gây phiền hà khi sử dụng hàng ngày, "
+        "em áp dụng quy tắc xác nhận đúng một lần: khi tạo mới hoặc chỉnh sửa một lệnh tùy chỉnh, hàm "
+        "prepare_pending_mutation lưu bản nháp vào bảng pending_confirmations và để trợ lý đọc tóm tắt chuỗi thiết "
+        "bị hỏi người dùng xác nhận một lần duy nhất. Ngay sau khi người dùng đồng ý, lệnh được lưu cố định vào "
+        "bảng custom_commands; từ mọi lần gọi về sau, hàm execute_alias_rule đối khớp cụm từ kích hoạt và thực thi "
+        "ngay toàn bộ chuỗi hành động mà không hỏi xác nhận lại. Đối với Khách Cấp 3, cả quyền tạo lẫn quyền chạy "
+        "lệnh tùy chỉnh đều bị chặn ở tầng máy chủ. Đoạn mã 4.3 trích trực tiếp phần khởi tạo bản nháp xác nhận 1 "
+        "lần và nhánh đối khớp thực thi lệnh tùy chỉnh đã lưu."
     )
+    _embed_listing(rb, "be_custom_cmd_noreconfirm")
 
-    # ===== 4.2 TRỢ LÝ GIỌNG NÓI GEMINI 3.8 LIVE =====
-    rb.add_h2("4.2. Thiết kế Trợ lý giọng nói Gemini 3.8 Live, Echo Guard và Lệnh tùy chỉnh")
+    # --- 4.2.4 ---
+    rb.add_h3("4.2.4. Phân quyền 3 tầng (1/2/3) và mời khách bằng mã QR động")
     rb.add_para(
-        "Phân hệ trợ lý giọng nói (backend/live/gemini_bridge.py và backend/live/prompt_builder.py) thiết lập một cầu nối WebSocket song công toàn phần "
-        "giữa trình duyệt/ứng dụng di động với dịch vụ Gemini 3.8 Live API thông qua SDK google-genai 2.33.0. Luồng âm thanh đầu vào từ micro người dùng "
-        "được chuẩn hóa thành PCM 16 kHz, 16-bit Mono, chia khung đều 20 ms (320 mẫu = 640 byte/khung); luồng phản hồi từ giọng đọc tiếng Việt Aoede "
-        "có tần số lấy mẫu 24 kHz PCM 16-bit Mono được phát nối tiếp mượt mà."
+        "An ninh truy cập là một yêu cầu trọng tâm khi nhiều đối tượng cùng sử dụng chung ngôi nhà. Hệ thống áp "
+        "dụng mô hình kiểm soát truy cập theo vai trò (RBAC) ba tầng được khóa cứng trên máy chủ tại mô-đun "
+        "backend/auth/tier_permissions.py, trong đó chỉ số tầng càng nhỏ tương ứng với thẩm quyền càng cao:"
+    )
+    rb.add_bullet(
+        "Tầng 1 — Chủ nhà (ADMIN): ",
+        "Có toàn quyền điều khiển đủ 6 thiết bị chấp hành (bao gồm hai thiết bị nhạy cảm là cửa chính và còi báo "
+        "động), quản trị tài khoản thành viên, thiết lập mã PIN Chủ nhà, phát hành và thu hồi mã QR mời khách, "
+        "tạo/sửa mọi lịch tự động hóa và xem toàn bộ nhật ký kiểm toán audit_logs.",
+    )
+    rb.add_bullet(
+        "Tầng 2 — Thành viên gia đình (MEMBER): ",
+        "Được phép điều khiển 4 thiết bị sinh hoạt (đèn phòng khách, đèn phòng ngủ, máy bơm tưới cây, nguồn mạch "
+        "loa), đặt hẹn giờ và quản lý lệnh tùy chỉnh cá nhân, nhưng bị chặn thao tác đối với cửa chính, còi báo "
+        "động, quản trị người dùng và nhật ký hệ thống.",
+    )
+    rb.add_bullet(
+        "Tầng 3 — Khách (CHILD_GUEST): ",
+        "Chỉ được phép bật/tắt đúng 2 thiết bị chiếu sáng (đèn phòng khách và đèn phòng ngủ) qua giao diện hoặc "
+        "giọng nói cơ bản; mọi yêu cầu mở cửa, bật bơm, bật còi, tạo tự động hóa hay chạy lệnh tùy chỉnh đều bị "
+        "máy chủ từ chối với mã HTTP 403 và ẩn hoàn toàn các thẻ thiết bị ngoài quyền hạn trên giao diện.",
     )
     rb.add_para(
-        "Bốn giải pháp kỹ thuật trọng yếu đã được triển khai để bảo đảm độ ổn định hội thoại tiếng Việt dài hơi:"
+        "Đoạn mã 4.4 thể hiện hàm kiểm tra quyền điều khiển can_control_device và hàm lọc danh sách thiết bị hiển "
+        "thị devices_visible_for_tier. Việc dùng chung một nguồn quy định duy nhất trên máy chủ giúp ngăn chặn triệt "
+        "để trường hợp người dùng gọi thẳng API hoặc dùng câu nói đánh lừa trợ lý để vượt quyền."
     )
-    rb.add_bullet(
-        "Chống dội âm phía máy chủ (ServerEchoGuard) và lọc tiếng nói tiếng Việt (VietnameseVAD): ",
-        "Khi trợ lý Aoede đang phát âm thanh phản hồi qua loa điện thoại hoặc laptop, ServerEchoGuard (backend/live/echo_and_speech_guard.py) "
-        "theo dõi cửa sổ phát âm thực tế kết hợp ngưỡng năng lượng và bộ phát hiện giọng nói VietnameseVAD để chặn luồng vọng loa đi ngược vào mô hình, "
-        "đồng thời vẫn cho phép người dùng ngắt lời chủ động (barge-in) khi cần thiết.",
+    _embed_listing(rb, "be_rbac_check_fn")
+    rb.add_para(
+        "Để giải quyết tình huống có người thân hoặc bạn bè ghé thăm nhà trong thời gian ngắn mà không cần tạo tài "
+        "khoản lâu dài hay chia sẻ mật khẩu Wi-Fi/tài khoản chính, em thiết kế luồng mời Khách Cấp 3 bằng mã QR "
+        "động trong backend/auth/qr_totp_mixin.py. Chỉ Chủ nhà Cấp 1 mới có quyền bấm sinh mã QR kèm thời hạn sử "
+        "dụng tùy chọn (1 ngày, 2 ngày, 1 tuần, 1 tháng hoặc 1 năm). Mã QR trên màn hình Chủ nhà tự động xoay vòng "
+        "chữ ký HMAC-SHA256 theo chu kỳ TOTP đúng 10 giây (Đoạn mã 4.5). Khi khách quét mã bằng điện thoại hoặc "
+        "ứng dụng Android, máy chủ kiểm tra token trong cửa sổ bắt tay tối đa 180 giây (18 chu kỳ 10 giây, có tính "
+        "sai lệch đồng hồ nhỏ) và đánh dấu ngay vào tập used_qr_tokens theo cơ chế dùng một lần (Single-Use Token). "
+        "Cách thiết kế này ngăn chặn hiệu quả hành vi chụp ảnh màn hình mã QR gửi lại cho người ngoài quét sau đó. "
+        "Ngoài ra, Chủ nhà có thể bấm thu hồi phiên khách bất kỳ lúc nào; máy chủ sẽ vô hiệu hóa token phiên và "
+        "ngắt lập tức mọi kết nối WebSocket giọng nói của vị khách đó."
     )
-    rb.add_bullet(
-        "Cơ chế Zero-Drop Reconnect với hàng đợi In-Flight PCM: ",
-        "Nếu phiên WebSocket với thượng nguồn Gemini Live bị ngắt đột ngột do mạng chập chờn hoặc quá thời lượng phiên, LiveBridgeSession tự động "
-        "đệm các khung PCM đang nói vào hàng đợi bộ nhớ, tái thiết lập kết nối ngầm kèm ngữ cảnh trạng thái nhà mới nhất và phát tiếp không làm rơi câu lệnh.",
-    )
-    rb.add_bullet(
-        "Mô hình thực thi Actuate-First và 4 bức tường lửa Prompt: ",
-        "Hệ thống khai báo 20 Function Declarations cho Gemini 3.8 Live (Bảng 4.2). Với lệnh điều khiển trực tiếp hợp lệ, máy chủ cưỡng chế thực thi ngay lập tức "
-        "trước khi trả kết quả cho AI phát câu xác nhận ngắn gọn 100% tiếng Việt (VD: 'Đã bật đèn phòng khách.'). Bộ lọc sanitize_spoken_vietnamese_text "
-        "loại bỏ hoàn toàn từ khóa kỹ thuật tiếng Anh hay ký hiệu Markdown trước khi hiển thị phụ đề.",
-    )
-    rb.add_bullet(
-        "Quy tắc xác nhận đúng 1 lần cho lệnh tùy chỉnh (chuẩn hành vi agyfix11): ",
-        "Khi người dùng dạy một lệnh ngữ cảnh mới bằng lời nói (VD: 'Từ giờ khi tôi nói chế độ đi ngủ thì tắt hết đèn và đóng cửa chính'), "
-        "hệ thống ghi nhận yêu cầu vào bảng pending_confirmations và chỉ hỏi xác nhận đúng 1 lần duy nhất. Ngay sau khi người dùng xác nhận ('Đồng ý'/'Đúng rồi'), "
-        "lệnh được lưu vào custom_commands và kể từ lần gọi kế tiếp sẽ thực thi trực tiếp toàn bộ chuỗi thiết bị mà không hỏi lại.",
-    )
+    _embed_listing(rb, "be_qr_totp")
 
+    # --- 4.2.5 ---
+    rb.add_h3("4.2.5. Chế độ hoạt động ngoại tuyến (Offline Mode)")
+    rb.add_para(
+        "Một nhược điểm phổ biến của nhiều hệ thống nhà thông minh phụ thuộc hoàn toàn vào đám mây là ngôi nhà sẽ "
+        "mất khả năng điều khiển hoặc rơi vào trạng thái nguy hiểm (như máy bơm chạy khô liên tục hay cửa mở không "
+        "kiểm soát) khi đứt cáp Internet hoặc máy chủ trung tâm tắt nguồn. Để khắc phục thực chất vấn đề này mà "
+        "vẫn trung thực về phạm vi kỹ thuật, em xây dựng hợp đồng hành vi ngoại tuyến thống nhất giữa máy chủ "
+        "(backend/engine/offline_contract.py) và firmware vi điều khiển (firmware/esp8266_smarthome/offline_fsm.h "
+        "và offline_safety_config.h). Tất cả các trạng thái chuyển đổi và giới hạn an toàn dưới đây đều đã được "
+        "lập trình đầy đủ trong mã nguồn và kiểm thử xác định."
+    )
+    rb.add_para(
+        "Khi ESP8266 phát hiện mất kết nối Wi-Fi hoặc mất nhịp tim (heartbeat chu kỳ 3 giây) với máy chủ laptop, "
+        "máy trạng thái ngoại tuyến (OfflineFsm) chuyển sang cơ chế thử kết nối lại không chặn theo hàm mũ "
+        "(ExponentialBackoff) với chu kỳ tăng dần 1 s → 2 s → 4 s → 8 s → 16 s → tối đa 30 s nhằm tránh làm treo "
+        "bộ đếm Watchdog. Nếu mất Wi-Fi quá 15 giây, bo mạch có thể kích hoạt điểm phát dự phòng cục bộ "
+        "(SoftAP SmartHome-Offline-AP). Trong giai đoạn ngoại tuyến, đèn LED trên chân D0 thực hiện kiểu nháy kép "
+        "chu kỳ 4 giây (không chặn) kết hợp tiếng bíp báo mất kết nối một lần để người dùng nhận biết trạng thái "
+        "bằng mắt thường. Đồng thời, máy chủ web cục bộ ESP8266WebServer cổng 80 (/offline/cmd, /offline/status) "
+        "vẫn cho phép gửi các lệnh bật/tắt cơ bản cho đèn phòng khách, đèn phòng ngủ, máy bơm tưới cây, nguồn mạch "
+        "loa, còi báo động, lệnh đóng cửa chính và lệnh hỏi trạng thái thiết bị."
+    )
+    rb.add_para(
+        "Ở tầng bảo vệ phần cứng chạy độc lập trên ESP8266, bộ hẹn giờ an toàn tickSafetyTimers liên tục giám sát "
+        "hai phụ tải rủi ro cao: máy bơm tưới cây vẫn duy trì logic tự bảo vệ theo cảm biến độ ẩm đất (tự bật dưới "
+        "40%, tự ngắt từ 70% trở lên) và bị cưỡng chế ngắt sau tối đa 120 giây chạy liên tục (khóa an toàn cho tới "
+        "khi đất đủ ẩm hoặc có thao tác đặt lại); còi báo động ở chế độ ngoại tuyến tự ngắt sau tối đa 30 giây; "
+        "rơ-le nguồn mạch loa tự ngắt trễ sau 1,5 giây không phát. Đặc biệt, ngay trong tầng firmware áp đặt quy "
+        "tắc khóa cứng an ninh (Addendum A3): khi chuyển từ trực tuyến sang ngoại tuyến, cửa chính tự động đóng về "
+        "góc an toàn 0°, và mọi yêu cầu mở cửa chính khi đang mất kết nối máy chủ đều bị hàm canSetMainDoor từ chối "
+        "tuyệt đối (OFFLINE_MAIN_DOOR_OPEN_ALLOWED = false, trả HTTP 403). Mọi thay đổi vật lý xảy ra trong lúc "
+        "ngoại tuyến được ghi vào bộ đệm vòng OfflineEventRing (16 phần tử); ngay khi kết nối máy chủ phục hồi, "
+        "ESP8266 tự động gửi POST /api/hardware/resync để đồng bộ ngược trạng thái thực tế lên cơ sở dữ liệu trước "
+        "khi tiếp nhận lệnh mới."
+    )
+    rb.add_para(
+        "Ngược lại, hệ thống quy định rõ những chức năng không khả dụng khi ngoại tuyến để bảo đảm tính minh bạch "
+        "và an toàn: dịch vụ nhận dạng và hội thoại giọng nói tự nhiên Gemini Live đòi hỏi kết nối Internet nên "
+        "không hoạt động khi đứt mạng ngoài; tầng ngoại tuyến trên ESP8266 không thực thi kiểm tra phân quyền 3 tầng "
+        "(OFFLINE_ROLE_CHECK_ENABLED = false), không cho phép tạo hay chạy lệnh tùy chỉnh "
+        "(OFFLINE_CUSTOM_COMMANDS_ALLOWED = false) và không cho phép tạo hoặc chỉnh sửa lịch hẹn, luật tự động hóa "
+        "(OFFLINE_AUTOMATION_MUTATION_ALLOWED = false). Bảng 4.3 tóm tắt đầy đủ ranh giới chức năng ngoại tuyến "
+        "và Hình 4.4 minh họa máy trạng thái Offline FSM cùng quy trình nạp cấu hình Wi-Fi động qua LittleFS."
+    )
     rb.add_table(
-        "Danh mục các nhóm hàm công cụ (Function Declarations) tiêu biểu cấp cho Gemini 3.8 Live API",
-        ["Tên hàm công cụ", "Tham số cốt lõi", "Hành vi thực thi & Kiểm tra RBAC"],
+        "Tổng hợp phạm vi hoạt động và giới hạn an toàn ở chế độ ngoại tuyến (Offline Mode)",
+        ["Nhóm chức năng / Cơ chế", "Trạng thái khi ngoại tuyến", "Chi tiết thực thi đã kiểm thử trong mã nguồn"],
         [
-            ("control_device", "device_id, action", "Bật/tắt/mở/đóng ngay 1 trong 6 thiết bị hoặc nhóm all_lights/all_devices; kiểm tra quyền Cấp 1/2/3 phía server."),
-            ("schedule_action", "device_id, action, seconds/minutes/hours, vn_time_ampm, repeat", "Đặt hẹn đếm ngược hoặc mốc giờ đồng hồ (once/daily/weekly/monthly) vào TimersPool."),
-            ("update_timer", "device_id, operation (modify/cancel), thời gian mới", "Sửa đổi mốc giờ hoặc hủy bỏ một bộ hẹn giờ đang hoạt động mà không cần tạo mới."),
-            ("create_automation_rule", "condition (cảm biến/trạng thái), actions, cooldown", "Tạo luật tự động hóa phản ứng cảm biến/tổ hợp lưu vào RulesPool."),
-            ("teach_custom_command", "trigger_phrase, actions_list", "Khởi tạo lệnh tùy chỉnh mới → lưu pending_confirmations → hỏi xác nhận đúng 1 lần."),
-            ("confirm_custom_command", "confirmation_decision (approve/cancel)", "Hoàn tất lưu custom_commands sau khi người dùng xác nhận hoặc hủy bỏ bản nháp."),
-            ("get_home_status / query_rag", "scope / question_vi", "Trả về trạng thái 6 thiết bị, 3 cảm biến, lịch hẹn đang chạy và lịch sử từ Knowledge RAG."),
+            (
+                "Bật/tắt 5 thiết bị cơ bản & đóng cửa chính",
+                "Hoạt động (qua LAN :80)",
+                "ESP8266WebServer cổng 80 (/offline/cmd, /offline/status) nhận lệnh bật/tắt 2 đèn, bơm, loa, còi, đóng cửa và hỏi trạng thái.",
+            ),
+            (
+                "Tự bảo vệ bơm tưới, còi & mạch loa",
+                "Hoạt động độc lập trên MCU",
+                "Ngưỡng độ ẩm đất cục bộ (<40% bật, >=70% tắt); tự ngắt cứng bơm <= 120 s, còi <= 30 s, rơ-le loa trễ 1,5 s.",
+            ),
+            (
+                "Tự kết nối lại, chỉ báo & đồng bộ ngược",
+                "Hoạt động tự động",
+                "ExponentialBackoff 1 s..30 s không chặn, nháy kép LED D0 chu kỳ 4 s, đệm 16 sự kiện và tự gọi POST /api/hardware/resync.",
+            ),
+            (
+                "Mở cửa chính (main_door → OPEN)",
+                "Bị khóa cứng (HTTP 403)",
+                "Cấm tuyệt đối tại firmware canSetMainDoor() (Addendum A3); tự đóng cửa về 0° khi chuyển sang ngoại tuyến.",
+            ),
+            (
+                "Giọng nói tiếng Việt tự nhiên (Gemini Live)",
+                "Không hoạt động",
+                "Cần kết nối Internet để truyền luồng âm thanh tới dịch vụ Gemini Live; máy chủ/ứng dụng thông báo trạng thái mất mạng.",
+            ),
+            (
+                "Lệnh tùy chỉnh, hẹn giờ/luật mới & RBAC 3 tầng",
+                "Vô hiệu hóa ngoại tuyến",
+                "Chính sách SSOT đặt rõ các cờ tắt trên ESP8266; hệ thống từ chối bằng câu phản hồi tiếng Việt chuẩn khi ngoại tuyến.",
+            ),
         ],
-        col_widths_cm=[3.8, 4.7, 7.0],
-        font_pt=9.8,
-    )
-
-    # ===== 4.3 GIAO DIỆN WEB 3D DIGITAL TWIN & ANDROID APP =====
-    rb.add_h2("4.3. Thiết kế Giao diện Web 3D Digital Twin, /wokwi và Ứng dụng Android")
-
-    rb.add_h3("4.3.1. Giao diện Web đa trang, 3D Digital Twin (Three.js) và /wokwi PCB-Direct")
-    rb.add_para(
-        "Giao diện Web đặt trong thư mục web/ được tổ chức thành sáu màn hình chuyên biệt tương ứng với thanh điều hướng bên trái: "
-        "Tổng quan 3D (/), Tự động hóa (/automation), Xác thực & Phân quyền (/auth), Mô phỏng Phần cứng (/wokwi, giới hạn data-max-tier=2), "
-        "Nhật ký kiểm toán (/logs, giới hạn data-owner-only=true) và Cổng cài đặt ứng dụng (/app). Toàn bộ nhãn hiển thị, thông báo lỗi và hộp thoại "
-        "đều sử dụng 100% tiếng Việt chuẩn mực, hỗ trợ chuyển đổi mượt mà giữa giao diện Sáng (Light) và Tối (Dark) cũng như bố cục đáp ứng "
-        "từ màn hình máy tính 1366×768 đến điện thoại 412×915."
-    )
-    rb.add_para(
-        "Điểm nhấn trực quan của giao diện là mô hình song sinh số 3D (Web 3D Digital Twin) xây dựng bằng Three.js đồng bộ hình học "
-        "với thiết kế cơ khí vỏ nhà và đủ 14 module điện tử: khi người dùng bật đèn phòng khách/phòng ngủ, nguồn sáng điểm PointLight phát sáng trực tiếp "
-        "tại đúng vị trí LED 5 mm trên vách ngăn giữa; khi mở cửa chính, cánh cửa P08 xoay mượt quanh trục bản lề đồng trục Servo SG90 từ 0° đến 90°; "
-        "khi bật máy bơm tưới cây, hệ thống hạt mô phỏng dòng nước phun vào chậu đất. Trang /wokwi PCB-Direct hiển thị sơ đồ đấu nối 10 chân "
-        "và 40 sợi dây trực tiếp lên PCB Hub DIY v3 (0 breadboard) kèm công cụ bật/tắt kiểm thử trực quan từng thiết bị."
-    )
-
-    rb.add_h3("4.3.2. Thiết kế ứng dụng di động Android thuần (Kotlin + Jetpack Compose)")
-    rb.add_para(
-        "Ứng dụng di động đặt trong thư mục app/ (mã gói vn.edu.hust.seee.smarthome, phiên bản 1.0, compileSdk 36, targetSdk 34, minSdk 26 hỗ trợ từ Android 8.0 trở lên) "
-        "được chia làm hai mô-đun kiến trúc rõ ràng: app-core chứa tầng mạng REST/SSE/WebSocket, mô hình trạng thái, quản lý phiên RBAC và lõi giao diện Compose; "
-        "app chứa điểm khởi chạy Activity và cấu hình đóng gói APK qua Lightbuild 0.0.30. Giao diện chính (MainScreen) bố trí 4 tab điều hướng dưới đáy theo chuẩn Material Design 3:"
-    )
-    rb.add_bullet("Tab Trang chủ (HomeScreenTab): ", "Hiển thị thẻ trạng thái kết nối máy chủ, thông số 3 cảm biến thời gian thực (Nhiệt độ/Độ ẩm DHT11, Độ ẩm đất %, Trạng thái âm thanh KY-037) và nhóm nút điều khiển nhanh theo đúng phân quyền phiên hiện tại.")
-    rb.add_bullet("Tab Thiết bị (DevicesScreenTab): ", "Quản lý chi tiết 6 thiết bị chấp hành kèm phản hồi trạng thái tức thì, tự động khóa/ẩn các điều khiển ngoài thẩm quyền Cấp 2 (Cửa chính, Còi) và Cấp 3 (chỉ giữ 2 đèn).")
-    rb.add_bullet("Tab Giọng nói (VoiceScreenTab & VoiceBottomSheet): ", "Thu âm PCM 16 kHz trực tiếp bằng AudioRecord, phát luồng phản hồi Aoede 24 kHz qua AudioTrack với độ trễ thấp, hiển thị hội thoại tiếng Việt trực tiếp và hỗ trợ lệnh tùy chỉnh xác nhận 1 lần.")
-    rb.add_bullet("Tab Tài khoản & Quét QR (AccountScreenTab, QrScannerScreen, ForgotPasswordScreen): ", "Hiển thị vai trò Cấp 1/2/3, đồng hồ đếm ngược thời hạn phiên khách, cấu hình địa chỉ máy chủ cục bộ/từ xa, luồng quên mật khẩu và màn hình quét mã QR động TOTP 10 giây.")
-
-    # ===== 4.4 FIRMWARE ESP8266, NẠP WI-FI LITTLEFS & OFFLINE FSM =====
-    rb.add_h2("4.4. Thiết kế Firmware ESP8266, Nạp Wi-Fi LittleFS và Chịu lỗi ngoại tuyến")
-    rb.add_para(
-        "Firmware đặt tại firmware/esp8266_smarthome/ (esp8266_smarthome.ino cùng bộ thư viện lõi offline_safety_config.h, offline_command_grammar.h, offline_fsm.h) "
-        "được biên dịch bằng PlatformIO Core 6.2.0 cho đích nodemcuv2. Ngay trong hàm setup(), firmware thực thi quy trình khởi tạo an toàn boot-strap: "
-        "thiết lập PIN_AUDIO_PWM (D3/GPIO0) ở trạng thái trở kháng cao INPUT, ghi sẵn mức HIGH trước khi đặt OUTPUT cho PIN_BEDROOM_LIGHT (D4/GPIO2 Active-LOW) "
-        "và ghi sẵn mức LOW cho PIN_ALARM_SIREN (D8/GPIO15) để đảm bảo còi hoàn toàn im lặng và đèn tắt sạch khi vừa cấp nguồn."
-    )
-    rb.add_para(
-        "Thay vì lưu cứng thông tin mạng vào mã nguồn, firmware đọc tệp cấu hình động /wifi_config.json từ phân vùng hệ thống tệp LittleFS trong bộ nhớ Flash 4 MB "
-        "ngay khi khởi động. Kịch bản turnkey hardware/flash_and_setup.ps1 tự động hóa trọn gói 3 bước: (1) kiểm tra driver CP2102/CH340 và tự nhận cổng COM USB; "
-        "(2) biên dịch và nạp firmware qua PlatformIO; (3) truyền tên Wi-Fi, mật khẩu, địa chỉ IP máy chủ (cổng 8088) và khóa phần cứng qua cổng Serial 115200 baud "
-        "(không bao giờ in mật khẩu ra màn hình hay tệp log), lưu vào LittleFS rồi tự chạy kiểm tra SELF_TEST và WIFI_STATUS."
-    )
-    rb.add_para(
-        "Khi mất kết nối Wi-Fi hoặc máy chủ trung tâm không phản hồi, firmware kích hoạt Máy trạng thái ngoại tuyến (Offline FSM — Addendum A1 đến A4) "
-        "như minh họa trên Hình 4.2: áp dụng thuật toán thử nối lại theo hàm mũ không chặn (1 s → 2 s → 4 s → ... → 30 s) tránh treo Watchdog; "
-        "bật máy chủ web cục bộ ESP8266WebServer cổng 80 (/offline/cmd, /offline/status) chỉ nhận tập lệnh bật/tắt cơ bản (A1, A2); "
-        "áp đặt khóa cứng an ninh A3 ngay trong tầng phần cứng — tuyệt đối cấm mở cửa chính (giữ Servo D1 ở 0°) trong mọi trạng thái ngoại tuyến; "
-        "duy trì bộ định thời tự bảo vệ tải (tự ngắt máy bơm sau tối đa 120 giây, tự ngắt còi sau 30 giây, tự ngắt Relay 2 loa sau 1,5 giây); "
-        "và ngay khi mạng phục hồi, tự động gọi POST /api/hardware/resync (A4) để đẩy mọi thay đổi vật lý ngoại tuyến lên máy chủ trước khi đồng bộ trạng thái mới."
+        col_widths_cm=[3.8, 3.3, 8.4],
+        font_pt=9.5,
     )
     rb.add_figure(
         sw_dir / "sw_arch_offline_fsm.png",
-        "Quy trình nạp Wi-Fi runtime LittleFS qua USB và Máy trạng thái ngoại tuyến (Offline FSM A1–A4)",
-        max_width_cm=15.0,
-        max_height_cm=8.5,
+        "Quy trình nạp cấu hình Wi-Fi runtime LittleFS và Máy trạng thái ngoại tuyến (Offline FSM A1–A4)",
+        max_width_cm=14.0,
+        max_height_cm=6.8,
+        kind="diagram",
     )
 
-    # ===== 4.5 THIẾT KẾ MẠCH IN PCB HUB DIY v3 & ĐI DÂY 40 SỢI =====
-    rb.add_h2("4.5. Thiết kế bo mạch PCB Hub DIY v3 (KiCad 10.0) và Định tuyến 40 dây nối")
+    # ===== 4.3 GIAO DIỆN WEB 3D, ỨNG DỤNG ANDROID VÀ VỎ MÔ HÌNH NHÀ IN 3D =====
+    rb.add_h2("4.3. Giao diện Web 3D, ứng dụng Android và vỏ mô hình nhà in 3D")
+
+    rb.add_h3("4.3.1. Giao diện Web 3D và ứng dụng Android")
     rb.add_para(
-        "Để chấm dứt hoàn toàn tình trạng lỏng dây và sụt áp của bảng cắm breadboard, bo mạch PCB Hub trung tâm DIY v3 "
-        "(hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb) được thiết kế trên KiCad 10.0 theo tiêu chuẩn một lớp đồng đáy (1-layer B.Cu) "
-        "phù hợp cả gia công ủi nhiệt/ăn mòn DIY tại phòng thí nghiệm lẫn đặt xưởng PCB chuyên nghiệp. Kích thước bo mạch được chuẩn hóa 100,0 × 80,0 × 1,6 mm "
-        "với 4 lỗ định vị góc đường kính 3,2 mm (bước 90,0 × 70,0 mm) khớp chính xác chốt đàn hồi trên vỏ nhà in 3D."
+        "Giao diện Web đặt trong thư mục web/ sử dụng hoàn toàn tiếng Việt chuẩn mực, hỗ trợ hai chế độ giao diện "
+        "Sáng (Light) và Tối (Dark) cùng bố cục đáp ứng mượt mà từ màn hình máy tính tới điện thoại. Hệ thống tổ "
+        "chức thành sáu màn hình chức năng gắn trên thanh điều hướng: Tổng quan 3D (/), Tự động hóa (/automation), "
+        "Xác thực và Phân quyền (/auth), Mô phỏng đấu nối phần cứng (/wokwi, giới hạn cho Cấp 1 và Cấp 2), Nhật ký "
+        "kiểm toán (/logs, chỉ dành cho Chủ nhà Cấp 1) và Cổng hướng dẫn cài đặt ứng dụng (/app). Toàn bộ nút điều "
+        "khiển và mục trình đơn tự động ẩn hoặc khóa tương ứng theo tầng quyền của phiên đang đăng nhập."
     )
     rb.add_para(
-        "Tất cả 15 đầu nối ngoại vi (2 domino vít 5,08 mm J1/J2 chịu dòng lớn cho nguồn 5V và máy bơm, cùng 13 thanh rào 2,54 mm J3–J15) "
-        "được bố trí dọc theo 4 mép bo mạch theo đúng hướng vật lý đi tới từng phòng trong mô hình nhà nhằm rút ngắn chiều dài bó dây. "
-        "Chỉ cần 7 dây nhảy mặt trên (JP1–JP7) để hoàn thiện toàn bộ định tuyến một lớp với khe hở đồng tối thiểu >= 0,60 mm, đạt kết quả kiểm tra "
-        "0 lỗi ERC trên sơ đồ nguyên lý và 0 lỗi DRC trên mạch in. Bảng 4.3 tổng hợp 40 sợi dây vật lý chuẩn (36 dây từ Hub J1–J15 + 4 dây liên module) "
-        "và Bảng 4.4 tóm tắt thông số thiết kế bo mạch PCB."
+        "Điểm nhấn trực quan của ứng dụng Web là mô hình song sinh số 3D (Web 3D Digital Twin) xây dựng bằng "
+        "Three.js, mô phỏng đồng bộ hình học ngôi nhà và đủ 6 thiết bị chấp hành: khi bật đèn phòng khách hoặc "
+        "phòng ngủ, nguồn sáng điểm phát sáng ngay đúng vị trí đèn trên vách ngăn; khi mở cửa chính, cánh cửa xoay "
+        "mượt quanh bản lề từ 0° đến 90° đồng bộ với góc quay Servo SG90; khi bật máy bơm tưới cây, hiệu ứng dòng "
+        "nước hoạt động tại khu vực chậu đất; đồng thời các thẻ thông số nhiệt độ, độ ẩm không khí, độ ẩm đất và "
+        "trạng thái âm thanh cập nhật theo thời gian thực qua luồng SSE."
+    )
+    rb.add_para(
+        "Song song với bản Web, ứng dụng di động Android thuần trong thư mục app/ (mã gói "
+        "vn.edu.hust.seee.smarthome, hỗ trợ từ Android 8.0 trở lên) được phát triển bằng Kotlin và Jetpack Compose "
+        "theo ngôn ngữ thiết kế Material Design 3. Ứng dụng tách thành hai mô-đun rõ ràng là app-core (chứa tầng "
+        "mạng REST/SSE/WebSocket, mô hình trạng thái, kiểm soát phiên RBAC và giao diện lõi) và app (điểm khởi chạy "
+        "đóng gói APK). Giao diện chính bố trí bốn thẻ điều hướng dưới đáy gồm Trang chủ (hiển thị kết nối máy chủ, "
+        "số liệu ba cảm biến và thao tác nhanh), Thiết bị (điều khiển chi tiết các thiết bị trong thẩm quyền), Giọng "
+        "nói (thu âm PCM 16 kHz bằng AudioRecord, phát tiếng nói Aoede 24 kHz qua AudioTrack kèm phụ đề tiếng Việt) "
+        "và Tài khoản (hiển thị tầng quyền, đồng hồ đếm ngược phiên khách, thiết lập địa chỉ máy chủ và máy quét mã "
+        "QR động 10 giây)."
     )
 
+    rb.add_h3("4.3.2. Thiết kế vỏ mô hình nhà in 3D")
+    rb.add_para(
+        "Để trình diễn trực quan hệ thống trong không gian gọn gàng, sạch sẽ và an toàn khi vận chuyển bảo vệ đồ án, "
+        "em thiết kế vỏ mô hình ngôi nhà vật liệu nhựa PLA theo nguyên tắc cơ khí lắp mộng tự khóa (mortise-and-tenon) "
+        "hoàn toàn không dùng ốc vít kim loại hay keo dán. Toàn bộ 14 mô-đun điện tử cùng bo mạch PCB Hub trung tâm "
+        "100 × 80 mm được bố trí cố định vào các ngàm gài và khay trượt riêng biệt: khoang kỹ thuật đặt PCB Hub, hai "
+        "mô-đun rơ-le và mạch khuếch đại loa được vây kín tách biệt hoàn toàn với bể nước liền khối của khu vườn tưới "
+        "cây, còn cửa chính sử dụng cơ cấu dẫn động đồng trục trực tiếp với Servo SG90 ở đỉnh khung cửa. Hình 4.5 và "
+        "Hình 4.6 lần lượt thể hiện tổng thể vỏ mô hình nhà lắp mộng và mặt cắt bố trí 14 mô-đun điện tử bên trong."
+    )
+    rb.add_figure(
+        diag_dir / "house_3d_assembled_clean.png",
+        "Tổng thể vỏ mô hình nhà thông minh in 3D lắp mộng chứa bo mạch PCB Hub và các khoang chức năng",
+        max_width_cm=11.6,
+        max_height_cm=5.4,
+        kind="3d_model",
+    )
+    rb.add_figure(
+        demo_dir / "blender_cutaway_14modules.png",
+        "Mặt cắt bố trí 14 mô-đun điện tử, bo mạch PCB Hub và đường đi dây gọn bên trong mô hình nhà",
+        max_width_cm=11.6,
+        max_height_cm=5.4,
+        kind="3d_model",
+    )
+
+    # ===== 4.4 SO SÁNH VỚI CÁC SẢN PHẨM NHÀ THÔNG MINH HIỆN CÓ =====
+    rb.add_h2("4.4. So sánh với các sản phẩm nhà thông minh hiện có")
+    rb.add_para(
+        "Để đánh giá khách quan vị trí kỹ thuật, điểm mạnh cũng như các giới hạn còn tồn tại của đề tài, em tiến "
+        "hành đối chiếu hệ thống đồ án với sáu nền tảng nhà thông minh thương mại phổ biến trên thị trường quốc tế "
+        "và Việt Nam gồm Google Home, Amazon Alexa, Xiaomi Mi Home, Tuya / Smart Life, Lumi SmartHome và Bkav "
+        "SmartHome. Toàn bộ đặc tính của các nền tảng thương mại trong Bảng 4.4 được tổng hợp theo thông tin công "
+        "bố trên trang chủ và tài liệu hỗ trợ chính thức của các nhà sản xuất tại thời điểm tháng 11/2026 (chi tiết "
+        "nguồn dẫn được liệt kê đầy đủ trong mục Tài liệu tham khảo)."
+    )
     rb.add_table(
-        "Tóm tắt 40 dây nối vật lý chuẩn (W01–W40) và chiều dài định tuyến 3D thực tế (+18% dự phòng)",
-        ["Nhóm dây (Mã)", "Cổng Hub ↔ Module", "Số dây", "Quy chuẩn màu dây chính", "Dài min–max (cm)", "Cỡ dây mua chuẩn"],
+        "So sánh hệ thống đồ án với các sản phẩm nhà thông minh thương mại hiện có (cập nhật tháng 11/2026)",
         [
-            ("Nguồn tổng (W01–W02)", "J1 ↔ Nguồn 5V 2A DC-022", "2", "Đỏ (+5V), Đen (GND)", "9,10 – 9,58", "22AWG (10 cm)"),
-            ("Cửa chính SG90 (W03–W05)", "J3 ↔ Servo SG90 (D1)", "3", "Cam (PWM), Đỏ (+5V), Đen (GND)", "18,24 – 18,35", "Dupont 1×3 (20 cm)"),
-            ("Đèn phòng khách (W06–W07)", "J4 ↔ LED 5mm PK (D0)", "2", "Vàng (Anode R1), Đen (GND)", "20,72 – 21,16", "Dupont 1×2 (30 cm)"),
-            ("Đèn phòng ngủ (W08–W09)", "J5 ↔ LED 5mm PN (D4)", "2", "Tím (+3V3 R2), Trắng (D4)", "27,45 – 27,48", "Dupont 1×2 (30 cm)"),
-            ("Relay 1 & Bơm 5V (W10–W16)", "J7, J8, J2 ↔ Relay 1 & Bơm", "7", "Đỏ, Đen, Xanh lá (D6), Vàng (NO)", "7,89 – 26,45", "10 / 20 / 30 cm"),
-            ("Còi báo động (W17–W18)", "J6 ↔ Buzzer TMB12A05 (D8)", "2", "Đỏ (+5V), Cam (Q1.C)", "25,41 – 25,81", "Dupont 1×2 (30 cm)"),
-            ("Relay 2, PAM8403 & Loa (W19–W29)", "J9–J12 ↔ Rly2, PAM8403, Loa", "11", "Đỏ, Đen, Xanh lơ (D7), Trắng (D3), Vàng/Nâu (BTL)", "3,84 – 18,75", "10 / 20 cm"),
-            ("Cảm biến DHT11 (W30–W32)", "J13 ↔ DHT11 (D2, 3,3V)", "3", "Đỏ (+3V3), Xanh dương (DATA), Đen", "19,15 – 20,05", "20 / 30 cm"),
-            ("Cảm biến đất (W33–W37)", "J14 ↔ LM393 ↔ YL-69 (A0)", "5", "Đỏ (+3V3), Đen, Xanh lá (AO), Vàng/Cam", "13,40 – 26,36", "20 / 30 cm"),
-            ("Cảm biến KY-037 (W38–W40)", "J15 ↔ KY-037 (D5, 3,3V)", "3", "Đỏ (+3V3), Đen, Vàng (DO)", "11,22 – 11,80", "Dupont 1×3 (20 cm)"),
-            ("TỔNG HỆ THỐNG (W01–W40)", "15 cổng Hub + 2 cặp liên module", "40", "40/40 dây <= 30,0 cm (Tổng 654,99 cm)", "3,84 – 27,48", "10×10cm · 18×20cm · 12×30cm"),
+            "Sản phẩm",
+            "Tiếng Việt tự nhiên",
+            "Chi phí",
+            "Điều khiển cục bộ",
+            "Lệnh tùy chỉnh",
+            "Phân quyền / vai trò",
+            "Ghi chú",
         ],
-        col_widths_cm=[3.2, 3.4, 1.1, 3.6, 2.0, 2.2],
-        font_pt=9.2,
-        center_cols=(2, 4),
-    )
-
-    rb.add_table(
-        "Thông số kỹ thuật thiết kế bo mạch PCB Hub trung tâm DIY v3 (KiCad 10.0)",
-        ["Thông số thiết kế PCB", "Giá trị đạt được", "Ghi chú kỹ thuật & Tiêu chuẩn kiểm tra"],
         [
-            ("Kích thước & Độ dày vật liệu", "100,0 × 80,0 × 1,6 mm (FR4)", "Khớp khít khay giữ SUP06 trong khoang kỹ thuật vỏ in 3D."),
-            ("Số lớp đồng & Gia công", "1 lớp đáy (B.Cu) + 7 dây nhảy JP1–JP7", "Tối ưu cho ăn mòn thủ công DIY (xuất PDF 1:1 lật gương) hoặc đặt xưởng."),
-            ("Tổng số footprint trong BOM", "51 footprints (47 linh kiện hàn + 4 lỗ M3)", "Gồm U1–U2, J1–J15, R1–R10, Q1, C1–C9, D1–D3, JP1–JP7, H1–H4."),
-            ("Khe hở đồng & Đường nguồn", "Clearance >= 0,60 mm; đường nguồn rộng", "Đảm bảo an toàn dòng đỉnh Servo SG90 + Bơm 5V và dễ hàn tay."),
-            ("Kiểm tra ERC (Nguyên lý) & DRC (PCB)", "0 lỗi ERC / 0 lỗi DRC / 0 dây chưa nối", "Xác minh tự động bằng KiCad 10.0 CLI trước khi xuất bản vẽ."),
-            ("Chính sách bảng cắm Breadboard", "0 breadboard (100% PCB-Direct)", "Loại bỏ hoàn toàn breadboard và toàn bộ chân [NC] được ghi chú rõ."),
+            (
+                "Google Home",
+                "Tiếng Việt hỗ trợ trên ứng dụng di động; loa thông minh Nest/Gemini for Home chưa hỗ trợ chính thức tiếng Việt bản địa trên phần cứng.",
+                "Miễn phí ứng dụng; chi phí mua loa thông minh và thiết bị tương thích theo hãng.",
+                "Có (qua Matter/Thread và một số thiết bị hỗ trợ thực thi cục bộ); suy luận giọng nói phụ thuộc đám mây.",
+                "Có (Household Automations và Personal Routines cấu hình trên ứng dụng).",
+                "2 nhóm chính: Admin và Member (Admin bật/tắt tùy chọn Settings và Activity); hỗ trợ trẻ em qua Family Link.",
+                "Hệ sinh thái quốc tế rộng, hỗ trợ chuẩn Matter mạnh.",
+            ),
+            (
+                "Amazon Alexa",
+                "Chưa hỗ trợ tiếng Việt bản địa (chỉ hỗ trợ các ngôn ngữ lớn như Anh, Tây Ban Nha, Pháp, Đức, Nhật...).",
+                "Miễn phí ứng dụng; cần mua loa Echo và thiết bị tương thích.",
+                "Có mức cục bộ cho thiết bị chuẩn Matter/Thread qua Echo hỗ trợ; nhận dạng giọng nói qua đám mây.",
+                "Có (Alexa Routines theo câu nói ngôn ngữ được hỗ trợ, lịch hoặc cảm biến).",
+                "Chia sẻ hộ gia đình qua Amazon Household (hồ sơ thành viên).",
+                "Thư viện kỹ năng (Skills) và thiết bị tương thích rất lớn ở thị trường quốc tế.",
+            ),
+            (
+                "Xiaomi Mi Home",
+                "Ứng dụng có giao diện tiếng Việt; giọng nói tiếng Việt cần liên kết trợ lý ngoài (trợ lý nội bộ XiaoAI dùng tiếng Trung).",
+                "Phân khúc phổ thông; chi phí tùy số lượng cảm biến, công tắc và bộ trung tâm Hub.",
+                "Có (tự động hóa cục bộ khi trang bị bộ trung tâm Xiaomi Smart Home Hub).",
+                "Có (Smart Scenes theo lịch, cảm biến hoặc chạm kích hoạt trên ứng dụng).",
+                "Chia sẻ nhà (Home Sharing) và chia sẻ từng thiết bị riêng lẻ theo tài khoản Xiaomi.",
+                "Danh mục phần cứng đa dạng, dễ mở rộng trong hộ gia đình.",
+            ),
+            (
+                "Tuya / Smart Life",
+                "Giao diện ứng dụng hỗ trợ tiếng Việt; điều khiển giọng nói chủ yếu qua liên kết Google Assistant hoặc Alexa.",
+                "Phân khúc phổ thông rộng; nhiều hãng phần cứng giá thấp dùng chung nền tảng.",
+                "Có liên kết cục bộ (Local Linkage) khi sử dụng cổng Zigbee / Multi-Mode Gateway.",
+                "Có (kịch bản Tap-to-Run và tự động hóa điều kiện trên ứng dụng Smart Life).",
+                "Phân vai trong Home Management: Home Owner, Administrator, Common Member và chia sẻ từng thiết bị.",
+                "Nền tảng mở phổ biến nhất ở phân khúc thiết bị Wi-Fi/Zigbee giá rẻ.",
+            ),
+            (
+                "Lumi SmartHome (Việt Nam)",
+                "Có hỗ trợ tiếng Việt qua loa thông minh OLLI MAIKA và liên kết Google Assistant, Siri, Alexa.",
+                "Giải pháp thương mại trọn gói phân khúc trung–cao cấp; báo giá theo cấu hình công trình.",
+                "Vận hành theo hạ tầng thiết bị chuyên dụng của hãng và ứng dụng Lumi Life+.",
+                "Có (thiết lập kịch bản sống như Đi ngủ, Về nhà, Tiếp khách... trên ứng dụng).",
+                "Có quản lý phân quyền người dùng và bảo vệ mã PIN trên ứng dụng Lumi Life+.",
+                "Thương hiệu Việt Nam có mạng lưới lắp đặt, bảo hành và thiết bị điện 220V hoàn chỉnh.",
+            ),
+            (
+                "Bkav SmartHome (Việt Nam)",
+                "Có hỗ trợ giọng nói tiếng Việt 3 miền và tích hợp các trợ lý phổ biến (MAIKA, Google Assistant, Alexa...).",
+                "Giải pháp thương mại phân khúc cao cấp; báo giá trọn gói theo công trình.",
+                "Hệ thống điều khiển trung tâm chuyên dụng đồng bộ với bảng điều khiển và ứng dụng.",
+                "Có (kịch bản ngữ cảnh Đi ngủ, Thức dậy, Tiếp khách, Xem phim và gợi ý thói quen).",
+                "Hỗ trợ cá nhân hóa và phân quyền quản trị theo thành viên gia đình.",
+                "Tối ưu cho biệt thự, nhà ở cao cấp với tiêu chuẩn phần cứng thương mại.",
+            ),
+            (
+                "Hệ thống đồ án (nguyên mẫu)",
+                "Hội thoại tiếng Việt tự nhiên trực tiếp qua Gemini Live, phản hồi giọng đọc tiếng Việt ngắn gọn, đúng trạng thái.",
+                "Nguyên mẫu học thuật tự lắp linh kiện ESP8266/cảm biến chi phí thấp; phí API giọng nói tính theo mức sử dụng thực tế.",
+                "Có dự phòng LAN HTTP :80 cho bật/tắt cơ bản, bảo vệ bơm <=120 s, khóa cứng mở cửa chính; giọng nói cần Internet.",
+                "Dạy lệnh tùy chỉnh bằng lời nói tiếng Việt (xác nhận 1 lần khi tạo, chạy ngay không hỏi lại ở các lần sau).",
+                "RBAC 3 tầng khóa cứng phía server (Chủ nhà / Thành viên / Khách) + mời khách bằng QR động TOTP 10 s, thu hồi tức thì.",
+                "Nguyên mẫu học thuật quy mô mô hình 5V DC; chưa có chứng nhận an toàn điện công nghiệp 220V AC.",
+            ),
         ],
-        col_widths_cm=[4.2, 4.8, 6.5],
-        font_pt=9.8,
-    )
-
-    rb.add_figure(sw_dir / "sw_kicad_harness.png", "Sơ đồ bó dây cắm ngoại vi hệ thống xuất từ KiCad 10.0", max_width_cm=14.6, max_height_cm=9.5)
-    rb.add_figure(demo_dir / "kicad_2d_copper_layout.png", "Bố trí đường mạch đồng lớp đáy (B.Cu) bo mạch PCB Hub DIY v3 (100 × 80 mm)", max_width_cm=12.5, max_height_cm=10.5)
-    rb.add_figure(demo_dir / "kicad_drill_map.png", "Bản đồ khoan lỗ và vị trí chân linh kiện bo mạch PCB Hub DIY v3", max_width_cm=14.5, max_height_cm=9.8)
-    rb.add_figure(demo_dir / "kicad_3d_iso.png", "Mô hình 3D bo mạch PCB Hub DIY v3 góc nhìn đẳng giác", max_width_cm=14.0, max_height_cm=9.0)
-    rb.add_figure(demo_dir / "kicad_3d_top.png", "Mô hình 3D bo mạch PCB Hub DIY v3 góc nhìn từ trên xuống", max_width_cm=14.0, max_height_cm=9.0)
-    rb.add_figure(demo_dir / "kicad_drc_result.png", "Kết quả kiểm tra quy tắc thiết kế KiCad DRC đạt 0 lỗi và 0 chân chưa đi dây", max_width_cm=14.2, max_height_cm=9.2)
-    rb.add_figure(demo_dir / "pcb_modules_wired_top.png", "Bố trí không gian 3D toàn bộ cụm PCB Hub và 14 module đã đi dây nhìn từ trên xuống", max_width_cm=14.0, max_height_cm=9.2)
-
-    # ===== 4.6 THIẾT KẾ CƠ KHÍ MÔ HÌNH NHÀ IN 3D LẮP MỘNG (AGYHW14) =====
-    rb.add_h2("4.6. Thiết kế cơ khí mô hình nhà in 3D lắp mộng tối ưu giảm nhựa (HW14)")
-    rb.add_para(
-        "Toàn bộ vỏ mô hình ngôi nhà thông minh được thiết kế tham số bằng FreeCAD 1.1.4 (hardware/in 3 d/scripts/) theo nguyên tắc cơ khí "
-        "lắp mộng tự khóa 100% — không sử dụng bất kỳ ốc vít kim loại hay keo dán nào — giúp dễ dàng tháo lắp khi bảo trì mạch điện và vận chuyển bảo vệ đồ án. "
-        "Hệ thống sử dụng 7 chuẩn khe hở dung sai đã tinh chỉnh cho máy in FDM đầu phun 0,4 mm vật liệu PLA: khớp mộng đuôi én tách mảnh tấm lớn (0,20 mm), "
-        "mộng răng lược ghép tường–sàn (0,25 mm), kẹp chữ U khóa góc 90° (0,20 mm), chốt vuông ép khít mortise-and-tenon (0,15 mm), chốt đàn hồi chẻ đôi "
-        "snap-fit giữ PCB và Relay (0,20 mm kèm gai khóa 0,25 mm), rãnh trượt cạnh bo mạch (0,20 mm) và trục xoay bản lề cửa chính đồng trục (0,30 mm)."
+        col_widths_cm=[2.0, 2.5, 2.1, 2.3, 2.2, 2.3, 2.1],
+        font_pt=8.4,
     )
     rb.add_para(
-        "Đặc biệt, ở phiên bản tối ưu giảm nhựa HW14, ba kỹ thuật kết cấu được áp dụng đồng thời nhưng vẫn bảo toàn nguyên vẹn độ cứng vững: "
-        "(1) Loại bỏ hoàn toàn 9 mã nội thất trang trí không phục vụ điện tử (FUR01–FUR09, 20 bản thể) và 10 lỗ mộng sàn tương ứng; "
-        "(2) Làm mỏng vùng lòng các tấm sàn/tường lớn P01A, P01B, P02–P06 từ 3,0 mm xuống 2,2 mm (giữ đáy Z=0 phẳng hoàn toàn để đạt 0% support) "
-        "kèm hệ gân tăng cứng 3,0 mm có nhịp không gân tối đa <= 85,0 mm; "
-        "(3) Khoét 288 ô tổ ong lục giác kích thước 28 mm bám biên tại vùng không chịu lực (gân tối thiểu 3,2 mm, lề mép tối thiểu 6,5 mm), "
-        "trong khi giữ kín tuyệt đối 100% khoang điện Relay/PSU và bể nước liền khối SUP15_WATER_TANK_LINER (cấu hình 4 lớp đáy 0,8 mm + 3 thành chống thấm không cần chất trám)."
+        "Từ Bảng 4.4 có thể thấy rõ mỗi nhóm giải pháp đều có ưu thế và phạm vi phù hợp riêng. Các sản phẩm thương "
+        "mại quốc tế như Google Home, Amazon Alexa, Xiaomi Mi Home và Tuya sở hữu hệ sinh thái hàng nghìn thiết bị "
+        "đạt chuẩn điện công nghiệp, khả năng mở rộng chuẩn Matter/Zigbee phong phú và độ hoàn thiện phần cứng cao; "
+        "các thương hiệu trong nước như Lumi SmartHome và Bkav SmartHome lại nổi bật về thiết bị điện 220V chuẩn "
+        "tại Việt Nam, khả năng hỗ trợ tiếng Việt kết hợp dịch vụ thi công, bảo hành chuyên nghiệp."
     )
     rb.add_para(
-        "Cụm cửa chính P08_DOOR_LEAF (khối lượng 17,6 g, rộng 56,0 mm) sử dụng cơ cấu dẫn động trực tiếp đồng trục (coaxial top-jamb direct-drive) "
-        "đặt Servo SG90 trên kệ P07_SERVO_SHELF khóa bằng ngàm SUP11, nối thẳng trục bản lề SUP10 qua ngàm chữ U SUP10B giúp quét mượt góc 0°–90° "
-        "với độ dư mô-men xoắn đạt 14,56× (vượt xa ngưỡng thiết kế >= 5×). Toàn bộ 51 chi tiết duy nhất (83 bản thể vật lý) được thuật toán 2D MaxRects "
-        "xếp tự động vào đúng 16 bàn in khổ 180 × 200 × 250 mm (vùng khả dụng 170 × 190 × 245 mm) với thông số cắt lớp nhúng sẵn ngay trong từng tệp .3mf "
-        "(lớp 0,20 mm, ruột 9% Gyroid, 2 thành cho tấm lớn và 3 thành cho 23 chi tiết khớp/ngàm/cửa chịu lực). Bảng 4.5 liệt kê chi tiết 16 bàn in."
+        "Ở góc độ một đề tài tốt nghiệp kỹ thuật, hệ thống của em giải quyết tập trung ba nhu cầu còn nhiều khoảng "
+        "trống khi triển khai thực nghiệm: (1) tương tác hội thoại tiếng Việt tự nhiên kèm khả năng dạy lệnh tùy "
+        "chỉnh bằng lời nói theo quy tắc xác nhận một lần duy nhất; (2) phân quyền chặt chẽ ba tầng cưỡng chế phía "
+        "máy chủ kết hợp luồng mời khách tạm thời bằng mã QR động xoay vòng 10 giây, dùng một lần và thu hồi tức "
+        "thì; và (3) kiến trúc mở, tự chủ dữ liệu cục bộ trên laptop kèm cơ chế dự phòng ngoại tuyến khóa cứng an "
+        "ninh cửa chính ở tầng vi điều khiển. Tuy nhiên, em cũng nhìn nhận thẳng thắn các giới hạn hiện tại của "
+        "nguyên mẫu: hệ thống mới tập trung cho ngôn ngữ tiếng Việt, tính năng giọng nói tự nhiên vẫn phụ thuộc kết "
+        "nối Internet tới dịch vụ Gemini Live, toàn bộ mạch điện tử đang dừng ở quy mô mô hình bàn 5V DC với 6 thiết "
+        "bị chấp hành và chưa trải qua quy trình kiểm định chứng nhận an toàn điện công nghiệp 220V AC như sản phẩm "
+        "thương mại."
     )
 
-    rb.add_table(
-        "Phân bổ 16 bàn in 3D PLA (180 × 200 × 250 mm, 9% Gyroid, 0% support, tổng 660,64 g)",
-        ["Bàn in (.3mf)", "SL", "Chi tiết chính trên bàn", "Khung (mm)", "Thời gian in", "Nhựa (g)", "Manifold"],
-        [
-            ("PLATE01_base", "1", "P01A_piece3of3", "156,5×181,9×3,0", "5g 50p 30s", "51,20", "ĐẠT"),
-            ("PLATE02_base", "1", "P01A_piece1of3", "149,9×181,9×3,0", "5g 32p 23s", "49,31", "ĐẠT"),
-            ("PLATE03_base_tech", "5", "P01A_p2, P15_p1, SUP07, SUP14, SUP16", "169,4×181,9×16,5", "6g 42p 14s", "58,47", "ĐẠT"),
-            ("PLATE04_base_garden", "3", "P01B_p5, P12_GARDEN_FRONT, P07_SERVO_SHELF", "169,4×189,4×13,0", "4g 09p 03s", "37,71", "ĐẠT"),
-            ("PLATE05_base_garden", "7", "P01B_p6, P11, SUP04×4, SUP01", "169,5×189,4×14,0", "5g 00p 52s", "49,76", "ĐẠT"),
-            ("PLATE06_base", "2", "P01B_piece3of6, P01B_piece1of6", "169,5×185,4×3,0", "2g 56p 14s", "26,67", "ĐẠT"),
-            ("PLATE07_base_garden", "2", "P01B_piece4of6, P14_SOIL_BRIDGE", "131,4×167,0×3,0", "2g 45p 19s", "25,18", "ĐẠT"),
-            ("PLATE08_walls_mounts", "11", "P05_p2, SUP06 Hub PCB, P17×2, SUP07, SUP02×6", "170,0×190,0×13,6", "6g 32p 18s", "57,48", "ĐẠT"),
-            ("PLATE09_walls_mounts", "12", "P06, P05_p3, SUP11, SUP18, SUP03×3, SUP10B, SUP05B×4", "169,6×190,0×12,5", "5g 07p 03s", "44,31", "ĐẠT"),
-            ("PLATE10_walls_tech", "14", "P02_p3, P15_p2, SUP08, SUP03×3, SUP17×2, SUP05×2, SUP05B×4", "170,0×189,5×9,0", "4g 57p 29s", "43,27", "ĐẠT"),
-            ("PLATE11_walls_garden", "6", "P03_WALL_LEFT, P09, SUP09, SUP10×2, SUP05", "170,0×190,0×12,0", "4g 22p 45s", "37,77", "ĐẠT"),
-            ("PLATE12_walls_mounts", "9", "P04_WALL_RIGHT, P05_p1, SUP13, SUP01B, SUP03×2, SUP05, SUP05B×2", "170,0×190,0×12,0", "4g 31p 53s", "40,42", "ĐẠT"),
-            ("PLATE13_walls_garden", "4", "P02_p1, P13_GARDEN_BACK, SUP12, SUP01", "162,0×187,0×12,0", "3g 54p 18s", "35,76", "ĐẠT"),
-            ("PLATE14_walls_base", "2", "P01B_piece2of6, P02_piece2of3", "169,4×189,4×3,0", "3g 31p 50s", "32,49", "ĐẠT"),
-            ("PLATE15_tech_garden", "2", "P16_PCB_PLATE, P10_WATER_DIVIDER", "130,0×171,0×3,0", "3g 11p 21s", "28,77", "ĐẠT"),
-            ("PLATE16_walls_mounts", "2", "SUP15_WATER_TANK_LINER (4 đáy), P08_DOOR_LEAF", "119,0×107,0×45,0", "4g 18p 17s", "42,07", "ĐẠT"),
-            ("TỔNG (16 BÀN IN)", "83", "Đủ 51 chi tiết duy nhất (0 nội thất, 221,50 m sợi)", "<= 170×190×45", "73g 23p 49s", "660,64", "16/16"),
-        ],
-        col_widths_cm=[3.0, 0.8, 4.9, 2.5, 1.9, 1.2, 1.2],
-        font_pt=8.8,
-        center_cols=(1, 3, 4, 5, 6),
-    )
-
-    rb.add_figure(demo_dir / "in3d_exploded_v2.png", "Hình chiếu phân rã 3D bộ 51 chi tiết vỏ nhà và giá đỡ lắp mộng tự khóa v2", max_width_cm=14.4, max_height_cm=9.4)
-    rb.add_figure(demo_dir / "in3d_joint_closeup_mong.png", "Bản vẽ kỹ thuật cận cảnh khớp mộng đuôi én, răng lược và cấu trúc tổ ong lục giác 28 mm", max_width_cm=14.5, max_height_cm=9.6)
-    rb.add_figure(demo_dir / "in3d_pcb_module_fit_3d.png", "Cận cảnh 3D cụm lắp đặt Hub PCB, hai Relay và PAM8403 bằng chốt đàn hồi snap-fit", max_width_cm=13.8, max_height_cm=9.0)
-    rb.add_figure(demo_dir / "in3d_pcb_module_fit_drawing.png", "Bản vẽ kỹ thuật kiểm chứng khe hở lắp khít giữa bo mạch PCB Hub và các module", max_width_cm=14.5, max_height_cm=9.6)
-    rb.add_figure(demo_dir / "in3d_servo_door_closeup.png", "Cận cảnh 3D cụm cửa chính P08 dẫn động trực tiếp đồng trục bằng Servo SG90", max_width_cm=13.8, max_height_cm=9.0)
-    rb.add_figure(demo_dir / "prusaslicer_gcode_gyroid.png", "Kiểm chứng đường chạy G-code trên PrusaSlicer 2.9.7 với ruột 9% Gyroid và 0% support", max_width_cm=14.8, max_height_cm=7.2)
-
-    rb.add_h2("4.7. Kết luận Chương 4")
+    # ===== 4.5 KẾT LUẬN CHƯƠNG 4 =====
+    rb.add_h2("4.5. Kết luận Chương 4")
     rb.add_para(
-        "Chương 4 đã trình bày trọn vẹn thiết kế và phương án triển khai của hệ thống Smart Home Voice AI xuyên suốt từ tầng đám mây/máy chủ "
-        "(FastAPI, SQLite 3NF WAL, RBAC 3 tầng, QR TOTP 10 giây, Gemini 3.8 Live + ServerEchoGuard + 20 công cụ + 2 bể tự động hóa), "
-        "tầng ứng dụng (Web 3D Digital Twin, /wokwi PCB-Direct, Android Kotlin/Compose), tầng nhúng (ESP8266 LittleFS Wi-Fi runtime, Offline FSM A1–A4) "
-        "đến tầng điện tử và cơ khí (PCB Hub DIY v3 0 ERC/0 DRC, 40 dây <= 30 cm, 16 bàn in 3D PLA 660,64 g). "
-        "Chương 5 sẽ trình bày kết quả kết xuất, chạy thử nghiệm đa nền tảng và đánh giá đối chiếu với các chỉ tiêu đặt ra."
+        "Chương 4 đã trình bày đầy đủ kiến trúc vận hành và cách thức triển khai từng phân hệ của hệ thống nhà "
+        "thông minh điều khiển bằng giọng nói tiếng Việt, từ luồng xử lý đầu–cuối một câu lệnh thoại, cơ chế điều "
+        "khiển thiết bị trên FastAPI và SQLite WAL, tự động hóa hai bể cùng lệnh tùy chỉnh xác nhận một lần, phân "
+        "quyền RBAC ba tầng và mã QR động TOTP 10 giây, chế độ dự phòng ngoại tuyến khóa cứng cửa chính ở tầng "
+        "firmware, tới giao diện Web 3D, ứng dụng Android, vỏ mô hình nhà in 3D và bảng đối chiếu khách quan với "
+        "các sản phẩm thương mại. Trong Chương 5, em sẽ trình bày kịch bản kiểm thử thực nghiệm, kết quả đo đạc "
+        "hiệu năng và đánh giá mức độ đáp ứng yêu cầu của toàn hệ thống."
     )

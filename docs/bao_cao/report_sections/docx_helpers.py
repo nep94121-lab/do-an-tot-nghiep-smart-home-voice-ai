@@ -1,16 +1,18 @@
-"""OOXML & python-docx formatting helpers for HUST-compliant Graduation Report.
+"""OOXML & python-docx formatting helpers for HUST-compliant Graduation Report (v2).
 
-Implements exact specifications from TEMPLATE_ANALYSIS.md and GRILL_ANSWERS.md:
+Implements exact specifications from TEMPLATE_ANALYSIS.md, GRILL_ANSWERS.md, and v2 feedback:
 - A4 paper (21.0 x 29.7 cm), Left 3.5 cm, Right 2.0 cm, Top 2.0 cm, Bottom 2.0 cm
-- Times New Roman across all ASCII/HAnsi/EastAsia/CS runs
-- Double border for Cover / Inner Cover section
+- Times New Roman across all ASCII/HAnsi/EastAsia/CS runs (body 13 pt, line spacing 1.3)
+- Consolas (10 pt) shaded bordered text code listings with line numbers and real SEQ Đoạn_mã fields
+- Double border for Cover / Inner Cover section with real HUST logo helper
 - Roman numeral footers (i, ii, ...) for Front Matter; right-aligned Arabic footers (1, 2, ...) from Chapter 1
-- Real Word fields: TOC (1-3), TOC \\c "Hình", TOC \\c "Bảng", SEQ Hình, SEQ Bảng, PAGE
-- Yellow-highlighted [ĐIỀN: ...] placeholders and dashed-frame [ẢNH THỰC TẾ: ...] / [ẢNH CHỤP PHẦN MỀM: ...] boxes
+- Real Word fields: TOC (1-3), TOC \\c "Hình", TOC \\c "Bảng", TOC \\c "Đoạn_mã", SEQ Hình, SEQ Bảng, SEQ Đoạn_mã, PAGE
+- Automatic image compression/optimization helper so final .docx stays well under 10 MB
 """
 
 from __future__ import annotations
 
+import hashlib
 import pathlib
 from typing import Iterable, Sequence
 
@@ -21,15 +23,20 @@ from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_COLOR_INDEX
 from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
-from docx.shared import Cm, Inches, Pt, RGBColor
+from docx.shared import Cm, Pt, RGBColor
 
 
 FONT_NAME = "Times New Roman"
+CODE_FONT_NAME = "Consolas"
 BODY_PT = 13
 CAPTION_PT = 12
-TABLE_PT = 11.5
+TABLE_PT = 11.0
+CODE_PT = 10.0
 FOOTER_PT = 12
 TEXT_WIDTH_CM = 15.5  # 21.0 - 3.5 - 2.0
+
+# Verified in Phase 0 LibreOffice 26.8.3.1 UNO & Microsoft Word compatibility test
+LISTING_SEQ_ID = "Đoạn_mã"
 
 
 def set_run_font(
@@ -150,7 +157,6 @@ def add_field(
 def set_footer_page_number(section, align=WD_ALIGN_PARAGRAPH.RIGHT, clear: bool = False) -> None:
     section.footer.is_linked_to_previous = False
     section.header.is_linked_to_previous = False
-    # Clear header
     for p in list(section.header.paragraphs):
         p.text = ""
     footer = section.footer
@@ -179,16 +185,15 @@ def configure_document_styles(doc: Document, line_spacing: float = 1.3) -> None:
     pf = normal.paragraph_format
     pf.line_spacing = line_spacing
     pf.space_before = Pt(0)
-    pf.space_after = Pt(6)
+    pf.space_after = Pt(5)
     pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     pf.first_line_indent = Cm(1.27)
 
-    # Configure Heading 1..4 for Word TOC \o "1-3"
     heading_specs = [
-        ("Heading 1", 13, True, False, WD_ALIGN_PARAGRAPH.CENTER, 0, 12, 12, True),
-        ("Heading 2", 13, True, False, WD_ALIGN_PARAGRAPH.LEFT, 0, 10, 6, False),
-        ("Heading 3", 13, True, False, WD_ALIGN_PARAGRAPH.LEFT, 0.5, 8, 4, False),
-        ("Heading 4", 13, False, True, WD_ALIGN_PARAGRAPH.LEFT, 1.0, 6, 4, False),
+        ("Heading 1", 13, True, False, WD_ALIGN_PARAGRAPH.CENTER, 0, 8, 10, True),
+        ("Heading 2", 13, True, False, WD_ALIGN_PARAGRAPH.LEFT, 0, 8, 5, False),
+        ("Heading 3", 13, True, False, WD_ALIGN_PARAGRAPH.LEFT, 0.5, 6, 3, False),
+        ("Heading 4", 13, False, True, WD_ALIGN_PARAGRAPH.LEFT, 1.0, 5, 3, False),
     ]
     for name, sz, bld, itl, aln, left_cm, sb, sa, pb in heading_specs:
         st = doc.styles[name]
@@ -221,7 +226,7 @@ def set_cell_shading(cell, fill_hex: str) -> None:
     tcPr.append(shd)
 
 
-def set_cell_margins(cell, top=80, bottom=80, left=110, right=110) -> None:
+def set_cell_margins(cell, top=70, bottom=70, left=100, right=100) -> None:
     tcPr = cell._tc.get_or_add_tcPr()
     tcMar = parse_xml(
         f'<w:tcMar {nsdecls("w")}>'
@@ -262,21 +267,90 @@ def set_row_header(row) -> None:
     trPr.append(OxmlElement("w:tblHeader"))
 
 
-class ReportBuilder:
-    """Stateful HUST graduation report writer with automatic chapter/figure/table counters."""
+def optimize_image_for_docx(
+    src_path: pathlib.Path,
+    optimize_dir: pathlib.Path | None,
+    kind: str = "figure",
+) -> tuple[pathlib.Path, int, int, int]:
+    """Compress & resize raster images deterministically so final .docx stays < 10 MB.
 
-    def __init__(self, line_spacing: float = 1.3):
+    Returns (path_to_embed, width_px, height_px, file_size_bytes).
+    """
+    with Image.open(src_path) as im_orig:
+        w0, h0 = im_orig.size
+        if optimize_dir is None:
+            return src_path, w0, h0, src_path.stat().st_size
+
+        optimize_dir.mkdir(parents=True, exist_ok=True)
+        h_key = hashlib.sha1(f"{src_path.resolve()}:{src_path.stat().st_mtime_ns}:{kind}".encode("utf-8")).hexdigest()[:10]
+
+        use_jpeg = kind in ("photo", "3d_model", "web_ui", "app_ui", "pcb_3d", "hardware_photo")
+        if kind == "logo":
+            max_w = 500
+            use_jpeg = False
+        elif kind in ("diagram", "schematic", "pcb_2d"):
+            max_w = 1600
+            use_jpeg = False
+        else:
+            max_w = 1350
+
+        ext = ".jpg" if use_jpeg else ".png"
+        out_path = optimize_dir / f"{src_path.stem}_{h_key}{ext}"
+
+        if out_path.exists():
+            with Image.open(out_path) as im_cached:
+                wc, hc = im_cached.size
+            return out_path, wc, hc, out_path.stat().st_size
+
+        im = im_orig.copy()
+        if w0 > max_w:
+            new_h = max(1, int(round(h0 * (max_w / float(w0)))))
+            im = im.resize((max_w, new_h), Image.Resampling.LANCZOS)
+
+        if use_jpeg:
+            if im.mode in ("RGBA", "LA", "P"):
+                rgba = im.convert("RGBA")
+                bg = Image.new("RGB", rgba.size, (255, 255, 255))
+                bg.paste(rgba, mask=rgba.split()[-1])
+                im_rgb = bg
+            else:
+                im_rgb = im.convert("RGB")
+            im_rgb.save(str(out_path), format="JPEG", quality=84, optimize=True, progressive=True)
+            w_out, h_out = im_rgb.size
+        else:
+            if im.mode not in ("RGB", "RGBA"):
+                im = im.convert("RGBA" if "transparency" in im.info else "RGB")
+            im.save(str(out_path), format="PNG", optimize=True, compress_level=9)
+            w_out, h_out = im.size
+
+        # If optimized file is unexpectedly larger than original (e.g., tiny crisp PNG), keep original
+        if out_path.stat().st_size >= src_path.stat().st_size and w0 <= max_w:
+            out_path.unlink(missing_ok=True)
+            return src_path, w0, h0, src_path.stat().st_size
+
+        return out_path, w_out, h_out, out_path.stat().st_size
+
+
+class ReportBuilder:
+    """Stateful HUST graduation report writer with automatic chapter/figure/table/listing counters."""
+
+    def __init__(self, line_spacing: float = 1.3, optimize_dir: pathlib.Path | None = None):
         self.doc = Document()
         self.line_spacing = line_spacing
+        self.optimize_dir = optimize_dir
         configure_document_styles(self.doc, line_spacing=line_spacing)
         configure_section_a4(self.doc.sections[0])
         self.current_chapter = 0
         self.fig_in_chapter = 0
         self.tbl_in_chapter = 0
+        self.listing_in_chapter = 0
         self.total_figures = 0
         self.total_tables = 0
+        self.total_listings = 0
         self.figure_registry: list[str] = []
         self.table_registry: list[str] = []
+        self.listing_registry: list[str] = []
+        self.embedded_images: list[dict[str, object]] = []
 
     def add_new_section(self, start_type=WD_SECTION.NEW_PAGE):
         sec = self.doc.add_section(start_type)
@@ -286,7 +360,7 @@ class ReportBuilder:
     def add_page_break(self) -> None:
         self.doc.add_page_break()
 
-    def add_front_title(self, title: str, space_after: float = 12) -> None:
+    def add_front_title(self, title: str, space_after: float = 10) -> None:
         p = self.doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p.paragraph_format.first_line_indent = Cm(0)
@@ -301,12 +375,9 @@ class ReportBuilder:
         self.current_chapter = num
         self.fig_in_chapter = 0
         self.tbl_in_chapter = 0
+        self.listing_in_chapter = 0
         p = self.doc.add_paragraph(style="Heading 1")
-        # For Chapter 1 right after Section Break (New Page), avoid blank page by suppressing redundant page_break_before
-        if first_chapter:
-            p.paragraph_format.page_break_before = False
-        else:
-            p.paragraph_format.page_break_before = True
+        p.paragraph_format.page_break_before = not first_chapter
         r = p.add_run(f"CHƯƠNG {num}. {title.upper()}")
         set_run_font(r, size_pt=13, bold=True)
 
@@ -338,7 +409,7 @@ class ReportBuilder:
         italic: bool = False,
         align=WD_ALIGN_PARAGRAPH.JUSTIFY,
         indent_cm: float = 1.27,
-        space_after: float = 6,
+        space_after: float = 5,
     ):
         p = self.doc.add_paragraph()
         p.alignment = align
@@ -355,7 +426,7 @@ class ReportBuilder:
         segments: Sequence[tuple[str, bool, bool, WD_COLOR_INDEX | None]],
         align=WD_ALIGN_PARAGRAPH.JUSTIFY,
         indent_cm: float = 1.27,
-        space_after: float = 6,
+        space_after: float = 5,
     ):
         p = self.doc.add_paragraph()
         p.alignment = align
@@ -374,7 +445,7 @@ class ReportBuilder:
         p.paragraph_format.left_indent = Cm(1.27)
         p.paragraph_format.first_line_indent = Cm(-0.45)
         p.paragraph_format.space_before = Pt(0)
-        p.paragraph_format.space_after = Pt(4)
+        p.paragraph_format.space_after = Pt(3.5)
         p.paragraph_format.line_spacing = self.line_spacing
         r0 = p.add_run("–  ")
         set_run_font(r0, size_pt=BODY_PT)
@@ -388,9 +459,9 @@ class ReportBuilder:
         p = self.doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.LEFT
         p.paragraph_format.first_line_indent = Cm(0)
-        p.paragraph_format.space_before = Pt(4)
-        p.paragraph_format.space_after = Pt(6)
-        p.paragraph_format.line_spacing = 1.3
+        p.paragraph_format.space_before = Pt(3)
+        p.paragraph_format.space_after = Pt(4)
+        p.paragraph_format.line_spacing = 1.15
         add_field(
             p,
             field_code,
@@ -400,17 +471,52 @@ class ReportBuilder:
             color=RGBColor(0x47, 0x55, 0x69),
         )
 
-    def add_dashed_box(self, label: str, sublabel: str = "", height_cm: float = 5.0, width_cm: float = 14.5) -> None:
+    def add_cover_logo(
+        self,
+        image_path: pathlib.Path,
+        max_height_cm: float = 3.2,
+        max_width_cm: float = 4.0,
+        label: str = "Logo ĐHBK Hà Nội (HUST)",
+    ) -> None:
+        embed_path, w_px, h_px, sz = optimize_image_for_docx(image_path, self.optimize_dir, kind="logo")
+        aspect = w_px / max(h_px, 1)
+        h_cm = max_height_cm
+        w_cm = h_cm * aspect
+        if w_cm > max_width_cm:
+            w_cm = max_width_cm
+            h_cm = w_cm / max(aspect, 0.1)
+
+        p = self.doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.first_line_indent = Cm(0)
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after = Pt(6)
+        p.paragraph_format.line_spacing = 1.0
+        run = p.add_run()
+        run.add_picture(str(embed_path), width=Cm(w_cm))
+        self.embedded_images.append(
+            {
+                "source_file": image_path.name,
+                "embedded_file": embed_path.name,
+                "kind": "university_logo",
+                "caption": label,
+                "chapter": 0,
+                "width_px": w_px,
+                "height_px": h_px,
+                "size_bytes": sz,
+            }
+        )
+
+    def add_dashed_box(self, label: str, sublabel: str = "", height_cm: float = 4.6, width_cm: float = 14.2) -> None:
         tbl = self.doc.add_table(rows=1, cols=1)
         tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
         tbl.autofit = False
-        set_table_borders(tbl, val="dashed", sz="12", color="64748B")
+        set_table_borders(tbl, val="dashed", sz="10", color="64748B")
         cell = tbl.cell(0, 0)
         cell.width = Cm(width_cm)
         cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         set_cell_shading(cell, "F8FAFC")
-        set_cell_margins(cell, top=160, bottom=160, left=200, right=200)
-        # Set row height
+        set_cell_margins(cell, top=140, bottom=140, left=180, right=180)
         trPr = tbl.rows[0]._tr.get_or_add_trPr()
         trHeight = parse_xml(f'<w:trHeight {nsdecls("w")} w:val="{int(height_cm * 567)}" w:hRule="atLeast"/>')
         trPr.append(trHeight)
@@ -419,11 +525,12 @@ class ReportBuilder:
         p = cell.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p.paragraph_format.first_line_indent = Cm(0)
-        p.paragraph_format.space_before = Pt(4)
-        p.paragraph_format.space_after = Pt(4)
+        p.paragraph_format.space_before = Pt(3)
+        p.paragraph_format.space_after = Pt(3)
         p.paragraph_format.line_spacing = 1.15
+        p.paragraph_format.keep_with_next = True
         r = p.add_run(label)
-        set_run_font(r, size_pt=12, bold=True, color=RGBColor(0x33, 0x41, 0x55))
+        set_run_font(r, size_pt=11.5, bold=True, color=RGBColor(0x33, 0x41, 0x55))
         if sublabel:
             p2 = cell.add_paragraph()
             p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -431,11 +538,12 @@ class ReportBuilder:
             p2.paragraph_format.space_before = Pt(2)
             p2.paragraph_format.space_after = Pt(2)
             p2.paragraph_format.line_spacing = 1.15
+            p2.paragraph_format.keep_with_next = True
             r2 = p2.add_run(sublabel)
-            set_run_font(r2, size_pt=11, italic=True, color=RGBColor(0x64, 0x74, 0x8B))
+            set_run_font(r2, size_pt=10.5, italic=True, color=RGBColor(0x64, 0x74, 0x8B))
 
     def _add_seq_caption(self, kind: str, caption_text: str, keep_with_next: bool = False) -> str:
-        """kind: 'Hình' or 'Bảng'."""
+        """kind: 'Hình', 'Bảng', or 'Đoạn mã'."""
         ch = self.current_chapter
         if kind == "Hình":
             self.fig_in_chapter += 1
@@ -444,19 +552,29 @@ class ReportBuilder:
             seq_cmd = 'SEQ Hình \\* ARABIC \\r 1' if idx == 1 else 'SEQ Hình \\* ARABIC'
             label_full = f"Hình {ch}.{idx}: {caption_text}"
             self.figure_registry.append(label_full)
-        else:
+            sb, sa = 3, 8
+        elif kind == "Bảng":
             self.tbl_in_chapter += 1
             self.total_tables += 1
             idx = self.tbl_in_chapter
             seq_cmd = 'SEQ Bảng \\* ARABIC \\r 1' if idx == 1 else 'SEQ Bảng \\* ARABIC'
             label_full = f"Bảng {ch}.{idx}: {caption_text}"
             self.table_registry.append(label_full)
+            sb, sa = 7, 3
+        else:
+            self.listing_in_chapter += 1
+            self.total_listings += 1
+            idx = self.listing_in_chapter
+            seq_cmd = f'SEQ {LISTING_SEQ_ID} \\* ARABIC \\r 1' if idx == 1 else f'SEQ {LISTING_SEQ_ID} \\* ARABIC'
+            label_full = f"Đoạn mã {ch}.{idx}: {caption_text}"
+            self.listing_registry.append(label_full)
+            sb, sa = 7, 3
 
         p = self.doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p.paragraph_format.first_line_indent = Cm(0)
-        p.paragraph_format.space_before = Pt(4 if kind == "Hình" else 8)
-        p.paragraph_format.space_after = Pt(10 if kind == "Hình" else 4)
+        p.paragraph_format.space_before = Pt(sb)
+        p.paragraph_format.space_after = Pt(sa)
         p.paragraph_format.line_spacing = 1.15
         p.paragraph_format.keep_with_next = keep_with_next
 
@@ -471,14 +589,14 @@ class ReportBuilder:
         self,
         image_path: pathlib.Path | None,
         caption: str,
-        max_width_cm: float = 14.5,
-        max_height_cm: float = 11.0,
+        max_width_cm: float = 14.2,
+        max_height_cm: float = 9.0,
         placeholder_label: str = "",
         placeholder_sublabel: str = "",
+        kind: str = "diagram",
     ) -> str:
         if image_path is not None and image_path.exists():
-            with Image.open(image_path) as im:
-                w_px, h_px = im.size
+            embed_path, w_px, h_px, sz = optimize_image_for_docx(image_path, self.optimize_dir, kind=kind)
             aspect = h_px / max(w_px, 1)
             w_cm = max_width_cm
             h_cm = w_cm * aspect
@@ -488,25 +606,91 @@ class ReportBuilder:
             p_img = self.doc.add_paragraph()
             p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p_img.paragraph_format.first_line_indent = Cm(0)
-            p_img.paragraph_format.space_before = Pt(6)
+            p_img.paragraph_format.space_before = Pt(5)
             p_img.paragraph_format.space_after = Pt(2)
             p_img.paragraph_format.keep_with_next = True
             run = p_img.add_run()
-            run.add_picture(str(image_path), width=Cm(w_cm))
+            run.add_picture(str(embed_path), width=Cm(w_cm))
+            cap_full = self._add_seq_caption("Hình", caption, keep_with_next=False)
+            self.embedded_images.append(
+                {
+                    "source_file": image_path.name,
+                    "embedded_file": embed_path.name,
+                    "kind": kind,
+                    "caption": cap_full,
+                    "chapter": self.current_chapter,
+                    "width_px": w_px,
+                    "height_px": h_px,
+                    "size_bytes": sz,
+                }
+            )
+            return cap_full
         else:
             lbl = placeholder_label or f"[ẢNH THỰC TẾ: {caption}]"
-            self.add_dashed_box(lbl, placeholder_sublabel, height_cm=5.2, width_cm=max_width_cm)
-            # Keep box with caption by setting keep_with_next on last cell paragraph? Done visually via tight spacing.
-        return self._add_seq_caption("Hình", caption, keep_with_next=False)
+            self.add_dashed_box(lbl, placeholder_sublabel, height_cm=4.5, width_cm=max_width_cm)
+            return self._add_seq_caption("Hình", caption, keep_with_next=False)
+
+    def add_code_listing(
+        self,
+        caption: str,
+        code_lines: Sequence[str],
+        source_ref: str = "",
+        start_line: int = 1,
+        font_pt: float = CODE_PT,
+    ) -> str:
+        """Render a text code listing: Consolas 10 pt, light-grey shaded block, thin border, line numbers.
+
+        Caption "Đoạn mã x.y: ..." is placed ABOVE the block with keep_with_next=True (matching Table convention).
+        """
+        full_caption = f"{caption} ({source_ref})" if source_ref and source_ref not in caption else caption
+        cap_full = self._add_seq_caption("Đoạn mã", full_caption, keep_with_next=True)
+
+        tbl = self.doc.add_table(rows=1, cols=1)
+        tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+        tbl.autofit = False
+        set_table_borders(tbl, val="single", sz="6", color="CBD5E1")
+        cell = tbl.cell(0, 0)
+        cell.width = Cm(TEXT_WIDTH_CM)
+        cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
+        set_cell_shading(cell, "F3F4F6")
+        set_cell_margins(cell, top=60, bottom=60, left=110, right=95)
+        if len(code_lines) <= 32:
+            set_row_cant_split(tbl.rows[0])
+
+        max_ln = start_line + max(len(code_lines) - 1, 0)
+        num_w = max(2, len(str(max_ln)))
+
+        for idx, raw_line in enumerate(code_lines):
+            p = cell.paragraphs[0] if idx == 0 else cell.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            p.paragraph_format.first_line_indent = Cm(0)
+            p.paragraph_format.left_indent = Cm(0)
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after = Pt(0)
+            p.paragraph_format.line_spacing = 1.03
+
+            ln_no = start_line + idx
+            r_num = p.add_run(f"{ln_no:>{num_w}d} | ")
+            set_run_font(r_num, size_pt=font_pt, bold=False, color=RGBColor(0x64, 0x74, 0x8B), font_name=CODE_FONT_NAME)
+
+            clean_line = raw_line.rstrip("\r\n").replace("\t", "  ")
+            r_code = p.add_run(clean_line)
+            set_run_font(r_code, size_pt=font_pt, bold=False, color=RGBColor(0x0F, 0x17, 0x2A), font_name=CODE_FONT_NAME)
+
+        sp = self.doc.add_paragraph()
+        sp.paragraph_format.space_before = Pt(0)
+        sp.paragraph_format.space_after = Pt(4)
+        sp.paragraph_format.line_spacing = 1.0
+        return cap_full
 
     def add_logo_showcase_figure(
         self,
         items: Sequence[tuple[str, pathlib.Path]],
         caption: str,
         cols: int = 4,
-        logo_max_h_cm: float = 1.65,
+        logo_max_h_cm: float = 1.45,
     ) -> str:
-        """Render a clean borderless-outer / subtle-grid logo strip for Chapter 3 with real official PNGs."""
+        """Render a compact border-subtle logo grid for core thesis technologies only."""
         n = len(items)
         cols = min(cols, max(n, 1))
         rows = (n + cols - 1) // cols
@@ -522,18 +706,17 @@ class ReportBuilder:
                 cell = tbl.cell(r_idx, c_idx)
                 cell.width = Cm(col_w)
                 cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-                set_cell_margins(cell, top=100, bottom=80, left=80, right=80)
+                set_cell_margins(cell, top=80, bottom=65, left=70, right=70)
                 p = cell.paragraphs[0]
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 p.paragraph_format.first_line_indent = Cm(0)
                 p.paragraph_format.space_before = Pt(2)
                 p.paragraph_format.space_after = Pt(2)
-                p.paragraph_format.line_spacing = 1.1
+                p.paragraph_format.line_spacing = 1.08
                 if idx < n:
                     label, path = items[idx]
                     if path.exists():
-                        with Image.open(path) as im:
-                            w_px, h_px = im.size
+                        embed_path, w_px, h_px, sz = optimize_image_for_docx(path, self.optimize_dir, kind="logo")
                         aspect = w_px / max(h_px, 1)
                         h_cm = logo_max_h_cm
                         w_cm = h_cm * aspect
@@ -542,7 +725,19 @@ class ReportBuilder:
                             w_cm = max_cell_w
                             h_cm = w_cm / max(aspect, 0.1)
                         run = p.add_run()
-                        run.add_picture(str(path), width=Cm(w_cm))
+                        run.add_picture(str(embed_path), width=Cm(w_cm))
+                        self.embedded_images.append(
+                            {
+                                "source_file": path.name,
+                                "embedded_file": embed_path.name,
+                                "kind": "tech_logo",
+                                "caption": f"{caption} ({label})",
+                                "chapter": self.current_chapter,
+                                "width_px": w_px,
+                                "height_px": h_px,
+                                "size_bytes": sz,
+                            }
+                        )
                     p_lbl = cell.add_paragraph()
                     p_lbl.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     p_lbl.paragraph_format.first_line_indent = Cm(0)
@@ -550,7 +745,7 @@ class ReportBuilder:
                     p_lbl.paragraph_format.space_after = Pt(0)
                     p_lbl.paragraph_format.line_spacing = 1.05
                     rl = p_lbl.add_run(label)
-                    set_run_font(rl, size_pt=10.5, bold=True)
+                    set_run_font(rl, size_pt=10.0, bold=True)
         return self._add_seq_caption("Hình", caption, keep_with_next=False)
 
     def add_table(
@@ -580,7 +775,6 @@ class ReportBuilder:
         tbl.autofit = False
         set_table_borders(tbl, val="single", sz="4", color="475569")
 
-        # Header row
         hdr_row = tbl.rows[0]
         set_row_header(hdr_row)
         set_row_cant_split(hdr_row)
@@ -589,13 +783,13 @@ class ReportBuilder:
             cell.width = Cm(col_widths_cm[ci])
             cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
             set_cell_shading(cell, "E2E8F0")
-            set_cell_margins(cell, top=70, bottom=70, left=85, right=85)
+            set_cell_margins(cell, top=60, bottom=60, left=75, right=75)
             p = cell.paragraphs[0]
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.first_line_indent = Cm(0)
             p.paragraph_format.space_before = Pt(0)
             p.paragraph_format.space_after = Pt(0)
-            p.paragraph_format.line_spacing = 1.12
+            p.paragraph_format.line_spacing = 1.1
             r = p.add_run(str(htext))
             set_run_font(r, size_pt=font_pt, bold=True)
 
@@ -610,19 +804,18 @@ class ReportBuilder:
                 cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
                 if bg_hex:
                     set_cell_shading(cell, bg_hex)
-                set_cell_margins(cell, top=55, bottom=55, left=85, right=85)
+                set_cell_margins(cell, top=48, bottom=48, left=75, right=75)
                 p = cell.paragraphs[0]
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER if ci in center_set else WD_ALIGN_PARAGRAPH.LEFT
                 p.paragraph_format.first_line_indent = Cm(0)
                 p.paragraph_format.space_before = Pt(0)
                 p.paragraph_format.space_after = Pt(0)
-                p.paragraph_format.line_spacing = 1.12
+                p.paragraph_format.line_spacing = 1.1
                 r = p.add_run(str(val))
                 set_run_font(r, size_pt=font_pt, bold=False)
 
-        # Spacer after table
         sp = self.doc.add_paragraph()
         sp.paragraph_format.space_before = Pt(0)
-        sp.paragraph_format.space_after = Pt(4)
+        sp.paragraph_format.space_after = Pt(3)
         sp.paragraph_format.line_spacing = 1.0
         return cap_full
