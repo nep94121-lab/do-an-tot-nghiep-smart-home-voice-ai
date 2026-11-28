@@ -63,6 +63,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationCompat
@@ -287,8 +288,16 @@ fun MainScreen(
   var allowlistStatusColor by remember { mutableStateOf(accentCyan) }
   var guestQrDuration by remember { mutableStateOf("1d") }
   var guestQrCountdown by remember { mutableIntStateOf(10) }
+  var guestPinInput by remember { mutableStateOf("") }
+  var guestPinConfirmInput by remember { mutableStateOf("") }
+  var guestNeedsPinSetup by remember { mutableStateOf(false) }
+  var guestInviteToken by remember { mutableStateOf("") }
+  var guestInviteUrl by remember { mutableStateOf("") }
+  var guestInviteStatus by remember { mutableStateOf("") }
+  var guestInviteIsError by remember { mutableStateOf(false) }
 
   var speakerReply by remember { mutableStateOf("Chưa có lệnh") }
+  val voiceConversation = remember { mutableStateListOf<Pair<String, String>>() }
   var metricBadge by remember { mutableStateOf("Chưa đăng nhập") }
   var lastStatusColor by remember { mutableStateOf(accentGreen) }
 
@@ -508,14 +517,17 @@ fun MainScreen(
   val visibleDevices = remember(isAuthenticated, selectedTier, allowedDeviceIds.toList()) {
     if (!isAuthenticated) {
       emptyList()
-    } else if (allowedDeviceIds.isNotEmpty()) {
-      devices.filter { it.serverId in allowedDeviceIds }
     } else {
-      when (selectedTier) {
-        1 -> devices
-        2 -> devices.filter { it.serverId in setOf("living_room_light", "bedroom_light", "garden_pump", "speaker_amp") }
-        3 -> devices.filter { it.serverId in setOf("living_room_light", "bedroom_light") }
-        else -> emptyList()
+      val tierAllowed = when (selectedTier) {
+        1 -> setOf("living_room_light", "bedroom_light", "speaker_amp", "main_door", "alarm_siren", "garden_pump")
+        2 -> setOf("living_room_light", "bedroom_light", "garden_pump", "speaker_amp")
+        3 -> setOf("living_room_light", "bedroom_light")
+        else -> emptySet()
+      }
+      if (allowedDeviceIds.isNotEmpty()) {
+        devices.filter { it.serverId in allowedDeviceIds && it.serverId in tierAllowed }
+      } else {
+        devices.filter { it.serverId in tierAllowed }
       }
     }
   }
@@ -575,10 +587,10 @@ fun MainScreen(
           conn.requestMethod = method
           if (base.startsWith("https://")) {
             conn.connectTimeout = 8000
-            conn.readTimeout = 10000
+            conn.readTimeout = 15000
           } else {
-            conn.connectTimeout = 700
-            conn.readTimeout = 700
+            conn.connectTimeout = 900
+            conn.readTimeout = 15000
           }
           conn.setRequestProperty("Accept", "application/json")
           if (activeSessionToken.isNotBlank()) {
@@ -629,7 +641,9 @@ fun MainScreen(
         }
         val curTier = root.optInt("current_tier", 0)
         if (curTier in 1..3 && activeSessionToken.isNotBlank()) {
-          selectedTier = curTier
+          if (selectedTier !in 1..3 || curTier >= selectedTier) {
+            selectedTier = curTier
+          }
         }
         val boardHealthObj = root.optJSONObject("board_health")
         if (boardHealthObj != null) {
@@ -921,15 +935,46 @@ fun MainScreen(
         return@launch
       }
 
-      if (res.has("snapshot") || res.has("timers") || res.has("schedules") || res.has("automation_rules") || res.has("scenes") || res.has("custom_commands")) {
-        applyServerSnapshotJson(resStr)
+      var finalResStr = resStr
+      var finalRes = res
+      val needsConfirm = finalRes.optBoolean("requires_confirmation", false)
+      val pendingId = finalRes.optString("pending_id").ifBlank { finalRes.optString("confirm_token") }
+      if (needsConfirm && pendingId.isNotBlank()) {
+        val confirmPayload = JSONObject().apply {
+          put("pending_id", pendingId)
+          put("confirm_token", pendingId)
+          put("confirmed", true)
+          if (activeSessionToken.isNotBlank()) put("session_token", activeSessionToken)
+        }.toString()
+        val confStr = callServerHttp("/api/automation/confirm", "POST", confirmPayload)
+        if (confStr != null) {
+          val confJson = try { JSONObject(confStr) } catch (_: Exception) { null }
+          if (confJson != null) {
+            finalResStr = confStr
+            finalRes = confJson
+            if (!finalRes.optBoolean("ok", false) || finalRes.optBoolean("rbac_blocked", false)) {
+              val cErr = finalRes.optString("error")
+                .ifBlank { finalRes.optString("message") }
+                .ifBlank { extractServerSpokenReply(finalRes) }
+                .ifBlank { defaultErrorMessage }
+              withContext(Dispatchers.Main) {
+                showAutomationFeedback(cErr, isError = true)
+              }
+              return@launch
+            }
+          }
+        }
+      }
+
+      if (finalRes.has("snapshot") || finalRes.has("timers") || finalRes.has("schedules") || finalRes.has("automation_rules") || finalRes.has("scenes") || finalRes.has("custom_commands")) {
+        applyServerSnapshotJson(finalResStr)
       } else {
         syncServerState()
       }
-      val replyMsg = extractServerSpokenReply(res)
-        .ifBlank { res.optString("message") }
+      val replyMsg = extractServerSpokenReply(finalRes)
+        .ifBlank { finalRes.optString("message") }
         .ifBlank { defaultSuccessMessage }
-      val pcmB64 = res.optString("pcm24k_b64", "")
+      val pcmB64 = finalRes.optString("pcm24k_b64", "")
       withContext(Dispatchers.Main) {
         showAutomationFeedback(
           replyMsg,
@@ -1246,42 +1291,39 @@ fun MainScreen(
         put("source", "Android_Compose_3Layer")
         put("send_gmail", !cleanEmail.endsWith("@example.com"))
       }.toString()
-      var resStr = callServerHttp("/api/auth3/layer1_login", "POST", payload)
-      if (resStr != null) {
-        val firstRes = try { JSONObject(resStr) } catch (_: Exception) { null }
-        val errText = firstRes?.optString("error", "") ?: ""
-        if (firstRes != null && !firstRes.optBoolean("ok") && errText.contains("Không tìm thấy tài khoản") && authPassword.isNotBlank()) {
-          val regPayload = JSONObject().apply {
-            put("email", cleanEmail)
-            put("password", authPassword)
-            put("confirm_password", authPassword)
-            put("display_name", displayName)
-            put("target_tier", selectedTier)
-            put("source", "Android_Compose_3Layer")
-          }.toString()
-          callServerHttp("/api/auth3/register_or_set_password", "POST", regPayload)
-          resStr = callServerHttp("/api/auth3/layer1_login", "POST", payload)
-        }
-      }
+      val resStr = callServerHttp("/api/auth3/layer1_login", "POST", payload)
       withContext(Dispatchers.Main) {
         if (resStr != null) {
           val res = try { JSONObject(resStr) } catch (_: Exception) { JSONObject() }
           if (res.optBoolean("ok")) {
             authStepDone = maxOf(authStepDone, 1)
-            authStatusColor = accentGreen
-            activeSpeakerName = displayName
+            activeSpeakerName = res.optJSONObject("account")?.optString("display_name")
+              ?.ifBlank { displayName } ?: displayName
             val returnedToken = res.optString("session_token", "")
               .ifBlank { sessionCookies["sh_session_token"] ?: sessionCookies["session_token"] ?: "" }
+            val otpRequired = res.optBoolean("otp_required", false)
             if (returnedToken.isNotBlank()) {
               activeSessionToken = returnedToken
+              val serverTier = res.optInt("tier", 0).let {
+                if (it in 1..3) it else res.optJSONObject("account")?.optInt("tier", 0) ?: 0
+              }
+              if (serverTier in 1..3) {
+                selectedTier = serverTier
+              }
+              authStatusColor = accentGreen
+              authStatusMessage = "Đăng nhập thành công: $cleanEmail"
+              addHistoryLog("Đăng nhập thành công: $cleanEmail")
+              scope.launch { syncServerState() }
+            } else if (otpRequired) {
+              authStatusColor = accentAmber
+              authStatusMessage = res.optString("message").ifBlank {
+                "Đã xác thực mật khẩu. Vui lòng nhập mã OTP 6 số gửi qua Gmail."
+              }
+              addHistoryLog("Yêu cầu OTP Lớp 2 cho: $cleanEmail")
+            } else {
+              authStatusColor = accentRed
+              authStatusMessage = res.optString("error", "Chưa nhận được phiên đăng nhập từ máy chủ.")
             }
-            val serverTier = res.optInt("tier", 0)
-            if (serverTier in 1..3) {
-              selectedTier = serverTier
-            }
-            authStatusMessage = "Đăng nhập thành công: $cleanEmail"
-            addHistoryLog("Đăng nhập thành công: $cleanEmail")
-            scope.launch { syncServerState() }
           } else {
             authStatusColor = accentRed
             authStatusMessage = res.optString("error", res.optString("message", "Đăng nhập Lớp 1 thất bại!"))
@@ -1397,6 +1439,127 @@ fun MainScreen(
           authStatusMessage = errMsg
           addHistoryLog("Đổi mã QR thất bại: $errMsg")
           showAutomationFeedback(errMsg, isError = true)
+        }
+      }
+    }
+  }
+
+  suspend fun sendForgotPasswordOtp(email: String): Pair<Boolean, String> {
+    val cleanEmail = email.trim()
+    val payload = JSONObject().apply {
+      put("email", cleanEmail)
+      put("send_gmail", !cleanEmail.endsWith("@example.com"))
+      put("source", "Android_ForgotPassword")
+    }.toString()
+    val resStr = callServerHttp("/api/auth3/forgot_password_send_otp", "POST", payload)
+      ?: return false to "Không thể kết nối máy chủ để gửi mã OTP."
+    val res = try { JSONObject(resStr) } catch (_: Exception) { JSONObject() }
+    val ok = res.optBoolean("ok", false)
+    val msg = if (ok) {
+      res.optString("message").ifBlank { "Đã gửi mã OTP 6 số về Gmail." }
+    } else {
+      res.optString("error").ifBlank { res.optString("message", "Không thể gửi mã OTP.") }
+    }
+    return ok to msg
+  }
+
+  suspend fun verifyForgotPasswordOtp(email: String, otp: String): Pair<Boolean, String> {
+    val payload = JSONObject().apply {
+      put("email", email.trim())
+      put("otp", otp.trim())
+      put("purpose", "forgot_password")
+      put("source", "Android_ForgotPassword")
+    }.toString()
+    val resStr = callServerHttp("/api/auth3/layer2_verify_otp", "POST", payload)
+      ?: return false to "Không thể kết nối máy chủ để xác thực mã OTP."
+    val res = try { JSONObject(resStr) } catch (_: Exception) { JSONObject() }
+    val ok = res.optBoolean("ok", false)
+    val msg = if (ok) {
+      res.optString("message").ifBlank { "Xác thực mã OTP thành công." }
+    } else {
+      res.optString("error").ifBlank { res.optString("message", "Mã OTP không đúng hoặc đã hết hạn.") }
+    }
+    return ok to msg
+  }
+
+  suspend fun confirmForgotPasswordReset(
+    email: String,
+    otp: String,
+    newPassword: String,
+    confirmPassword: String,
+  ): Pair<Boolean, String> {
+    val payload = JSONObject().apply {
+      put("email", email.trim())
+      put("otp_code", otp.trim())
+      put("new_password", newPassword)
+      put("confirm_password", confirmPassword)
+      put("source", "Android_ForgotPassword")
+    }.toString()
+    val resStr = callServerHttp("/api/auth3/forgot_password_reset", "POST", payload)
+      ?: return false to "Không thể kết nối máy chủ để đặt lại mật khẩu."
+    val res = try { JSONObject(resStr) } catch (_: Exception) { JSONObject() }
+    val ok = res.optBoolean("ok", false)
+    val msg = if (ok) {
+      res.optString("message").ifBlank { "Đặt lại mật khẩu thành công!" }
+    } else {
+      res.optString("error").ifBlank { res.optString("message", "Không thể đặt lại mật khẩu.") }
+    }
+    return ok to msg
+  }
+
+  fun createGuestInviteFromUi() {
+    if (!isAuthenticated || selectedTier != 1) {
+      guestInviteIsError = true
+      guestInviteStatus = "Chỉ Chủ nhà Cấp 1 mới có quyền tạo lời mời khách."
+      return
+    }
+    if (guestPinInput.length != 4) {
+      guestInviteIsError = true
+      guestInviteStatus = "Vui lòng nhập mã PIN Chủ nhà gồm 4 chữ số."
+      return
+    }
+    if (guestNeedsPinSetup && guestPinConfirmInput != guestPinInput) {
+      guestInviteIsError = true
+      guestInviteStatus = "Mã PIN xác nhận lần đầu không khớp."
+      return
+    }
+    guestInviteIsError = false
+    guestInviteStatus = "Đang tạo lời mời khách..."
+    scope.launch(Dispatchers.IO) {
+      val payload = JSONObject().apply {
+        put("tier", 3)
+        put("duration_code", guestQrDuration)
+        put("guest_name", newMemberName.trim().ifBlank { "Khách mời" })
+        put("pin", guestPinInput)
+        if (guestNeedsPinSetup && guestPinConfirmInput.isNotBlank()) {
+          put("pin_confirm", guestPinConfirmInput)
+        }
+        put("session_token", activeSessionToken)
+      }.toString()
+      val resStr = callServerHttp("/api/auth3/guest_invites", "POST", payload)
+      withContext(Dispatchers.Main) {
+        if (resStr == null) {
+          guestInviteIsError = true
+          guestInviteStatus = "Không thể kết nối máy chủ để tạo lời mời."
+          return@withContext
+        }
+        val res = try { JSONObject(resStr) } catch (_: Exception) { JSONObject() }
+        if (res.optBoolean("ok", false)) {
+          val tok = res.optString("token", "")
+          val url = res.optString("url", "")
+          guestNeedsPinSetup = false
+          guestPinConfirmInput = ""
+          guestInviteToken = tok
+          guestInviteUrl = url
+          guestInviteIsError = false
+          guestInviteStatus = "Đã tạo lời mời khách thành công (${res.optString("duration_label", guestQrDuration)})."
+          addHistoryLog("Tạo lời mời khách: ${newMemberName.trim().ifBlank { "Khách mời" }}")
+        } else {
+          if (res.optBoolean("needs_pin_setup", false)) {
+            guestNeedsPinSetup = true
+          }
+          guestInviteIsError = true
+          guestInviteStatus = res.optString("error", res.optString("message", "Không thể tạo lời mời khách."))
         }
       }
     }
@@ -1576,37 +1739,6 @@ fun MainScreen(
       return
     }
 
-    val lower = cleanCmd.lowercase(Locale.getDefault())
-    val isAutomationOrMultiPhrase = lower.contains("giây") ||
-      lower.contains("phút") ||
-      lower.contains("giờ") ||
-      lower.contains("lúc ") ||
-      lower.contains("hằng ngày") ||
-      lower.contains("mỗi ngày") ||
-      lower.contains("khi ") ||
-      lower.contains("nếu ") ||
-      lower.contains("hẹn") ||
-      lower.contains("đặt lịch") ||
-      lower.contains("tạo luật") ||
-      lower.contains("tất cả") ||
-      lower.contains("cả hai") ||
-      customScenes.any { it.phraseNorm.isNotBlank() && lower.contains(it.phraseNorm) }
-
-    val targetDevice = if (isAutomationOrMultiPhrase) null else visibleDevices.firstOrNull { dev ->
-      when (dev.serverId) {
-        "living_room_light" -> lower.contains("phòng khách") || lower.contains("đèn khách")
-        "bedroom_light" -> lower.contains("phòng ngủ") || lower.contains("đèn ngủ")
-        "speaker_amp" -> lower.contains("loa") || lower.contains("mạch loa") || lower.contains("pam8403")
-        "main_door" -> lower.contains("cửa")
-        "alarm_siren" -> lower.contains("còi") || lower.contains("báo động")
-        "garden_pump" -> lower.contains("bơm") || lower.contains("sân vườn")
-        else -> false
-      }
-    }
-
-    val isTurnOn = lower.contains("bật") || lower.contains("mở") || lower.contains("khởi động")
-    val isTurnOff = lower.contains("tắt") || lower.contains("đóng") || lower.contains("ngắt")
-
     if (!isAuthenticated || selectedTier <= 0 || selectedTier >= 99) {
       val rejReply = "Vui lòng đăng nhập trước khi điều khiển thiết bị."
       speakerReply = rejReply
@@ -1614,122 +1746,49 @@ fun MainScreen(
       return
     }
 
-    if (targetDevice != null) {
-      if (targetDevice.tier1Only && selectedTier != 1) {
-        val reply = "Chỉ chủ nhà mới được điều khiển ${targetDevice.name}."
-        speakerReply = reply
-        speakOutLoud(reply)
-        return
+    val fallbackReply = "Đã nhận lệnh: “$cleanCmd”."
+    speakerReply = "Đang xử lý..."
+    addHistoryLog("Lệnh giọng nói: $cleanCmd")
+    scope.launch(Dispatchers.IO) {
+      val payload = JSONObject().apply {
+        put("text", cleanCmd)
+        put("user_name", activeSpeakerName)
+        put("tier", selectedTier)
+        put("session_token", activeSessionToken)
+      }.toString()
+      val resStr = callServerHttp("/api/text_command", "POST", payload)
+      if (resStr != null) {
+        applyServerSnapshotJson(resStr)
       }
-      val prevState = deviceStates[targetDevice.serverId] ?: false
-      val newState = if (isTurnOn) true else if (isTurnOff) false else !prevState
-      deviceStates[targetDevice.serverId] = newState
-      val actionWord = if (targetDevice.serverId == "main_door") {
-        if (newState) "mở" else "khóa"
-      } else {
-        if (newState) "bật" else "tắt"
-      }
-      val reply = "Đã $actionWord ${targetDevice.name} theo lệnh của $activeSpeakerName."
-      speakerReply = "Đang thực hiện..."
-      addHistoryLog("Lệnh: $cleanCmd")
-
-      scope.launch(Dispatchers.IO) {
-        val payload = JSONObject().apply {
-          put("device_id", targetDevice.serverId)
-          put("action", if (targetDevice.serverId == "main_door") {
-            if (newState) "open" else "close"
-          } else {
-            if (newState) "turn_on" else "turn_off"
-          })
-          put("user_name", activeSpeakerName)
-          put("tier", selectedTier)
-          put("session_token", activeSessionToken)
-        }.toString()
-        val resStr = callServerHttp("/api/device", "POST", payload)
-        withContext(Dispatchers.Main) {
-          if (resStr != null) {
-            try {
-              val res = JSONObject(resStr)
-              val serverSpeech = extractServerSpokenReply(res)
-              val serverPcmB64 = res.optString("pcm24k_b64", "")
-              val isBoardOfflineResp = res.optBoolean("board_offline", false)
-              if (isBoardOfflineResp) {
-                boardOnline = false
-                val ls = res.optString("last_seen_vi", "").trim()
-                if (ls.isNotEmpty()) boardLastSeenVi = ls
-                if (res.has("snapshot")) {
-                  scope.launch { applyServerSnapshotJson(resStr) }
-                }
-              }
-              if (!res.optBoolean("ok", true) || res.optBoolean("rbac_blocked", false) || isBoardOfflineResp) {
-                deviceStates[targetDevice.serverId] = prevState
-                val rejSpeech = serverSpeech.ifBlank {
-                  res.optString("error", "Không thể thực hiện lệnh này.")
-                }
-                speakerReply = rejSpeech
-                speakOutLoud(rejSpeech, serverPcmB64)
-                showAutomationFeedback(rejSpeech, isError = true)
-              } else {
-                val finalSpeech = serverSpeech.ifBlank { reply }
-                speakerReply = finalSpeech
-                speakOutLoud(finalSpeech, serverPcmB64)
-                if (res.has("snapshot")) {
-                  scope.launch { applyServerSnapshotJson(resStr) }
-                }
-              }
-            } catch (_: Exception) {
-              deviceStates[targetDevice.serverId] = prevState
-              val errMsg = "Không đọc được phản hồi từ máy chủ."
-              speakerReply = errMsg
-              showAutomationFeedback(errMsg, isError = true)
-            }
-          } else {
-            deviceStates[targetDevice.serverId] = prevState
-            serverSynced = false
-            sendDirectBoardOfflineCommand(cleanCmd)
-          }
-        }
-      }
-    } else {
-      val reply = "Đã nhận lệnh: “$cleanCmd”."
-      speakerReply = "Đang xử lý..."
-      scope.launch(Dispatchers.IO) {
-        val payload = JSONObject().apply {
-          put("text", cleanCmd)
-          put("user_name", activeSpeakerName)
-          put("tier", selectedTier)
-          put("session_token", activeSessionToken)
-        }.toString()
-        val resStr = callServerHttp("/api/text_command", "POST", payload)
+      withContext(Dispatchers.Main) {
         if (resStr != null) {
-          applyServerSnapshotJson(resStr)
-        }
-        withContext(Dispatchers.Main) {
-          if (resStr != null) {
-            try {
-              val res = JSONObject(resStr)
-              val serverSpeech = extractServerSpokenReply(res)
-              val serverPcmB64 = res.optString("pcm24k_b64", "")
-              if (res.optBoolean("board_offline", false)) {
-                boardOnline = false
-                val ls = res.optString("last_seen_vi", "").trim()
-                if (ls.isNotEmpty()) boardLastSeenVi = ls
-              }
-              val finalSpeech = serverSpeech.ifBlank { res.optString("error").ifBlank { reply } }
-              speakerReply = finalSpeech
-              speakOutLoud(finalSpeech, serverPcmB64)
-              if (!res.optBoolean("ok", true) || res.optBoolean("rbac_blocked", false) || res.optBoolean("board_offline", false)) {
-                showAutomationFeedback(finalSpeech, isError = true)
-              }
-            } catch (_: Exception) {
-              val errMsg = "Không đọc được phản hồi từ máy chủ."
-              speakerReply = errMsg
-              showAutomationFeedback(errMsg, isError = true)
+          try {
+            val res = JSONObject(resStr)
+            val serverSpeech = extractServerSpokenReply(res)
+            val serverPcmB64 = res.optString("pcm24k_b64", "")
+            if (res.optBoolean("board_offline", false)) {
+              boardOnline = false
+              val ls = res.optString("last_seen_vi", "").trim()
+              if (ls.isNotEmpty()) boardLastSeenVi = ls
             }
-          } else {
-            serverSynced = false
-            sendDirectBoardOfflineCommand(cleanCmd)
+            val finalSpeech = serverSpeech.ifBlank { res.optString("error").ifBlank { fallbackReply } }
+            speakerReply = finalSpeech
+            voiceConversation.add(0, cleanCmd to finalSpeech)
+            if (voiceConversation.size > 12) {
+              voiceConversation.removeAt(voiceConversation.lastIndex)
+            }
+            speakOutLoud(finalSpeech, serverPcmB64)
+            if (!res.optBoolean("ok", true) || res.optBoolean("rbac_blocked", false) || res.optBoolean("board_offline", false)) {
+              showAutomationFeedback(finalSpeech, isError = true)
+            }
+          } catch (_: Exception) {
+            val errMsg = "Không đọc được phản hồi từ máy chủ."
+            speakerReply = errMsg
+            showAutomationFeedback(errMsg, isError = true)
           }
+        } else {
+          serverSynced = false
+          sendDirectBoardOfflineCommand(cleanCmd)
         }
       }
     }
@@ -1783,7 +1842,7 @@ fun MainScreen(
     1 -> "Thiết bị"
     2 -> "Giọng nói"
     else -> when (accountSubScreen) {
-      "auth" -> "Đăng nhập & Xác thực"
+      "auth" -> "Đăng nhập"
       "guest" -> "Mời khách"
       "qr_scanner" -> "Quét mã QR"
       "forgot_otp" -> "Quên mật khẩu"
@@ -1847,9 +1906,11 @@ fun MainScreen(
             Text(
               text = topBarTitle,
               color = textPrimary,
-              fontSize = 22.sp,
+              fontSize = if (showBackInTopBar) 18.sp else 21.sp,
               fontWeight = FontWeight.SemiBold,
               maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+              modifier = Modifier.weight(1f, fill = false),
             )
           }
 
@@ -1925,6 +1986,7 @@ fun MainScreen(
             isAuthenticated = isAuthenticated,
             selectedTier = selectedTier,
             visibleDevicesCount = visibleDevices.size,
+            visibleDeviceIds = visibleDevices.map { it.serverId }.toSet(),
             deviceStates = deviceStates,
             activeTimers = activeTimers,
             accentCyan = accentCyan,
@@ -1985,9 +2047,7 @@ fun MainScreen(
                   }.toString()
                   val resStr = callServerHttp("/api/device", "POST", payload)
                   if (resStr != null) {
-                    if (resStr.contains("\"snapshot\"")) {
-                      applyServerSnapshotJson(resStr)
-                    }
+                    syncServerState()
                     withContext(Dispatchers.Main) {
                       try {
                         val res = JSONObject(resStr)
@@ -2072,6 +2132,7 @@ fun MainScreen(
             hasVoiceCommandResult = hasVoiceCommandResult,
             lastSpokenText = lastSpokenText,
             speakerReply = speakerReply,
+            voiceConversation = voiceConversation,
             isListeningMic = isListeningMic,
             micErrorState = micErrorState,
             voiceInput = voiceInput,
@@ -2124,6 +2185,21 @@ fun MainScreen(
             onNewMemberNameChange = { newMemberName = it },
             guestQrDuration = guestQrDuration,
             onGuestQrDurationChange = { guestQrDuration = it },
+            guestPinInput = guestPinInput,
+            onGuestPinInputChange = { guestPinInput = it },
+            guestPinConfirmInput = guestPinConfirmInput,
+            onGuestPinConfirmInputChange = { guestPinConfirmInput = it },
+            guestNeedsPinSetup = guestNeedsPinSetup,
+            guestInviteToken = guestInviteToken,
+            guestInviteUrl = guestInviteUrl,
+            guestInviteStatus = guestInviteStatus,
+            guestInviteIsError = guestInviteIsError,
+            onCreateGuestInvite = { createGuestInviteFromUi() },
+            onSendResetOtp = { email -> sendForgotPasswordOtp(email) },
+            onVerifyResetOtp = { email, otp -> verifyForgotPasswordOtp(email, otp) },
+            onConfirmResetPassword = { email, otp, newPwd, confPwd ->
+              confirmForgotPasswordReset(email, otp, newPwd, confPwd)
+            },
             historyLogs = historyLogs,
             showTechLogs = showTechLogs,
             onToggleTechLogs = { showTechLogs = !showTechLogs },
@@ -2158,6 +2234,17 @@ fun MainScreen(
                   authPassword = ""
                   authOtpInput = ""
                   authStepDone = 0
+                  guestPinInput = ""
+                  guestPinConfirmInput = ""
+                  guestNeedsPinSetup = false
+                  guestInviteToken = ""
+                  guestInviteUrl = ""
+                  guestInviteStatus = ""
+                  guestInviteIsError = false
+                  voiceConversation.clear()
+                  hasVoiceCommandResult = false
+                  lastSpokenText = ""
+                  speakerReply = "Chưa có lệnh"
                   authStatusColor = accentCyan
                   authStatusMessage = "Đã đăng xuất tài khoản."
                   addHistoryLog("Đã đăng xuất tài khoản")
@@ -2190,7 +2277,7 @@ fun MainScreen(
         BottomTabItem("Nhà", "home", currentTab == 0, accentCyan, { currentTab = 0 }, Modifier.weight(1f))
         BottomTabItem("Thiết bị", "grid", currentTab == 1, accentCyan, { currentTab = 1 }, Modifier.weight(1f))
         BottomTabItem("Giọng nói", "mic", currentTab == 2, accentCyan, { currentTab = 2 }, Modifier.weight(1f))
-        BottomTabItem("Tài khoản", "user", currentTab == 3, accentCyan, { currentTab = 3 }, Modifier.weight(1f))
+        BottomTabItem("Tài khoản", "user", currentTab == 3, accentCyan, { currentTab = 3; accountSubScreen = "menu" }, Modifier.weight(1f))
       }
     }
 
@@ -2202,8 +2289,16 @@ fun MainScreen(
     )
 
     if (showVoiceSheet) {
+      val sheetPhrase = if (selectedTier == 1) "Mở cửa chính" else "Bật đèn phòng khách"
+      val sheetRole = when (selectedTier) {
+        1 -> "Chủ nhà"
+        2 -> "Gia đình"
+        3 -> "Khách"
+        else -> "Chưa đăng nhập"
+      }
       VoiceBottomSheet(
-        samplePhrase = "Mở cửa chính cho tôi.",
+        samplePhrase = sheetPhrase,
+        roleLabel = sheetRole,
         onStopRecording = { phrase ->
           showVoiceSheet = false
           executeVoiceCommand(phrase, fromLiveMic = true)

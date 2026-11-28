@@ -57,20 +57,23 @@ import vn.edu.hust.seee.smarthome.theme.V1Red
  */
 @Composable
 fun ForgotPasswordScreen(
-  initialEmail: String = "t***@gmail.com",
+  initialEmail: String = "",
   onBack: () -> Unit = {},
   onComplete: () -> Unit = onBack,
+  onSendResetOtp: suspend (email: String) -> Pair<Boolean, String> = { true to "Đã gửi mã OTP." },
+  onVerifyResetOtp: suspend (email: String, otp: String) -> Pair<Boolean, String> = { _, _ -> true to "Mã OTP hợp lệ." },
+  onConfirmResetPassword: suspend (email: String, otp: String, newPassword: String, confirmPassword: String) -> Pair<Boolean, String> = { _, _, _, _ -> true to "Đặt lại mật khẩu thành công!" },
   modifier: Modifier = Modifier,
 ) {
   var emailInput by remember { mutableStateOf(if (initialEmail.contains("***")) "" else initialEmail) }
-  var currentStep by remember { mutableIntStateOf(if (emailInput.isBlank()) 1 else 2) }
+  var currentStep by remember { mutableIntStateOf(1) }
   var otpInput by remember { mutableStateOf("") }
   var newPassword by remember { mutableStateOf("") }
   var confirmPassword by remember { mutableStateOf("") }
 
   var errorMessage by remember { mutableStateOf<String?>(null) }
   var successMessage by remember { mutableStateOf<String?>(null) }
-  var resendCountdown by remember { mutableIntStateOf(60) }
+  var resendCountdown by remember { mutableIntStateOf(0) }
   var isSubmitting by remember { mutableStateOf(false) }
 
   val scope = rememberCoroutineScope()
@@ -96,22 +99,26 @@ fun ForgotPasswordScreen(
 
   Column(
     modifier = modifier
-      .fillMaxSize()
+      .fillMaxWidth()
       .background(V1Page),
+    verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
-    // Top bar: Back button + Progress text "Bước n/3"
+    // Step Progress Header Row
     Row(
       modifier = Modifier
         .fillMaxWidth()
+        .clip(RoundedCornerShape(12.dp))
         .background(V1Card)
-        .padding(horizontal = 16.dp, vertical = 14.dp),
+        .border(1.dp, V1Line, RoundedCornerShape(12.dp))
+        .padding(horizontal = 12.dp, vertical = 10.dp),
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      Box(
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier
-          .size(44.dp)
-          .clip(RoundedCornerShape(10.dp))
+          .clip(RoundedCornerShape(8.dp))
           .clickable {
             if (currentStep > 1) {
               currentStep -= 1
@@ -119,35 +126,31 @@ fun ForgotPasswordScreen(
             } else {
               onBack()
             }
-          },
-        contentAlignment = Alignment.Center,
+          }
+          .padding(horizontal = 4.dp, vertical = 4.dp),
       ) {
-        LineIcon("chevron_left", V1Ink, 20)
+        LineIcon("chevron_left", V1Ink, 18)
+        Text(
+          text = if (currentStep > 1) "Quay lại bước trước" else "Quay lại",
+          color = V1Ink,
+          fontSize = 13.sp,
+          fontWeight = FontWeight.Medium,
+        )
       }
 
       Text(
         text = "Bước $currentStep/3",
-        color = V1Muted,
+        color = V1Accent,
         fontSize = 13.sp,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.SemiBold,
       )
     }
-
-    Box(
-      modifier = Modifier
-        .fillMaxWidth()
-        .height(1.dp)
-        .background(V1Line)
-    )
 
     // Form content
     Column(
       modifier = Modifier
-        .weight(1f)
-        .fillMaxWidth()
-        .verticalScroll(rememberScrollState())
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(16.dp),
+        .fillMaxWidth(),
+      verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
       // Step Title & Description
       Text(
@@ -216,20 +219,37 @@ fun ForgotPasswordScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             Button(
+              enabled = !isSubmitting,
               onClick = {
-                if (emailInput.isBlank() || !emailInput.contains("@")) {
+                val cleanEmail = emailInput.trim()
+                if (cleanEmail.isBlank() || !cleanEmail.contains("@")) {
                   errorMessage = "Vui lòng nhập địa chỉ email hợp lệ."
                 } else {
-                  currentStep = 2
-                  resendCountdown = 60
+                  isSubmitting = true
                   errorMessage = null
+                  scope.launch {
+                    val (ok, msg) = onSendResetOtp(cleanEmail)
+                    isSubmitting = false
+                    if (ok) {
+                      currentStep = 2
+                      resendCountdown = 60
+                      errorMessage = null
+                    } else {
+                      errorMessage = msg.ifBlank { "Không thể gửi mã OTP đặt lại mật khẩu." }
+                    }
+                  }
                 }
               },
               colors = ButtonDefaults.buttonColors(containerColor = V1Accent),
               shape = RoundedCornerShape(10.dp),
               modifier = Modifier.fillMaxWidth().height(44.dp),
             ) {
-              Text("Gửi mã OTP", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+              Text(
+                if (isSubmitting) "Đang gửi..." else "Gửi mã OTP",
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+              )
             }
           }
 
@@ -286,16 +306,22 @@ fun ForgotPasswordScreen(
 
             // Actions
             Button(
+              enabled = !isSubmitting,
               onClick = {
                 if (otpInput.length != 6) {
                   errorMessage = "Vui lòng nhập đủ 6 chữ số mã xác nhận."
                 } else {
                   isSubmitting = true
+                  errorMessage = null
                   scope.launch {
-                    delay(300)
+                    val (ok, msg) = onVerifyResetOtp(emailInput.trim(), otpInput.trim())
                     isSubmitting = false
-                    currentStep = 3
-                    errorMessage = null
+                    if (ok) {
+                      currentStep = 3
+                      errorMessage = null
+                    } else {
+                      errorMessage = msg.ifBlank { "Mã OTP không đúng hoặc đã hết hạn." }
+                    }
                   }
                 }
               },
@@ -303,18 +329,32 @@ fun ForgotPasswordScreen(
               shape = RoundedCornerShape(10.dp),
               modifier = Modifier.fillMaxWidth().height(44.dp),
             ) {
-              Text("Xác nhận mã", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+              Text(
+                if (isSubmitting) "Đang kiểm tra..." else "Xác nhận mã",
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+              )
             }
 
             Button(
               onClick = {
-                if (resendCountdown == 0) {
-                  resendCountdown = 60
-                  otpInput = ""
-                  errorMessage = null
+                if (resendCountdown == 0 && !isSubmitting) {
+                  isSubmitting = true
+                  scope.launch {
+                    val (ok, msg) = onSendResetOtp(emailInput.trim())
+                    isSubmitting = false
+                    if (ok) {
+                      resendCountdown = 60
+                      otpInput = ""
+                      errorMessage = null
+                    } else {
+                      errorMessage = msg.ifBlank { "Không thể gửi lại mã OTP." }
+                    }
+                  }
                 }
               },
-              enabled = resendCountdown == 0,
+              enabled = resendCountdown == 0 && !isSubmitting,
               colors = ButtonDefaults.buttonColors(
                 containerColor = V1Card,
                 contentColor = if (resendCountdown == 0) V1Ink else V1Muted,
@@ -422,15 +462,29 @@ fun ForgotPasswordScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             Button(
+              enabled = !isSubmitting,
               onClick = {
                 when {
                   newPassword.length < 6 -> errorMessage = "Mật khẩu phải có ít nhất 6 ký tự."
                   newPassword != confirmPassword -> errorMessage = "Mật khẩu xác nhận không khớp."
                   else -> {
-                    successMessage = "Đặt lại mật khẩu thành công!"
+                    isSubmitting = true
+                    errorMessage = null
                     scope.launch {
-                      delay(1200)
-                      onComplete()
+                      val (ok, msg) = onConfirmResetPassword(
+                        emailInput.trim(),
+                        otpInput.trim(),
+                        newPassword,
+                        confirmPassword,
+                      )
+                      isSubmitting = false
+                      if (ok) {
+                        successMessage = msg.ifBlank { "Đặt lại mật khẩu thành công!" }
+                        delay(800)
+                        onComplete()
+                      } else {
+                        errorMessage = msg.ifBlank { "Không thể đặt lại mật khẩu." }
+                      }
                     }
                   }
                 }
@@ -439,7 +493,12 @@ fun ForgotPasswordScreen(
               shape = RoundedCornerShape(10.dp),
               modifier = Modifier.fillMaxWidth().height(44.dp),
             ) {
-              Text("Đặt mật khẩu mới", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+              Text(
+                if (isSubmitting) "Đang lưu..." else "Đặt mật khẩu mới",
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+              )
             }
           }
         }

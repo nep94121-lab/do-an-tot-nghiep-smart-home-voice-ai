@@ -58,14 +58,14 @@ import kotlin.math.sin
  */
 @Composable
 fun VoiceBottomSheet(
-  samplePhrase: String = "Mở cửa chính cho tôi.",
+  samplePhrase: String = "Bật đèn phòng khách.",
+  roleLabel: String = "Chủ nhà",
   onStopRecording: (String) -> Unit = {},
   onDismiss: () -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
-  var recordingSeconds by remember { mutableIntStateOf(3) }
+  var recordingSeconds by remember { mutableIntStateOf(1) }
   var isRecording by remember { mutableStateOf(true) }
-  var recordingResult by remember { mutableStateOf<String?>("Đạt — đã xác thực · Chủ nhà") }
 
   // 5-second recording countdown
   LaunchedEffect(isRecording) {
@@ -307,35 +307,22 @@ fun VoiceBottomSheet(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+          val readyToSend = recordingSeconds >= 1
           Box(
             modifier = Modifier
               .size(6.dp)
               .clip(CircleShape)
-              .background(Color(0xFF15803D))
+              .background(if (readyToSend) Color(0xFF15803D) else V1Accent)
           )
           Text(
-            text = "Đạt — đã xác thực · Chủ nhà",
-            color = Color(0xFF15803D),
+            text = if (isRecording) {
+              "Đang ghi âm lệnh · $roleLabel"
+            } else {
+              "Đạt — đã sẵn sàng gửi lệnh · $roleLabel"
+            },
+            color = if (readyToSend) Color(0xFF15803D) else V1Ink,
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
-          )
-        }
-
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-          Box(
-            modifier = Modifier
-              .size(6.dp)
-              .clip(CircleShape)
-              .background(V1Red)
-          )
-          Text(
-            text = "Chưa đạt — âm thanh quá ngắn · Thu lại",
-            color = V1Red,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Normal,
           )
         }
       }

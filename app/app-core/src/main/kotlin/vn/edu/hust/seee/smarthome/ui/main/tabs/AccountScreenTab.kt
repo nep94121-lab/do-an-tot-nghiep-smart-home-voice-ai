@@ -22,6 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,6 +61,19 @@ fun AccountScreenTab(
   onNewMemberNameChange: (String) -> Unit,
   guestQrDuration: String,
   onGuestQrDurationChange: (String) -> Unit,
+  guestPinInput: String = "",
+  onGuestPinInputChange: (String) -> Unit = {},
+  guestPinConfirmInput: String = "",
+  onGuestPinConfirmInputChange: (String) -> Unit = {},
+  guestNeedsPinSetup: Boolean = false,
+  guestInviteToken: String = "",
+  guestInviteUrl: String = "",
+  guestInviteStatus: String = "",
+  guestInviteIsError: Boolean = false,
+  onCreateGuestInvite: () -> Unit = {},
+  onSendResetOtp: suspend (email: String) -> Pair<Boolean, String> = { true to "Đã gửi mã OTP." },
+  onVerifyResetOtp: suspend (email: String, otp: String) -> Pair<Boolean, String> = { _, _ -> true to "Mã OTP hợp lệ." },
+  onConfirmResetPassword: suspend (email: String, otp: String, newPassword: String, confirmPassword: String) -> Pair<Boolean, String> = { _, _, _, _ -> true to "Đặt lại mật khẩu thành công!" },
   historyLogs: List<String>,
   showTechLogs: Boolean,
   onToggleTechLogs: () -> Unit,
@@ -278,7 +295,10 @@ fun AccountScreenTab(
       ForgotPasswordScreen(
         initialEmail = authEmail,
         onBack = { onNavigateSubScreen("menu") },
-        onComplete = { onNavigateSubScreen("menu") },
+        onComplete = { onNavigateSubScreen("auth") },
+        onSendResetOtp = onSendResetOtp,
+        onVerifyResetOtp = onVerifyResetOtp,
+        onConfirmResetPassword = onConfirmResetPassword,
       )
     } else if (accountSubScreen == "qr_scanner") {
       QrScannerScreen(
@@ -468,8 +488,81 @@ fun AccountScreenTab(
             )
           }
         }
+        OutlinedTextField(
+          value = guestPinInput,
+          onValueChange = { raw -> onGuestPinInputChange(raw.filter { it.isDigit() }.take(4)) },
+          placeholder = { Text("Mã PIN Chủ nhà (4 số)", fontSize = 13.sp) },
+          singleLine = true,
+          visualTransformation = PasswordVisualTransformation(),
+          modifier = Modifier.fillMaxWidth(),
+        )
+        if (guestNeedsPinSetup) {
+          OutlinedTextField(
+            value = guestPinConfirmInput,
+            onValueChange = { raw -> onGuestPinConfirmInputChange(raw.filter { it.isDigit() }.take(4)) },
+            placeholder = { Text("Xác nhận mã PIN 4 số (lần đầu)", fontSize = 13.sp) },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+          )
+        }
+        if (guestInviteStatus.isNotBlank()) {
+          Text(
+            text = guestInviteStatus,
+            color = if (guestInviteIsError) accentRed else accentCyan,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+          )
+        }
+        if (guestInviteToken.isNotBlank()) {
+          val clipboardManager = LocalClipboardManager.current
+          val maskedToken = if (guestInviteToken.length > 16) {
+            "${guestInviteToken.take(8)}••••••••${guestInviteToken.takeLast(6)}"
+          } else {
+            "••••••••"
+          }
+          Column(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(10.dp))
+              .background(bgDark)
+              .border(1.dp, accentCyan, RoundedCornerShape(10.dp))
+              .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+          ) {
+            Text(
+              text = "Mã mời khách (Cấp 3)",
+              color = textSecondary,
+              fontSize = 11.sp,
+              fontWeight = FontWeight.Medium,
+            )
+            Text(
+              text = maskedToken,
+              color = textPrimary,
+              fontSize = 13.sp,
+              fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+              text = "Trạng thái: Đã tạo mã dùng một lần (ẩn giá trị để bảo mật)",
+              color = textSecondary,
+              fontSize = 11.sp,
+            )
+            Button(
+              onClick = { clipboardManager.setText(AnnotatedString(guestInviteToken)) },
+              colors = ButtonDefaults.buttonColors(containerColor = cardBg, contentColor = accentCyan),
+              shape = RoundedCornerShape(8.dp),
+              modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)
+                .border(1.dp, accentCyan, RoundedCornerShape(8.dp))
+                .semantics { contentDescription = "guest_invite_ready" },
+            ) {
+              Text("Sao chép mã mời", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            }
+          }
+        }
         Button(
-          onClick = { onNavigateSubScreen("menu") },
+          onClick = onCreateGuestInvite,
           colors = ButtonDefaults.buttonColors(containerColor = accentCyan),
           shape = RoundedCornerShape(10.dp),
           modifier = Modifier.fillMaxWidth().height(44.dp),
@@ -477,7 +570,7 @@ fun AccountScreenTab(
           Text("Tạo lời mời", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         }
         TierChip(
-          label = "Hủy",
+          label = "Quay lại",
           selected = false,
           activeColor = textSecondary,
           onClick = { onNavigateSubScreen("menu") },

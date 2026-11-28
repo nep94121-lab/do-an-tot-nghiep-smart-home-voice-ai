@@ -89,60 +89,15 @@ fun QrScannerScreen(
 
   Column(
     modifier = modifier
-      .fillMaxSize()
+      .fillMaxWidth()
       .background(V1Page),
+    horizontalAlignment = Alignment.CenterHorizontally,
   ) {
-    // Top Bar: Title "Quét mã QR" + Close 'x' button
+    // Main Content (rendered inside MainScreen's scrollable container; avoid nested verticalScroll/weight(1f))
     Column(
       modifier = Modifier
         .fillMaxWidth()
-        .background(V1Card)
-        .padding(horizontal = 16.dp, vertical = 14.dp),
-    ) {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Text(
-          text = "Quét mã QR",
-          color = V1Ink,
-          fontSize = 22.sp,
-          fontWeight = FontWeight.SemiBold,
-        )
-
-        Box(
-          modifier = Modifier
-            .size(40.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onClose() },
-          contentAlignment = Alignment.Center,
-        ) {
-          LineIcon("x", V1Muted, 20)
-        }
-      }
-
-      Text(
-        text = "Quét lời mời từ Chủ nhà",
-        color = V1Muted,
-        fontSize = 12.sp,
-      )
-    }
-
-    Box(
-      modifier = Modifier
-        .fillMaxWidth()
-        .height(1.dp)
-        .background(V1Line)
-    )
-
-    // Main Content
-    Column(
-      modifier = Modifier
-        .weight(1f)
-        .fillMaxWidth()
-        .verticalScroll(rememberScrollState())
-        .padding(16.dp),
+        .padding(vertical = 4.dp),
       horizontalAlignment = Alignment.CenterHorizontally,
     ) {
       // Camera Container (background #22383D, rounded 16dp)

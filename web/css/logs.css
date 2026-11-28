@@ -488,7 +488,7 @@
         display: grid;
         grid-auto-flow: column;
         grid-auto-columns: minmax(0, 1fr);
-        background: #ffffff;
+        background: var(--card);
         border-top: 1px solid var(--line);
         padding: 6px 4px max(8px, env(safe-area-inset-bottom));
         box-shadow: 0 -3px 16px rgba(31, 58, 62, 0.04);
@@ -513,4 +513,45 @@
       }
       .mobile-nav .icon { width: 18px; height: 18px; }
     }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f171a;
+        --card: #162226;
+        --text: #ecf3f5;
+        --muted: #98aeb5;
+        --line: #27393f;
+        --accent: #22b8c3;
+        --accent-soft: rgba(34, 184, 195, 0.16);
+        --warn: #fbbf24;
+        --warn-soft: rgba(251, 191, 36, 0.16);
+        --danger: #f87171;
+        --danger-soft: rgba(248, 113, 113, 0.16);
+        --shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+      }
+      .btn.secondary, .filter-pill, .mobile-log-card, input, select, textarea { background: #1d2d32; color: var(--text); }
+      .filter-pill.active { background: var(--accent); color: #ffffff; border-color: var(--accent); }
+      tbody tr.log-row:hover td { background: #1d2d32; }
+    }
+    [data-theme="dark"] {
+      --bg: #0f171a;
+      --card: #162226;
+      --text: #ecf3f5;
+      --muted: #98aeb5;
+      --line: #27393f;
+      --accent: #22b8c3;
+      --accent-soft: rgba(34, 184, 195, 0.16);
+      --warn: #fbbf24;
+      --warn-soft: rgba(251, 191, 36, 0.16);
+      --danger: #f87171;
+      --danger-soft: rgba(248, 113, 113, 0.16);
+      --shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+    }
+    [data-theme="dark"] .btn.secondary,
+    [data-theme="dark"] .filter-pill,
+    [data-theme="dark"] .mobile-log-card,
+    [data-theme="dark"] input,
+    [data-theme="dark"] select,
+    [data-theme="dark"] textarea { background: #1d2d32; color: var(--text); }
+    [data-theme="dark"] .filter-pill.active { background: var(--accent); color: #ffffff; border-color: var(--accent); }
+    [data-theme="dark"] tbody tr.log-row:hover td { background: #1d2d32; }
   

@@ -362,7 +362,7 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
     res["user_name"] = session_user
     rbac_blocked = bool(res.get("rbac_blocked", False))
     res["rbac_blocked"] = rbac_blocked
-    res["snapshot"] = res.get("snapshot") or _REST_ENGINE.get_snapshot(session=session, sync=False)
+    res["snapshot"] = _REST_ENGINE.get_snapshot(session=session, sync=False)
     if not res.get("ok") and not res.get("error"):
         res["error"] = res.get("exact_spoken_reply") or "Bị chặn bởi phân quyền RBAC."
     spoken_dev_ctrl = str(res.get("exact_spoken_reply") or res.get("error") or "").strip()

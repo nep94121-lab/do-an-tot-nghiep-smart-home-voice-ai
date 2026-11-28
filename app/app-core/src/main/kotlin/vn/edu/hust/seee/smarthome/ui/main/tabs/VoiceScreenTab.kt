@@ -35,6 +35,7 @@ fun VoiceScreenTab(
   hasVoiceCommandResult: Boolean,
   lastSpokenText: String,
   speakerReply: String,
+  voiceConversation: List<Pair<String, String>> = emptyList(),
   isListeningMic: Boolean,
   micErrorState: Boolean,
   voiceInput: String,
@@ -275,6 +276,40 @@ fun VoiceScreenTab(
             uncheckedTrackColor = cardBorder,
           ),
         )
+      }
+
+      if (voiceConversation.size > 1) {
+        Column(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(bgDark)
+            .border(1.dp, cardBorder, RoundedCornerShape(12.dp))
+            .padding(10.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          Text(
+            text = "Lịch sử hội thoại (${voiceConversation.size} lượt)",
+            color = textSecondary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+          )
+          voiceConversation.take(6).forEach { (uMsg, aiMsg) ->
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+              Text(
+                text = "Bạn: $uMsg",
+                color = textPrimary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+              )
+              Text(
+                text = "Trợ lý: $aiMsg",
+                color = textSecondary,
+                fontSize = 12.sp,
+              )
+            }
+          }
+        }
       }
     }
   }

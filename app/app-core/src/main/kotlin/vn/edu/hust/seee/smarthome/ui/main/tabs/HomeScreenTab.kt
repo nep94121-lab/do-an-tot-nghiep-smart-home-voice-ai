@@ -43,6 +43,7 @@ fun HomeScreenTab(
   isAuthenticated: Boolean,
   selectedTier: Int,
   visibleDevicesCount: Int,
+  visibleDeviceIds: Set<String> = emptySet(),
   deviceStates: Map<String, Boolean>,
   activeTimers: List<CountdownTimerItem>,
   accentCyan: Color,
@@ -117,7 +118,11 @@ fun HomeScreenTab(
     }
 
     // 1. Card "Ngôi nhà" (tổng quan không gian và số thiết bị đang hoạt động)
-    val activeDevicesCount = deviceStates.values.count { it }
+    val activeDevicesCount = if (visibleDeviceIds.isNotEmpty()) {
+      deviceStates.count { (id, on) -> on && id in visibleDeviceIds }
+    } else {
+      deviceStates.values.count { it }
+    }
     val totalDevs = if (visibleDevicesCount > 0) visibleDevicesCount else deviceStates.size
     Column(
       modifier = Modifier
