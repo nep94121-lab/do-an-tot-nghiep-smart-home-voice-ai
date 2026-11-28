@@ -338,13 +338,13 @@ class TestPrint3DV2Constraints:
         assert [float(x) for x in vrep["bed_mm"]] == [180.0, 200.0, 250.0]
 
         totals = vrep["totals"]
-        assert totals["total_plates"] == 17
-        assert totals["plates_passed"] == 17
-        assert vrep["plates_verified"] == 17
+        # agyhw14 reduced plates 17 -> 16 and total PLA 1044.86 g -> 660.64 g (<= 680.0 g)
+        assert totals["total_plates"] == 16
+        assert totals["plates_passed"] == 16
+        assert vrep["plates_verified"] == 16
         assert totals["any_plate_needs_supports"] is False
         assert vrep.get("needs_slicer_supports") is False
-        # agyhw12 baseline was 1035.87 g; agyhw13 added SUP10B, SUP16, SUP17 (2x), SUP18 & P07 end-stops (+8.99 g -> 1044.86 g)
-        assert float(totals["total_filament_g"]) <= 1060.0
+        assert float(totals["total_filament_g"]) <= 680.0
 
         audit = vrep["screw_glue_audit"]
         assert audit["passed"] is True

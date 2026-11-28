@@ -389,9 +389,10 @@ class TestPrintPlatesAndZeroScrewsGlue:
 
         assert vrep["all_passed"] is True
         assert [float(x) for x in vrep["bed_mm"]] == [180.0, 200.0, 250.0]
-        assert vrep["plates_verified"] == 17
-        assert vrep["totals"]["total_plates"] == 17
-        assert vrep["totals"]["plates_passed"] == 17
+        # agyhw14 removed 9 FUR* decorative parts (60 -> 51 unique parts) and reduced plates 17 -> 16
+        assert vrep["plates_verified"] == 16
+        assert vrep["totals"]["total_plates"] == 16
+        assert vrep["totals"]["plates_passed"] == 16
         assert vrep["totals"]["any_plate_needs_supports"] is False
         assert vrep["needs_slicer_supports"] is False
 
@@ -402,9 +403,9 @@ class TestPrintPlatesAndZeroScrewsGlue:
 
         assert srep["all_passed"] is True
         assert srep["parts_summary"]["all_manifold"] is True
-        assert srep["parts_summary"]["passed_parts"] == srep["parts_summary"]["total_parts"] == 60
+        assert srep["parts_summary"]["passed_parts"] == srep["parts_summary"]["total_parts"] == 51
         plates = srep["plates"]
-        assert len(plates) == 17
+        assert len(plates) == 16
 
         for plate in plates:
             pid = plate["plate_id"]
