@@ -1,6 +1,6 @@
-# Các Vấn Đề Đã Biết (`KNOWN_ISSUES.md`) — Phiên bản `v1.0`
+# Các Vấn Đề Đã Biết (`KNOWN_ISSUES.md`) — Phiên bản `v3.8.0` / `v1.0`
 
-Tài liệu tổng hợp toàn bộ các giới hạn và vấn đề mức độ nhỏ/trung bình đã được kiểm chứng, **không ảnh hưởng đến an toàn vận hành lõi** (0 đảo ngược hành động, 0 thao tác giả ngoài ý muốn) và được chủ động hoãn sang các phiên bản sau `v1.0`.
+Tài liệu tổng hợp toàn bộ các giới hạn và vấn đề mức độ nhỏ/trung bình đã được kiểm chứng (cập nhật tới mốc `agyhw14` / `agyclean15`), **không ảnh hưởng đến an toàn vận hành lõi** (0 đảo ngược hành động, 0 thao tác giả ngoài ý muốn) và được chủ động ghi nhận minh bạch.
 
 ---
 
@@ -19,8 +19,8 @@ Tài liệu tổng hợp toàn bộ các giới hạn và vấn đề mức đ�
 
 ---
 
-## Chính Sách Bảo Toàn An Toàn (`v1.0`)
+## Chính Sách Bảo Toàn An Toàn (`v3.8.0` / `v1.0`)
 
 Toàn bộ các mục trên đều tuân thủ nguyên tắc **Fail-Closed**: trong mọi trường hợp không nhận diện chắc chắn khẩu lệnh hoặc thiếu quyền, hệ thống giữ nguyên trạng thái thiết bị vật lý và phản hồi ngắn gọn bằng tiếng Việt.
 
-Xem thêm [Nhật ký phát hành `v1.0`](CHANGELOG.md) và [Hướng dẫn sử dụng](USER_GUIDE.md).
+Xem thêm [Nhật ký phát hành (`CHANGELOG.md`)](CHANGELOG.md), [Hướng dẫn sử dụng (`USER_GUIDE.md`)](USER_GUIDE.md), [Hướng dẫn nạp USB & Wi-Fi runtime](docs/huong_dan/CAI_DAT_WIFI_VA_NAP_USB.md) và [Tổng quan phần cứng & In 3D](docs/phan_cung/TONG_QUAN_PHAN_CUNG_VA_IN_3D.md).

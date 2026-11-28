@@ -1,6 +1,6 @@
 # Smart Home Open-Cutaway Acrylic (Mica) House — MICA2 Panel Schedule & Fabrication Spec
 
-- **FreeCAD Parametric Source:** [`../../../hardware/freecad/mica/smarthome_mica_house.FCStd`](../../../hardware/freecad/mica/smarthome_mica_house.FCStd) (built via `hardware/freecad/mica/build_mica.py`, verified in FreeCAD `1.1.4.20260928 (Git shallow)`)
+- **FreeCAD Parametric Source:** [`../../../hardware/mica/smarthome_mica_house.FCStd`](../../../hardware/mica/smarthome_mica_house.FCStd) (built via `hardware/freecad/mica/build_mica.py`, verified in FreeCAD `1.1.4.20260928 (Git shallow)`)
 - **Default Material:** Clear Cast Acrylic (Mica), thickness **`T = 3.0 mm`** (single-cell parametric `Params.T_mm` verified for `2.0`, `3.0`, and `5.0 mm`)
 - **Hand-Cut Friendly Joint Clearance:** **`tab_clr = 0.25 mm`** (`slot_w = T + tab_clr = 3.25 mm`; verified for `0.20 / 0.25 / 0.30 mm`); minimum finger tab width **`14.0 mm`** (`>= 12.0 mm`); **`59`** tab-slot/notch joints total
 - **Enlarged Footprint:** `406.0 × 390.0 mm` split interlocking base (`P01A_BASE_TECH` + `P01B_BASE_HOUSE` + `2× P17_BASE_JOINER`), `386.0 × 190.0 × 150.0 mm` house

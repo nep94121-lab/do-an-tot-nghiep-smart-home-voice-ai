@@ -1,56 +1,49 @@
-# 📋 HỒ SƠ & LỘ TRÌNH ĐỒ ÁN TỐT NGHIỆP (CỬ NHÂN ĐIỆN TỬ – VIỄN THÔNG)
+# Hồ Sơ & Lộ Trình Đồ Án Tốt Nghiệp (Cử Nhân Điện Tử – Viễn Thông)
 
-**Đề tài:** Hệ thống Nhà thông minh điều khiển bằng Giọng nói AI thời gian thực, Phân quyền 3 tầng (RBAC), Tự động hóa 2 Bể (Hẹn giờ & Luật liên động) kết hợp Bản sao số 3D (Digital Twin) trên mạch **PCB Hub DIY v3 (`100 × 80 mm`, không dùng breadboard)** và Vi điều khiển **NodeMCU ESP8266 v2 Amica (`48.26 × 25.40 mm`, CP2102)**.
+**Đề tài:** Hệ thống Nhà thông minh điều khiển bằng Giọng nói AI thời gian thực, Phân quyền 3 tầng (RBAC), Tự động hóa 2 Bể (Hẹn giờ & Luật liên động) kết hợp Bản sao số 3D (Digital Twin) trên mạch **PCB Hub DIY v3 (`100 × 80 mm`, không dùng breadboard trắng)** và Vi điều khiển **NodeMCU ESP8266 v2 Amica (`48.26 × 25.40 mm`, CP2102)**.
 **Tác giả / Admin Cấp 1:** Nguyễn Tuấn Anh
+**Phiên bản hiện hành:** Backend API `v3.8.0` / Bản phát hành `v1.0` (`agyhw14` · `agyclean15`)
 
-> **Chốt kiến trúc phần cứng cuối cùng (PCB-Direct SSOT):**
+> **Trạng thái hoàn thiện 100% phần mềm & thiết kế (chỉ còn bước cắm phần cứng thật):**
+> Toàn bộ máy chủ Backend (`backend/`), giao diện Web 3D Digital Twin & Mobile PWA (`web/`), ứng dụng Android gốc (`app/`), firmware ESP8266 (`firmware/`), hồ sơ mạch PCB Hub DIY v3 và bộ vỏ in 3D lắp mộng 16 bàn (`660.64 g` PLA) đã hoàn thiện và kiểm thử đầy đủ. Bước cuối cùng ngoài thực tế chỉ là cắm **NodeMCU ESP8266 v2 Amica** qua USB, chạy 1 lệnh nạp firmware & nhập Wi-Fi runtime theo [`docs/huong_dan/CAI_DAT_WIFI_VA_NAP_USB.md`](docs/huong_dan/CAI_DAT_WIFI_VA_NAP_USB.md), gắn lên PCB Hub và cấp nguồn `5V 2A`.
+
+> **Chốt kiến trúc phần cứng cuối cùng (PCB-Direct SSOT — 14 Module Vật Lý $\rightarrow$ 6 Thiết Bị + 3 Cảm Biến):**
 > - **6 thiết bị chấp hành + 3 cảm biến khóa cứng** trên 10 chân NodeMCU ESP8266 v2 Amica (`D0–D8`, `A0`): Cửa chính Servo SG90 (`D1`), Đèn phòng khách (`D0`), Đèn phòng ngủ Active-LOW (`D4`), Bơm tưới cây Relay 1 (`D6`), Còi báo động 5V qua `Q1 S8050` (`D8`), Loa phản hồi PAM8403 + Relay 2 (`D7`/`D3`), Cảm biến `DHT11` (`D2`), Độ ẩm đất `LM393 + YL-69` (`A0`), Âm thanh `KY-037` (`D5`).
-> - **100% PCB-Direct (KHÔNG dùng Breadboard trắng):** Toàn bộ **`C1–C9` (kể cả `C8 100 nF` & `C9 100 µF 16V`) và `D1–D2 (1N4007)` được hàn trực tiếp trên PCB Hub DIY v3 (`100 × 80 × 1.6 mm`, `51 footprints`, `0 ERC / 0 DRC`)** — xem [`docs/phan_cung/diy_pcb/`](docs/phan_cung/diy_pcb/).
+> - **100% PCB-Direct (KHÔNG dùng breadboard trắng):** Toàn bộ **`C1–C9` (kể cả `C8 100 nF` & `C9 100 µF 16V`) và `D1–D2 (1N4007)` được hàn trực tiếp trên PCB Hub DIY v3 (`100 × 80 × 1.6 mm`, `51 footprints`, `0 ERC / 0 DRC`)** — xem [`docs/phan_cung/TONG_QUAN_PHAN_CUNG_VA_IN_3D.md`](docs/phan_cung/TONG_QUAN_PHAN_CUNG_VA_IN_3D.md) và [`docs/phan_cung/diy_pcb/`](docs/phan_cung/diy_pcb/).
 > - **40/40 dây nối thực tế `<= 30 cm` (`3.84 – 27.48 cm`)** — xem [`docs/phan_cung/WIRE_LIST_LENGTHS.md`](docs/phan_cung/WIRE_LIST_LENGTHS.md), [`docs/phan_cung/WIRING_TABLE.md`](docs/phan_cung/WIRING_TABLE.md) và [`docs/phan_cung/DIMENSIONS_AUDIT.md`](docs/phan_cung/DIMENSIONS_AUDIT.md).
-> - **Các ý tưởng ban đầu đã loại bỏ (`legacy — không dùng`):** Bảng cắm Breadboard trắng, Quạt trần (`fan`), Điều hòa 220V (`ac`), Mắt thu/phát hồng ngoại (`IR / VS1838B`).
+> - **Các hạng mục lịch sử đã loại bỏ (`legacy — không dùng`):** Bảng cắm breadboard trắng, Quạt trần (`fan`), Điều hòa 220V (`ac`), Mắt thu/phát hồng ngoại (`IR / VS1838B`).
 
 ---
 
-## PHẦN 1: NHỮNG GÌ ĐÃ LÀM XONG 100% (ĐÃ CÓ & CHẠY ỔN ĐỊNH)
+## Phần 1: Các Phân Hệ Đã Hoàn Thiện 100%
 
-### 1.1. Lõi Điều Khiển & Phân Quyền 3 Tầng (`backend/`)
-- [x] **Kiến trúc Phân quyền 3 Tầng (RBAC):**
-  - **Tầng 1 (Admin tối cao — Nguyễn Tuấn Anh):** Toàn quyền điều khiển, luật IF-ELSE áp dụng toàn nhà, không ai được hủy quyền người do Tầng 1 cấp, không ai được đè/xóa/vướng khung giờ hẹn giờ của Tầng 1.
-  - **Tầng 2 (Thành viên gia đình):** Có **Bể lệnh riêng** và **Lịch hẹn giờ riêng** cho từng người; được cấp/hủy quyền cho Tầng 3 (trừ người do Tầng 1 cấp); không được hủy cùng cấp; khi gọi Reset chỉ xóa bể riêng của chính mình.
-  - **Tầng 3 (Khách):** Mặc định chỉ được gọi lệnh đóng/mở cố định cơ bản (đèn phòng khách, đèn phòng ngủ), mời qua mã QR dùng một lần, không được đổi lệnh, không được đặt luật IF-ELSE, không được hẹn giờ.
-- [x] **Bể 1 — Bể Hẹn Giờ & Lịch Tuần (`active_timers`):**
-  - Mặc định hẹn giờ **1 lần rồi tự dừng** (`repeat='once'`). Tự hiểu khi nói *"hàng ngày"*, *"hàng tuần"*, *"hàng giờ"*, *"hàng tháng"*.
-- [x] **Bể 2 — Bể Luật Động & Ngôn Ngữ (`user_pools`):**
-  - Đổi từ (`word_mappings`), Đổi khẩu lệnh (`aliases`), Luật liên động `IF - THEN - ELSE` tổ hợp `AND`/`OR` kèm phát hiện chu trình DFS.
+### 1.1. Lõi Điều Khiển, SQLite WAL & Phân Quyền 3 Tầng (`backend/`)
+- [x] **Backend FastAPI `v3.8.0` + SQLite 3.53.2 WAL (25 bảng 3NF):** Phục vụ đồng bộ thời gian thực `SSE` (`/api/events`), WebSocket (`/ws`), cầu nối MQTT (8 topic chuẩn) và nhật ký kiểm toán (`/logs`). Xem [`docs/kien_truc/KIEN_TRUC_HE_THONG.md`](docs/kien_truc/KIEN_TRUC_HE_THONG.md) và [`docs/kien_truc/DATABASE_SCHEMA_ERD.md`](docs/kien_truc/DATABASE_SCHEMA_ERD.md).
+- [x] **Kiến trúc Phân quyền 3 Tầng (RBAC — [`docs/TIER_PERMISSIONS.md`](docs/TIER_PERMISSIONS.md)):**
+  - **Cấp 1 (Chủ nhà — `ADMIN`):** Toàn quyền 6/6 thiết bị, luật/lịch toàn nhà, tạo/thu hồi mã mời QR dùng một lần bảo vệ bằng PIN PBKDF2-SHA256, xem `/logs` và `/wokwi`.
+  - **Cấp 2 (Thành viên gia đình — `MEMBER`):** Điều khiển 4/6 thiết bị (khóa Cửa chính & Còi báo động), sở hữu Bể lệnh và Lịch hẹn giờ riêng, không đè lịch Cấp 1, không truy cập `/logs`.
+  - **Cấp 3 (Khách — `CHILD_GUEST`):** Điều khiển 2 đèn (phòng khách, phòng ngủ), mời qua QR dùng một lần, chỉ xem trên `/automation`, bị chặn `HTTP 403` trên `/logs` và `/wokwi`.
+- [x] **Tự động hóa 2 Bể:** Bể 1 (Hẹn giờ đếm ngược `repeat='once'` & lịch lặp tuần `Asia/Saigon`) và Bể 2 (Luật liên động `IF-THEN-ELSE`, luật tổ hợp đa cảm biến `AND`/`OR` + phát hiện chu trình DFS, lệnh tùy chỉnh cách ly theo `owner_user_id`).
 
-### 1.2. Giọng Nói AI Tiếng Việt, RAG & Bản Sao Số 3D (`web/`)
-- [x] **Trợ lý Giọng nói Gemini Live Tiếng Việt (`Aoede`):** Xử lý giọng nói thời gian thực qua Web/Android + Echo Guard + STT/NLU cục bộ.
-- [x] **Mô hình Ngôi nhà 3D Digital Twin (`web/house3d.js`, `web/models/smarthome_villa.glb`):**
-  - Hiển thị trực quan **6 thiết bị + 3 cảm biến khóa cứng** cùng **40 tuyến dây nối 3D thực tế** (đồng bộ từ `wiring_contract.json`, không breadboard) và đồng bộ thời gian thực qua WebSocket/SSE.
-- [x] **Trang Hướng dẫn Đấu nối Phần cứng (`/wokwi`):**
-  - Mặc định hiển thị **Sơ đồ PCB 2D trực tiếp** (zero breadboard), chế độ hướng dẫn từng bước `Bước 1/40 .. 40/40`, bảng 40 dây tìm kiếm/sắp xếp theo chiều dài `cm` và bảng linh kiện bảo vệ `C1–C9`, `D1–D2`.
+### 1.2. Giọng Nói AI Tiếng Việt (`agyfix11`), Bản Sao Số 3D & Mobile (`web/`, `app/`)
+- [x] **Trợ lý Giọng nói Gemini Live Tiếng Việt (`gemini-3.8-live`, giọng `Aoede` duy nhất):** Hỗ trợ lệnh tùy chỉnh xác nhận 1 lần (`pending_confirmations` TTL 20s), phản hồi ngắn gọn chính xác đúng chuẩn `agyfix11`, chống vọng tiếng Echo Guard và Fail-Closed an toàn.
+- [x] **Mô hình Ngôi nhà 3D Digital Twin (`web/house3d.js`, `Three.js r128`, `web/models/smarthome_villa.glb`):** Hiển thị đầy đủ 14 module vật lý + PCB Hub DIY v3 + NodeMCU + 40 tuyến dây 3D thực tế, đồng bộ trạng thái `< 1 giây`, hỗ trợ chế độ Sáng/Tối.
+- [x] **Trang Hướng dẫn Đấu nối Phần cứng (`/wokwi`):** Mặc định Sơ đồ PCB 2D trực tiếp (không breadboard), hướng dẫn 40 bước, bảng tìm kiếm/lọc 40 dây theo `cm` và bảng bảo vệ `C1–C9`, `D1–D2`.
+- [x] **Ứng dụng Android gốc (`app/`):** Kotlin `2.3.20` + Jetpack Compose `1.10.4` (`minSdk 26`), cổng đăng nhập bắt buộc, quét mã QR khách, điều khiển 6 thiết bị, hiển thị 3 cảm biến và giọng nói tiếng Việt trực tuyến + ngoại tuyến LAN.
 
 ---
 
-## PHẦN 2: PHẦN CỨNG — BẢN CHỐT PCB-DIRECT (`Hub DIY v3`) & LINH KIỆN
+## Phần 2: Phần Cứng PCB-Direct (`Hub DIY v3`) & Bộ Vỏ In 3D (`agyhw14`)
 
-### 2.1. Phần cứng Chính thức (Đang sử dụng 100%)
-- [x] **01 Mạch vi điều khiển `NodeMCU ESP8266 v2 Amica` (ESP-12E, CP2102, `48.26 × 25.40 mm`, hàng chân 0.9")** — cắm trực tiếp vào đế `U1/U2` trên PCB Hub.
-- [x] **01 Mạch `PCB Hub Trung Tâm DIY v3` (`100 × 80 × 1.6 mm`, 1 lớp B.Cu, `51 footprints`, `0 ERC / 0 DRC`)** — hàn sẵn **`R1–R10`, `Q1 (S8050)`, `C1–C9` (kể cả `C8 100 nF` & `C9 100 µF 16V`), `D1–D2 (1N4007)`, `D3`, `J1–J15`, `U1–U2`, `JP1–JP7`**. Xem hồ sơ gia công tại [`docs/phan_cung/diy_pcb/`](docs/phan_cung/diy_pcb/).
-- [x] **6 Thiết bị chấp hành:** Servo `SG90` (`D1`), 2 LED 5mm (`D0`, `D4` Active-LOW), Relay 1 xanh + Máy bơm mini 3–6V (`D6`), Còi 5V `TMB12A05` (`D8` qua `Q1`), Relay 2 đỏ opto + `PAM8403` + Loa tròn mini 28mm (`D7`/`D3`).
-- [x] **3 Cảm biến:** `DHT11` (`D2`), Độ ẩm đất `LM393 + YL-69` (`A0`, nguồn `3.3V`), Cảm biến âm thanh `KY-037/038` (`D5`, nguồn `3.3V`).
-- [x] **Bộ 40 dây nối chuẩn (`10 / 20 / 30 cm`, 40/40 `<= 30 cm`)** & nguồn ngoài `5V 2A` (`J1`): xem [`docs/phan_cung/WIRE_LIST_LENGTHS.md`](docs/phan_cung/WIRE_LIST_LENGTHS.md) và [`docs/phan_cung/DANH_SACH_LINH_KIEN_HIEN_CO_VA_CAN_MUA.md`](docs/phan_cung/DANH_SACH_LINH_KIEN_HIEN_CO_VA_CAN_MUA.md).
-- [x] **Vỏ nhà Mica 3mm cắt Laser & Vỏ nhà In 3D v2 lắp mộng không vít/keo (`180×200×250 mm`):** xem [`docs/HARDWARE_BUILD_GUIDE.md`](docs/HARDWARE_BUILD_GUIDE.md) và [`hardware/in 3 d/README.md`](hardware/in%203%20d/README.md).
-
-### 2.2. Ghi chú Lịch sử — Hạng mục đã loại bỏ (`legacy — không dùng`)
-- **Bảng cắm Breadboard 400 lỗ màu trắng:** `legacy (không dùng)` — đã thay thế hoàn toàn bằng mạch **PCB Hub DIY v3 (`100 × 80 mm`)**.
-- **Bộ thu/phát Hồng ngoại (`VS1838B`, `IR LED 940nm`), Quạt (`fan`), Điều hòa (`ac`):** `legacy (không dùng)` — không có trong hợp đồng khóa cứng 6 thiết bị + 3 cảm biến, firmware, PCB hay mô hình 3D.
+- [x] **01 Mạch vi điều khiển `NodeMCU ESP8266 v2 Amica` (`48.26 × 25.40 mm`, CP2102, hàng chân `0.9"`):** Cắm trực tiếp vào đế `U1/U2` trên PCB Hub.
+- [x] **01 Mạch `PCB Hub Trung Tâm DIY v3` (`100 × 80 × 1.6 mm`, 1 lớp `B.Cu`, `51 footprints`, `0 ERC / 0 DRC`):** Hàn trọn vẹn `R1–R10`, `Q1 (S8050)`, `C1–C9` (kể cả `C8 100 nF` & `C9 100 µF 16V`), `D1–D2 (1N4007)`, `D3`, `J1–J15`, `U1–U2`, `JP1–JP7`.
+- [x] **14 Module ngoài bo ánh xạ sang 6 thiết bị chấp hành + 3 cảm biến + Nguồn `5V 2A`:** Đủ 40 dây nối `<= 30 cm` (`3.84 – 27.48 cm`).
+- [x] **Bộ vỏ nhà In 3D v2 nhẹ hóa `agyhw14` (`hardware/in 3 d/`):** **`16` bàn in `.3mf`** nhúng sẵn thông số (`9% Gyroid`, `2/3` thành, `0% support`), **`51` chi tiết / `83` bản thể**, **`660.64 g` PLA** (giảm `-36.77%`), `73g 23p 49s`, `0` va chạm BRep, cơ cấu cửa Servo SG90 đồng trục dự trữ mô-men `14.56×` (không vít, không keo). Đồng thời giữ phương án cắt laser Mica 3 mm ([`docs/phan_cung/mica/ASSEMBLY_GUIDE.md`](docs/phan_cung/mica/ASSEMBLY_GUIDE.md)).
 
 ---
 
-## PHẦN 3: PHẦN MỀM & HỆ THỐNG — TRẠNG THÁI HOÀN THIỆN
+## Phần 3: Nạp Firmware, Triển Khai & Bàn Giao
 
-- [x] **Backend Server (`backend/server.py`):** FastAPI + SQLite WAL + MQTT + SSE/WebSocket + Auth RBAC 3 tầng + OTP Gmail + QR khách.
-- [x] **Web Dashboard (`/`), Tự động hóa (`/automation`), Xác thực (`/auth`), Nhật ký (`/logs`), Phần cứng PCB-Direct (`/wokwi`), Mobile PWA (`/app`).**
-- [x] **Ứng dụng Android gốc (`app/`):** Jetpack Compose (Kotlin) đồng bộ 6 thiết bị + 3 cảm biến + giọng nói tiếng Việt.
-- [x] **Firmware ESP8266 (`firmware/esp8266_smarthome/esp8266_smarthome.ino`) & Script nạp USB 1 lệnh (`hardware/flash_and_setup.ps1`):** Hỗ trợ cấu hình Wi-Fi runtime an toàn qua USB (xem [`docs/phan_cung/HUONG_DAN_NAP_FIRMWARE_USB.md`](docs/phan_cung/HUONG_DAN_NAP_FIRMWARE_USB.md)), hoạt động độc lập an toàn khi mất kết nối máy chủ (`main_door` tự đóng, `alarm_siren` tự tắt).
+- [x] **Firmware ESP8266 & Nạp USB 1 lệnh (`hardware/flash_and_setup.ps1`):** Nạp qua USB và nhập Wi-Fi runtime lưu LittleFS `/wifi_config.json` (tuyệt đối không lưu mật khẩu vào mã nguồn), kèm chế độ an toàn ngoại tuyến Addendum A1–A4 (`main_door` khóa đóng, bơm tự ngắt 120s, còi tự tắt 30s). Xem [`docs/huong_dan/CAI_DAT_WIFI_VA_NAP_USB.md`](docs/huong_dan/CAI_DAT_WIFI_VA_NAP_USB.md).
+- [x] **Triển khai & Vận hành Production:** Máy chủ cổng `8088` + Tailscale Funnel HTTPS + Vercel redirect + quy trình backup SQLite WAL và `DEPLOY.lock`. Xem [`docs/huong_dan/VAN_HANH_VA_TRIEN_KHAI.md`](docs/huong_dan/VAN_HANH_VA_TRIEN_KHAI.md).
+- [x] **Bộ tài liệu kỹ thuật & Công nghệ phiên bản thực đo:** Xem [`docs/kien_truc/CONG_NGHE_VA_PHIEN_BAN.md`](docs/kien_truc/CONG_NGHE_VA_PHIEN_BAN.md) và [`README.md`](README.md).

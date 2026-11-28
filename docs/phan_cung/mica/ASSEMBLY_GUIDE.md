@@ -1,6 +1,6 @@
 # Hướng Dẫn Cắt, Khoan & Lắp Ráp Mô Hình Nhà Mica — Smart Home Voice AI (MICA2)
 
-- **Nguồn thiết kế tham số FreeCAD:** [`../../../hardware/freecad/mica/smarthome_mica_house.FCStd`](../../../hardware/freecad/mica/smarthome_mica_house.FCStd) (sinh bởi `hardware/freecad/mica/build_mica.py`, đã kiểm chứng 0 va chạm 3D trên FreeCAD `1.1.4.20260928`)
+- **Nguồn thiết kế tham số FreeCAD:** [`../../../hardware/mica/smarthome_mica_house.FCStd`](../../../hardware/mica/smarthome_mica_house.FCStd) (sinh bởi `hardware/freecad/mica/build_mica.py`, đã kiểm chứng 0 va chạm 3D trên FreeCAD `1.1.4.20260928`)
 - **Vật liệu mặc định:** Mica đúc trong suốt (Clear Cast Acrylic) dày **`T = 3.0 mm`** (tham số đơn `Params.T_mm` hỗ trợ đổi nhanh `2.0 / 3.0 / 5.0 mm`)
 - **Thông số thân thiện cắt tay:** Khe hở mộng–khe **`tab_clr = 0.25 mm`** (`slot_w = T + tab_clr = 3.25 mm`, đã kiểm chứng `0.20 / 0.25 / 0.30 mm`); độ rộng mộng tối thiểu **`14.0 mm`** (`>= 12.0 mm`); tổng cộng **`59` mối ghép mộng–khe**
 - **Kích thước tổng thể mở rộng:** Tấm đáy ghép 2 nửa **`406.0 × 390.0 mm`** (`P01A_BASE_TECH` + `P01B_BASE_HOUSE` + `2× P17_BASE_JOINER`); khung nhà mở mặt cắt **`386.0 × 190.0 × 150.0 mm`**

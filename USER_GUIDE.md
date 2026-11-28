@@ -1,8 +1,9 @@
-# Hướng Dẫn Sử Dụng — Smart Home Voice AI `v1.0`
+# Hướng Dẫn Sử Dụng — Smart Home Voice AI (`v3.8.0` / `v1.0`)
 
-Tài liệu hướng dẫn sử dụng đầy đủ cho người dùng cuối bằng **tiếng Việt** trên Web Dashboard, Mobile Web, Ứng dụng Android và trình mô phỏng phần cứng `/wokwi`.
+Tài liệu hướng dẫn sử dụng đầy đủ cho người dùng cuối bằng **tiếng Việt** trên Web Dashboard, Mobile Web, Ứng dụng Android và trang hướng dẫn phần cứng `/wokwi`.
 
-> **Nguyên tắc ngôn ngữ:** Hệ thống chỉ tiếp nhận và phản hồi bằng **tiếng Việt**. Hệ thống điều khiển đúng **6 thiết bị phần cứng** (`Cửa chính`, `Đèn phòng khách`, `Đèn phòng ngủ`, `Bơm tưới cây`, `Còi báo động`, `Loa phản hồi PAM8403`) và đọc **3 cảm biến** (`Nhiệt độ & Độ ẩm DHT11`, `Độ ẩm đất`, `Cảm biến âm thanh KY-037`).
+> **Nguyên tắc ngôn ngữ & phạm vi phần cứng:** Hệ thống chỉ tiếp nhận và phản hồi bằng **tiếng Việt** (giọng đọc `Aoede`). Hệ thống điều khiển đúng **6 thiết bị chấp hành** (`Cửa chính`, `Đèn phòng khách`, `Đèn phòng ngủ`, `Bơm tưới cây`, `Còi báo động`, `Loa phản hồi PAM8403`) và đọc **3 cảm biến** (`Nhiệt độ & Độ ẩm DHT11`, `Độ ẩm đất LM393/YL-69`, `Cảm biến âm thanh KY-037`).
+> **Cắm phần cứng ESP8266 lần đầu?** Xem ngay hướng dẫn 1 lệnh nạp USB & nhập Wi-Fi runtime tại [`docs/huong_dan/CAI_DAT_WIFI_VA_NAP_USB.md`](docs/huong_dan/CAI_DAT_WIFI_VA_NAP_USB.md).
 
 ---
 
@@ -148,7 +149,11 @@ Hệ thống được thiết kế theo nguyên tắc **an toàn trước tiên 
 
 ## 9. Tài liệu Liên quan
 
-- [Tổng quan dự án & hướng dẫn cài đặt](README.md)
-- [Hướng dẫn chế tạo PCB, cắt Mica & đấu nối phần cứng](docs/HARDWARE_BUILD_GUIDE.md)
+- [Tổng quan dự án & khởi chạy nhanh (`README.md`)](README.md)
+- [Hướng dẫn nạp Firmware USB & cài Wi-Fi runtime (`docs/huong_dan/CAI_DAT_WIFI_VA_NAP_USB.md`)](docs/huong_dan/CAI_DAT_WIFI_VA_NAP_USB.md)
+- [Kiến trúc hệ thống chi tiết (`docs/kien_truc/KIEN_TRUC_HE_THONG.md`)](docs/kien_truc/KIEN_TRUC_HE_THONG.md)
+- [Tổng quan phần cứng 14 module & In 3D (`docs/phan_cung/TONG_QUAN_PHAN_CUNG_VA_IN_3D.md`)](docs/phan_cung/TONG_QUAN_PHAN_CUNG_VA_IN_3D.md)
+- [Hướng dẫn chế tạo PCB, cắt Mica / In 3D & đấu nối (`docs/HARDWARE_BUILD_GUIDE.md`)](docs/HARDWARE_BUILD_GUIDE.md)
+- [Hướng dẫn vận hành & triển khai (`docs/huong_dan/VAN_HANH_VA_TRIEN_KHAI.md`)](docs/huong_dan/VAN_HANH_VA_TRIEN_KHAI.md)
 - [Các vấn đề đã biết (`KNOWN_ISSUES.md`)](KNOWN_ISSUES.md)
-- [Nhật ký phát hành `v1.0`](CHANGELOG.md)
+- [Nhật ký phát hành (`CHANGELOG.md`)](CHANGELOG.md)

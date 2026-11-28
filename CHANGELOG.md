@@ -4,6 +4,22 @@ Tài liệu ghi nhận toàn bộ các mốc tích hợp, bản sửa lỗi và 
 
 ---
 
+## `v3.8.0` (`agyhw12`–`agyhw14` · `agyclean15`) — 2026-11-28
+
+Hoàn thiện đồng bộ phần cứng PCB-Direct (không breadboard), cơ cấu cửa Servo SG90 đồng trục, bộ vỏ in 3D nhẹ hóa 16 bàn (`660.64 g` PLA) và tái cấu trúc toàn diện bộ tài liệu tiếng Việt + hướng dẫn nạp USB & cài Wi-Fi runtime thống nhất.
+
+### 1. Phần Cứng PCB-Direct, Cơ Cấu Servo SG90 & In 3D Giảm Nhựa (`agyhw12`–`agyhw14`)
+- **PCB Hub DIY v3 (`agyhw12`):** Tích hợp trực tiếp tụ `C8 (100 nF)` và `C9 (100 µF 16V)` cùng toàn bộ `C1–C7`, `D1–D2 (1N4007)` lên mạch 1 lớp `100 × 80 × 1.6 mm` (`51 footprints`, `0 ERC / 0 DRC`), loại bỏ hoàn toàn breadboard trắng; tối ưu 40/40 dây nối `<= 30 cm` (`3.84 – 27.48 cm`); chuẩn hóa SSOT kích thước **NodeMCU ESP8266 v2 Amica** (`48.26 × 25.40 mm`).
+- **Cửa Servo SG90 đồng trục & Gắn kết 14 Module (`agyhw13`):** Bổ sung cơ cấu truyền động trực tiếp đồng tâm không vít/keo (`P07`, `SUP11`, `SUP10`, `SUP10B`, cữ chặn `-2°/+92°`, hệ số dự trữ mô-men `14.56×`), gắn đủ 14 module vật lý + 2 bo lõi lên Web 3D Digital Twin & `/wokwi`.
+- **Bộ In 3D v2 nhẹ hóa (`agyhw14`):** Nhúng sẵn cấu hình cắt lớp PrusaSlicer `2.9.7` vào mọi `.3mf` (`9% Gyroid`, `2/3` thành, `0% support`), bỏ đồ trang trí, làm mỏng vùng lòng `2.2 mm` kèm `288` ô tổ ong an toàn — giảm từ `1044.86 g` (`17` bàn) xuống **`660.64 g` PLA (`16` bàn, `-36.77%`)**, `0` va chạm BRep.
+
+### 2. Tái Cấu Trúc Tài Liệu Tiếng Việt & Hướng Dẫn USB/Wi-Fi Thống Nhất (`agyclean15`)
+- Thống nhất hướng dẫn nạp firmware USB + cấu hình Wi-Fi runtime (LittleFS `/wifi_config.json`, không lưu mật khẩu vào mã nguồn) tại [`docs/huong_dan/CAI_DAT_WIFI_VA_NAP_USB.md`](docs/huong_dan/CAI_DAT_WIFI_VA_NAP_USB.md) và đồng bộ với [`firmware/README.md`](firmware/README.md) cùng [`docs/phan_cung/HUONG_DAN_NAP_FIRMWARE_USB.md`](docs/phan_cung/HUONG_DAN_NAP_FIRMWARE_USB.md).
+- Bổ sung bộ tài liệu chuyên sâu tiếng Việt: [`docs/kien_truc/KIEN_TRUC_HE_THONG.md`](docs/kien_truc/KIEN_TRUC_HE_THONG.md) (kèm sơ đồ Mermaid), [`docs/kien_truc/CONG_NGHE_VA_PHIEN_BAN.md`](docs/kien_truc/CONG_NGHE_VA_PHIEN_BAN.md) (phiên bản đo thực tế), [`docs/huong_dan/VAN_HANH_VA_TRIEN_KHAI.md`](docs/huong_dan/VAN_HANH_VA_TRIEN_KHAI.md) và [`docs/phan_cung/TONG_QUAN_PHAN_CUNG_VA_IN_3D.md`](docs/phan_cung/TONG_QUAN_PHAN_CUNG_VA_IN_3D.md) (ánh xạ 14 module $\rightarrow$ 6 thiết bị + 3 cảm biến).
+- Gỡ bỏ `PROJECT.md` lỗi thời giai đoạn Phase 7; chuyển các tài liệu khảo sát giai đoạn đầu (`docs/tai_lieu_tham_khao/*`, `SESSION_RBAC_20261112.md`, tài liệu `simulator/` cũ) vào [`docs/luu_tru/`](docs/luu_tru/README.md); cập nhật [`docs/TIER_PERMISSIONS.md`](docs/TIER_PERMISSIONS.md), [`docs/kien_truc/REPO_MAP.md`](docs/kien_truc/REPO_MAP.md), [`README.md`](README.md), [`USER_GUIDE.md`](USER_GUIDE.md), [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) và [`KE_HOACH_DO_AN_TOT_NGHIEP.md`](KE_HOACH_DO_AN_TOT_NGHIEP.md).
+
+---
+
 ## `v1.0` — 2026-11-23
 
 Phiên bản phát hành hoàn chỉnh đầu tiên của trợ lý nhà thông minh giọng nói tiếng Việt theo hợp đồng phần cứng khóa cứng **6 thiết bị + 3 cảm biến**.
