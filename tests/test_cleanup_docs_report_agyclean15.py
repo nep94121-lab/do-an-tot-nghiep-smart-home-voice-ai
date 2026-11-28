@@ -4,10 +4,11 @@ Covers:
 - S2: Docs integrity (active Markdown links, stale simulator/server.py removal,
       README completeness & Wi-Fi/USB link, docs/luu_tru/README.md, PROJECT.md removal,
       and zero hardcoded Wi-Fi passwords/API secrets in docs/ & README.md).
-- S3: Graduation Report integrity (.docx, .pdf, build_graduation_report.py,
-      LOGO_SOURCES.md, README.md; PyMuPDF validation: 70..90 pages, 0 broken cross-refs,
-      all 6 chapter headings + TÀI LIỆU THAM KHẢO, >= 45 indexed figures & >= 15 indexed
-      tables in front matter).
+- S3: Graduation Report integrity (.docx < 10 MB, .pdf, build_graduation_report.py,
+      LOGO_SOURCES.md, README.md; PyMuPDF validation: 55..65 pages, 0 broken cross-refs,
+      all 6 chapter headings + TÀI LIỆU THAM KHẢO, 25..35 indexed figures, >= 12 indexed
+      tables, DANH MỤC ĐOẠN MÃ with >= 5 indexed code listings in front matter, embedded
+      cover logo on page 1 without placeholder, and zero infra/agent terminology).
 - S4: Android lightbuild.yaml minSdk=26 preservation & zero git-tracked .apk files.
 - S4-L2: Backend RBAC regression for POST /api/device (routes_devices.py:365) ensuring
          the returned snapshot for a Tier-3 guest is strictly session-scoped
@@ -135,8 +136,9 @@ class TestDocsIntegrityS2:
 
 class TestGraduationReportIntegrityS3:
     def test_required_report_files_exist(self) -> None:
+        docx_path = REPORT_DIR / "Bao_Cao_DATN_Smart_Home_Voice_AI.docx"
         required = [
-            REPORT_DIR / "Bao_Cao_DATN_Smart_Home_Voice_AI.docx",
+            docx_path,
             REPORT_DIR / "Bao_Cao_DATN_Smart_Home_Voice_AI.pdf",
             REPORT_DIR / "build_graduation_report.py",
             REPORT_DIR / "LOGO_SOURCES.md",
@@ -145,6 +147,10 @@ class TestGraduationReportIntegrityS3:
         for path in required:
             assert path.is_file(), f"Missing graduation report file: {path}"
             assert path.stat().st_size > 500, f"Unexpectedly small report file: {path}"
+        max_docx_bytes = 10 * 1024 * 1024
+        assert docx_path.stat().st_size < max_docx_bytes, (
+            f"Expected DOCX size < 10 MB ({max_docx_bytes} bytes), got {docx_path.stat().st_size}"
+        )
 
     def test_report_pdf_structure_chapters_and_front_matter_indices(self) -> None:
         pymupdf = pytest.importorskip("pymupdf")
@@ -152,7 +158,12 @@ class TestGraduationReportIntegrityS3:
 
         with pymupdf.open(str(pdf_path)) as doc:
             page_count = len(doc)
-            assert 70 <= page_count <= 90, f"Expected 70 <= PDF pages <= 90, got {page_count}"
+            assert 55 <= page_count <= 65, f"Expected 55 <= PDF pages <= 65, got {page_count}"
+
+            page1_images = doc[0].get_images(full=True)
+            assert len(page1_images) >= 1, (
+                f"Expected cover page (page 1) to have >= 1 embedded image (HUST logo), got {len(page1_images)}"
+            )
 
             page_texts = [page.get_text() for page in doc]
             full_text = "\n".join(page_texts)
@@ -160,6 +171,16 @@ class TestGraduationReportIntegrityS3:
             assert "Error! Reference source not found" not in full_text, (
                 "Broken Word cross-reference detected in graduation report PDF"
             )
+            assert "[ĐIỀN: LOGO TRƯỜNG]" not in full_text, (
+                "Unreplaced cover logo placeholder '[ĐIỀN: LOGO TRƯỜNG]' detected in PDF"
+            )
+
+            infra_re = re.compile(
+                r"\b(Tailscale|Vercel|Funnel|Antigravity|agy|worktree|webhook|agent|Claude|Codex|GitHub\s+Actions)\b",
+                flags=re.IGNORECASE,
+            )
+            infra_hits = infra_re.findall(full_text)
+            assert infra_hits == [], f"Forbidden infra/tooling terms found in report PDF: {infra_hits}"
 
             for ch in range(1, 7):
                 heading = f"CHƯƠNG {ch}."
@@ -180,14 +201,19 @@ class TestGraduationReportIntegrityS3:
             front_matter_text = "\n".join(page_texts[:body_start_idx])
             assert "DANH MỤC HÌNH VẼ" in front_matter_text
             assert "DANH MỤC BẢNG BIỂU" in front_matter_text
+            assert "DANH MỤC ĐOẠN MÃ" in front_matter_text
 
             indexed_figures = re.findall(r"Hình\s+\d+\.\d+", front_matter_text)
             indexed_tables = re.findall(r"Bảng\s+\d+\.\d+", front_matter_text)
-            assert len(indexed_figures) >= 45, (
-                f"Expected >= 45 indexed figures in front matter, got {len(indexed_figures)}"
+            indexed_listings = re.findall(r"Đoạn mã\s+\d+\.\d+", front_matter_text)
+            assert 25 <= len(indexed_figures) <= 35, (
+                f"Expected 25 <= indexed figures <= 35 in front matter, got {len(indexed_figures)}"
             )
-            assert len(indexed_tables) >= 15, (
-                f"Expected >= 15 indexed tables in front matter, got {len(indexed_tables)}"
+            assert len(indexed_tables) >= 12, (
+                f"Expected >= 12 indexed tables in front matter, got {len(indexed_tables)}"
+            )
+            assert len(indexed_listings) >= 5, (
+                f"Expected >= 5 indexed code listings in front matter, got {len(indexed_listings)}"
             )
 
 
