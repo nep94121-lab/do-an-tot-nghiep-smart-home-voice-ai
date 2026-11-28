@@ -1,16 +1,16 @@
 {
   "schema": "R9 (Buoc | Thao tac | Ket qua | DUNG/SAI | Le ra)",
   "all_passed": true,
-  "total_steps": 22,
-  "dung_count": 22,
+  "total_steps": 21,
+  "dung_count": 21,
   "sai_count": 0,
   "rows": [
     {
       "Buoc": 1,
-      "Thao tac": "Kiem tra PrusaSlicer --info cho toan bo 60 file chi tiet rieng le (parts/*.stl)",
-      "Ket qua": "60/60 dat: manifold=60/60, min_z==0.0=60/60, lot ban 170x190x245 (co xoay 90)=60/60; max bbox=190.0x181.9x45.0 mm",
+      "Thao tac": "Kiem tra PrusaSlicer --info cho toan bo 51 file chi tiet rieng le (parts/*.stl)",
+      "Ket qua": "51/51 dat: manifold=51/51, min_z==0.0=51/51, lot ban 170x190x245 (co xoay 90)=51/51; max bbox=190.0x181.9x45.0 mm",
       "DUNG/SAI": "DUNG",
-      "Le ra": "60/60 STL manifold=yes, min_z==0.0 mm, lot vung an toan 170x190x245 mm (cho phep xoay 90 deg)"
+      "Le ra": "51/51 STL manifold=yes, min_z==0.0 mm, lot vung an toan 170x190x245 mm (cho phep xoay 90 deg)"
     },
     {
       "Buoc": 2,
@@ -28,136 +28,129 @@
     },
     {
       "Buoc": 4,
-      "Thao tac": "Kiem toan hinh hoc khong oc vit & khong keo dan (60 chi tiet: panel + mount + furniture)",
-      "Ket qua": "Da loai bo 104 lo oc vit/clamp goc, giu 68 lo chuc nang (LED/loa/mic/day/ong), bo sung 59 lo mong chu nhat; ro ri vit=0, keo=0",
+      "Thao tac": "Kiem toan hinh hoc khong oc vit & khong keo dan (51 chi tiet: panel + mount, 0 noi that)",
+      "Ket qua": "Da loai bo 104 lo oc vit/clamp goc, giu 68 lo chuc nang (LED/loa/mic/day/ong), bo sung 49 lo mong chu nhat; noi that=0, ro ri vit=0, keo=0",
       "DUNG/SAI": "DUNG",
-      "Le ra": "0 lo oc vit M2/M2.5/M3/clamp sot lai, 0 chi tiet yeu cau keo dan, toan bo lien ket bang mong/chot/kep dan hoi"
+      "Le ra": "0 lo oc vit M2/M2.5/M3/clamp sot lai, 0 noi that trang tri, 0 chi tiet yeu cau keo dan, toan bo lien ket bang mong/chot/kep dan hoi"
     },
     {
       "Buoc": 5,
-      "Thao tac": "Nap & cat lop PLATE01_base_tech (plates/PLATE01_base_tech.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=7/7 obj manifold=True, STL manifold=True; slice_ok=True, X=[3.00, 177.00], Y=[2.82, 197.18], Z_max=9.00 mm; thoi gian=6h 23m 58s, nhua=57.52g (19.29m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE01_base (plates/PLATE01_base.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=1/1 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[9.57, 170.43], Y=[6.88, 193.12], Z_max=3.00 mm; thoi gian=5h 50m 30s, nhua=51.20g (17.17m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 7 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 1 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 6,
-      "Thao tac": "Nap & cat lop PLATE02_base_furniture (plates/PLATE02_base_furniture.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=6/6 obj manifold=True, STL manifold=True; slice_ok=True, X=[3.51, 176.49], Y=[5.87, 194.13], Z_max=34.00 mm; thoi gian=8h 24m 46s, nhua=83.97g (28.15m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE02_base (plates/PLATE02_base.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=1/1 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[12.85, 167.15], Y=[6.88, 193.12], Z_max=3.00 mm; thoi gian=5h 32m 23s, nhua=49.31g (16.53m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 6 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 1 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 7,
-      "Thao tac": "Nap & cat lop PLATE03_base_garden (plates/PLATE03_base_garden.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=17/17 obj manifold=True, STL manifold=True; slice_ok=True, X=[3.07, 176.93], Y=[3.43, 196.57], Z_max=14.00 mm; thoi gian=7h 49m 17s, nhua=70.95g (23.79m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE03_base_tech (plates/PLATE03_base_tech.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=5/5 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[3.10, 176.90], Y=[6.88, 193.12], Z_max=16.60 mm; thoi gian=6h 42m 14s, nhua=58.47g (19.60m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 17 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 5 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 8,
-      "Thao tac": "Nap & cat lop PLATE04_base (plates/PLATE04_base.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=1/1 obj manifold=True, STL manifold=True; slice_ok=True, X=[9.57, 170.43], Y=[6.88, 193.12], Z_max=3.00 mm; thoi gian=6h 12m 20s, nhua=55.79g (18.71m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE04_base_garden (plates/PLATE04_base_garden.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=3/3 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[3.10, 176.90], Y=[3.13, 196.87], Z_max=13.00 mm; thoi gian=4h 9m 3s, nhua=37.71g (12.64m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 1 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 3 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 9,
-      "Thao tac": "Nap & cat lop PLATE05_base_mounts (plates/PLATE05_base_mounts.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=12/12 obj manifold=True, STL manifold=True; slice_ok=True, X=[3.77, 176.23], Y=[3.65, 196.35], Z_max=45.00 mm; thoi gian=10h 57m 43s, nhua=110.33g (36.99m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE05_base_garden (plates/PLATE05_base_garden.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=7/7 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[3.07, 176.93], Y=[3.13, 196.87], Z_max=14.00 mm; thoi gian=5h 0m 52s, nhua=49.76g (16.68m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 12 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 7 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 10,
-      "Thao tac": "Nap & cat lop PLATE06_base (plates/PLATE06_base.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=1/1 obj manifold=True, STL manifold=True; slice_ok=True, X=[12.85, 167.15], Y=[6.88, 193.12], Z_max=3.00 mm; thoi gian=5h 58m 45s, nhua=54.90g (18.41m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE06_base (plates/PLATE06_base.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=2/2 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[3.07, 176.93], Y=[5.10, 194.90], Z_max=3.00 mm; thoi gian=2h 56m 14s, nhua=26.67g (8.94m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 1 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 2 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 11,
-      "Thao tac": "Nap & cat lop PLATE07_base_tech (plates/PLATE07_base_tech.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=3/3 obj manifold=True, STL manifold=True; slice_ok=True, X=[5.15, 174.85], Y=[7.63, 192.37], Z_max=11.00 mm; thoi gian=5h 34m 33s, nhua=51.18g (17.16m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE07_base_garden (plates/PLATE07_base_garden.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=2/2 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[22.13, 157.87], Y=[14.32, 185.68], Z_max=3.00 mm; thoi gian=2h 45m 19s, nhua=25.18g (8.44m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 3 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 2 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 12,
-      "Thao tac": "Nap & cat lop PLATE08_walls_garden (plates/PLATE08_walls_garden.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=5/5 obj manifold=True, STL manifold=True; slice_ok=True, X=[4.10, 175.90], Y=[4.32, 195.68], Z_max=9.00 mm; thoi gian=4h 0m 34s, nhua=38.10g (12.78m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE08_walls_mounts (plates/PLATE08_walls_mounts.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=11/11 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[2.82, 177.18], Y=[2.82, 197.18], Z_max=13.60 mm; thoi gian=6h 32m 18s, nhua=57.48g (19.27m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 5 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 11 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 13,
-      "Thao tac": "Nap & cat lop PLATE09_walls_base (plates/PLATE09_walls_base.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=7/7 obj manifold=True, STL manifold=True; slice_ok=True, X=[2.90, 177.10], Y=[4.37, 195.63], Z_max=16.60 mm; thoi gian=7h 30m 4s, nhua=68.59g (23.00m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE09_walls_mounts (plates/PLATE09_walls_mounts.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=12/12 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[3.02, 176.98], Y=[2.82, 197.18], Z_max=12.60 mm; thoi gian=5h 7m 3s, nhua=44.31g (14.86m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 7 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 12 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 14,
-      "Thao tac": "Nap & cat lop PLATE10_walls (plates/PLATE10_walls.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=1/1 obj manifold=True, STL manifold=True; slice_ok=True, X=[12.82, 167.18], Y=[2.82, 197.18], Z_max=3.00 mm; thoi gian=4h 39m 44s, nhua=43.31g (14.52m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE10_walls_tech (plates/PLATE10_walls_tech.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=14/14 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[2.82, 177.18], Y=[3.07, 196.93], Z_max=9.00 mm; thoi gian=4h 57m 29s, nhua=43.27g (14.51m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 1 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 14 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 15,
-      "Thao tac": "Nap & cat lop PLATE11_walls (plates/PLATE11_walls.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=1/1 obj manifold=True, STL manifold=True; slice_ok=True, X=[12.82, 167.18], Y=[2.82, 197.18], Z_max=3.00 mm; thoi gian=4h 29m 5s, nhua=41.68g (13.98m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE11_walls_garden (plates/PLATE11_walls_garden.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=6/6 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[2.82, 177.18], Y=[2.82, 197.18], Z_max=12.00 mm; thoi gian=4h 22m 45s, nhua=37.77g (12.66m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 1 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 6 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 16,
-      "Thao tac": "Nap & cat lop PLATE12_walls (plates/PLATE12_walls.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=1/1 obj manifold=True, STL manifold=True; slice_ok=True, X=[12.82, 167.18], Y=[2.82, 197.18], Z_max=3.00 mm; thoi gian=4h 56m 30s, nhua=45.38g (15.22m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE12_walls_mounts (plates/PLATE12_walls_mounts.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=9/9 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[2.82, 177.18], Y=[2.82, 197.18], Z_max=12.00 mm; thoi gian=4h 31m 53s, nhua=40.42g (13.55m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 1 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 9 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 17,
-      "Thao tac": "Nap & cat lop PLATE13_walls_garden (plates/PLATE13_walls_garden.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=6/6 obj manifold=True, STL manifold=True; slice_ok=True, X=[2.82, 177.18], Y=[3.35, 196.65], Z_max=12.60 mm; thoi gian=6h 45m 29s, nhua=60.96g (20.44m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE13_walls_garden (plates/PLATE13_walls_garden.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=4/4 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[6.82, 173.18], Y=[4.32, 195.68], Z_max=12.00 mm; thoi gian=3h 54m 18s, nhua=35.76g (11.99m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 6 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 4 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 18,
-      "Thao tac": "Nap & cat lop PLATE14_walls (plates/PLATE14_walls.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=1/1 obj manifold=True, STL manifold=True; slice_ok=True, X=[12.82, 167.18], Y=[6.57, 193.43], Z_max=3.00 mm; thoi gian=4h 10m 28s, nhua=39.41g (13.21m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE14_walls_base (plates/PLATE14_walls_base.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=2/2 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[3.10, 176.90], Y=[3.10, 196.90], Z_max=3.00 mm; thoi gian=3h 31m 50s, nhua=32.49g (10.89m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 1 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 2 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 19,
-      "Thao tac": "Nap & cat lop PLATE15_garden_walls (plates/PLATE15_garden_walls.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=6/6 obj manifold=True, STL manifold=True; slice_ok=True, X=[3.10, 176.90], Y=[4.82, 195.18], Z_max=18.00 mm; thoi gian=5h 54m 17s, nhua=56.84g (19.06m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE15_tech_garden (plates/PLATE15_tech_garden.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=2/2 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[22.82, 157.18], Y=[12.32, 187.68], Z_max=3.00 mm; thoi gian=3h 11m 21s, nhua=28.77g (9.64m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 6 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 2 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 20,
-      "Thao tac": "Nap & cat lop PLATE16_tech_garden (plates/PLATE16_tech_garden.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=4/4 obj manifold=True, STL manifold=True; slice_ok=True, X=[2.82, 177.18], Y=[5.82, 194.18], Z_max=6.00 mm; thoi gian=6h 27m 31s, nhua=58.51g (19.62m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Nap & cat lop PLATE16_walls_mounts (plates/PLATE16_walls_mounts.3mf + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
+      "Ket qua": "3MF=2/2 obj manifold=True, STL manifold=True; baked_ok=True/True (infill=9% gyroid, perim=2, top/bot=3/3); slice_ok=True, X=[28.32, 151.68], Y=[44.32, 155.68], Z_max=45.00 mm; thoi gian=4h 18m 17s, nhua=42.07g (14.11m), canh bao tran ban=False, can support=False",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 4 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      "Le ra": "Du 2 obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]"
     },
     {
       "Buoc": 21,
-      "Thao tac": "Nap & cat lop PLATE17_mounts_furniture (plates/PLATE17_mounts_furniture.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
-      "Ket qua": "3MF=24/24 obj manifold=True, STL manifold=True; slice_ok=True, X=[3.82, 176.18], Y=[3.05, 196.75], Z_max=28.00 mm; thoi gian=10h 24m 39s, nhua=107.44g (36.02m), canh bao tran ban=False, can support=False",
+      "Thao tac": "Tong hop toan bo 16 ban in (plates/PLATE01..PLATE16) san sang giao ban in 180x200x250 mm",
+      "Ket qua": "16/16 ban in DAT (83 ban the chi tiet), tong thoi gian in=73h 23m 49s (73.40 gio), tong nhua PLA=660.64 g (221.50 m), 0 ban can support",
       "DUNG/SAI": "DUNG",
-      "Le ra": "Du 24 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
-    },
-    {
-      "Buoc": 22,
-      "Thao tac": "Tong hop toan bo 17 ban in (plates/PLATE01..PLATE17) san sang giao ban in 180x200x250 mm",
-      "Ket qua": "17/17 ban in DAT (103 ban the chi tiet), tong thoi gian in=110h 39m 43s (110.66 gio), tong nhua PLA=1044.86 g (350.33 m), 0 ban can support",
-      "DUNG/SAI": "DUNG",
-      "Le ra": "17/17 ban in dat 100%, phu du 103 ban the tu 60 chi tiet rieng le, co thong so thoi gian & nhua chinh xac tu G-code that"
+      "Le ra": "16/16 ban in dat 100%, phu du 83 ban the tu 51 chi tiet rieng le, co thong so thoi gian & nhua chinh xac tu G-code that"
     }
   ]
 }

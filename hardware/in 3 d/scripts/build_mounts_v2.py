@@ -266,8 +266,12 @@ def _build_foot_clip(sup: pd_mod.SupportSpec) -> tuple[Any, dict[str, Any]]:
     lip_h = float(pr["lip_h"])
     # 0.15 mm slip-fit relief on inner face of L-lip so base corners drop in without BRep overlap
     lip_t = float(pr["lip_t"]) - 0.15
+    inner_cut = float(pr.get("inner_cut", 0.0))
 
     pad = Part.makeBox(sz, sz, lh, FreeCAD.Vector(0.0, 0.0, 0.0))
+    if inner_cut > 1.0:
+        notch = Part.makeBox(inner_cut + 1.0, inner_cut + 1.0, lh + 2.0, FreeCAD.Vector(sz - inner_cut, sz - inner_cut, -1.0))
+        pad = pad.cut(notch)
     lip_x = Part.makeBox(sz, lip_t, lip_h, FreeCAD.Vector(0.0, 0.0, lh))
     lip_y = Part.makeBox(lip_t, sz, lip_h, FreeCAD.Vector(0.0, 0.0, lh))
     shape = pad.fuse(lip_x).fuse(lip_y).removeSplitter()
@@ -831,7 +835,7 @@ def _build_water_liner(sup: pd_mod.SupportSpec) -> tuple[Any, dict[str, Any]]:
     notch = Part.makeBox(wt + 3.0, nw, oz - nz0 + 2.0, FreeCAD.Vector(ox - wt - 1.5, ny - nw / 2.0, nz0))
     shape = outer.cut(Part.makeCompound([cavity, notch])).removeSplitter()
 
-    shape, eng_ok = cc.safe_engrave_top_face(shape, sup.engrave, ft, 0.50)
+    shape, eng_ok = cc.safe_engrave_top_face(shape, sup.engrave, ft, 0.35)
 
     return shape, {
         "engraved_ok": eng_ok,

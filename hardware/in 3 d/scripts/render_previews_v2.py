@@ -406,7 +406,6 @@ def _build_unengraved_world_sets():
     import cad_common as cc
     import build_panels_v2 as bpv2
     import build_mounts_v2 as bmv2
-    import build_furniture_v2 as bfv2
     import kicad_pcb_ssot as pcb_ssot
     import mica_design as md
     import print_domain as pd_mod
@@ -457,18 +456,21 @@ def _build_unengraved_world_sets():
 
         furniture_raw: dict[str, tuple[Any, dict[str, Any]]] = {}
         furniture_items: list[dict[str, Any]] = []
-        for fur in pd_mod.build_furniture_specs(cfg):
-            meta = metas[fur.part_id]
-            sh, _ = bfv2.build_one_furniture(fur, cfg)
-            furniture_raw[fur.part_id] = (sh, meta)
-            for lbl, ws in wa.place_furniture_in_world(sh, meta):
-                furniture_items.append({
-                    "fur": fur,
-                    "meta": meta,
-                    "label": lbl,
-                    "shape": ws,
-                    "rgb": tuple(meta.get("color_rgb", [0.6, 0.5, 0.4])),
-                })
+        fur_specs = pd_mod.build_furniture_specs(cfg)
+        if fur_specs:
+            import build_furniture_v2 as bfv2
+            for fur in fur_specs:
+                meta = metas[fur.part_id]
+                sh, _ = bfv2.build_one_furniture(fur, cfg)
+                furniture_raw[fur.part_id] = (sh, meta)
+                for lbl, ws in wa.place_furniture_in_world(sh, meta):
+                    furniture_items.append({
+                        "fur": fur,
+                        "meta": meta,
+                        "label": lbl,
+                        "shape": ws,
+                        "rgb": tuple(meta.get("color_rgb", [0.6, 0.5, 0.4])),
+                    })
     finally:
         cc.safe_engrave_top_face = orig_eng
 
@@ -547,31 +549,29 @@ def render_freecad_previews() -> list[pathlib.Path]:
     img_asm = _render_coin_to_pil(coin, root_asm, eye1, tgt1, W1, H1, fov_deg=fov1)
     draw_header_banner(
         img_asm,
-        "MO HINH NHA THONG MINH IN 3D v2 — SERVO SG90 DONG TRUC CUA CHINH + DU 14 MODULE",
-        f"{n_unique} chi tiet ({n_inst} ban the) | 0 oc vit, 0 keo, 0 support | Servo SG90 tren ke P07+SUP11+SUP10B (0..90 deg) | Du SUP01..SUP18 + FUR01..FUR09",
+        "MO HINH NHA THONG MINH IN 3D v2 (GIAM NHUA HW14) — SERVO SG90 DONG TRUC + DU 14 MODULE",
+        f"{n_unique} chi tiet ({n_inst} ban the) | 0 oc vit, 0 keo, 0 support, 0 noi that | Mang 2.2mm + O to ong luc giac 28mm | Khoang Relay/PSU kin",
     )
     draw1 = ImageDraw.Draw(img_asm)
     asm_callouts = [
-        ((71.5, 201.5, 118.0), (28, 108), "CUA CHINH D1: SG90 Dong Truc (P07+SUP11+SUP10B)", (18, 84, 178)),
-        ((78.0, 352.0, 26.0), (540, 102), "PHONG KHACH: Sofa FUR01 + TV FUR02/03", (32, 92, 148)),
-        ((326.0, 336.0, 22.0), (1120, 108), "PHONG NGU: Giuong FUR04 + Den ngu FUR05", (136, 86, 40)),
+        ((71.5, 201.5, 118.0), (28, 108), "CUA CHINH D1: SG90 Dong Truc (P07+SUP11+SUP10B, 3 thanh)", (18, 84, 178)),
+        ((95.0, 380.0, 96.0), (540, 102), "TUONG P02/P03/P04/P06: Mang 2.2mm + O to ong 28mm (gan >=3.2mm)", (32, 112, 82)),
+        ((310.0, 320.0, 0.0), (1080, 108), "SAN P01B: Mang 2.2mm + Gan chong vong 3mm + O to ong", (136, 86, 40)),
         ((200.0, 199.0, 126.0), (1095, 210), "Coi SUP18 + 2x LED 5mm SUP17 + DHT11 SUP12", (84, 62, 128)),
-        ((122.0, 104.0, 24.0), (28, 720), "TECH BAY: KiCad Hub PCB 100x80 (SUP06) + DC-022 SUP16", (16, 114, 48)),
-        ((226.0, 114.0, 20.0), (28, 925), "2x Relay (SUP07) + PAM8403 (SUP08) + Loa (SUP09)", (28, 78, 152)),
-        ((376.0, 163.0, 36.0), (1185, 650), "Chau cay FUR06/08 + Cay mini FUR07", (34, 128, 56)),
-        ((292.75, 89.0, 35.0), (1125, 880), "VUON: Be nuoc SUP15 (khong keo) + Bom 5V", (22, 108, 168)),
+        ((122.0, 104.0, 24.0), (28, 720), "TECH BAY (KIN): KiCad Hub PCB 100x80 (SUP06) + DC-022 SUP16", (16, 114, 48)),
+        ((226.0, 114.0, 20.0), (28, 925), "2x Relay (SUP07) + PAM8403 (SUP08) + Loa (SUP09) — Day kin", (28, 78, 152)),
+        ((292.75, 89.0, 35.0), (1125, 880), "VUON: Be nuoc SUP15 (4 lop day chong tham) + Bom 5V + YL-69", (22, 108, 168)),
     ]
     for pt3, lxy, txt, acc in asm_callouts:
         px, py = project_3d_to_2d(pt3, eye1, tgt1, W1, H1, fov1)
         draw_callout(draw1, (px, py), lxy, txt, accent_rgb=acc, font_size=14)
 
     draw_legend_strip(img_asm, [
-        ((186, 206, 226), "San P01A/P01B/P17 (duoi en)"),
-        ((232, 235, 229), "Tuong P02..P08 + Ke P07"),
+        ((186, 206, 226), "San P01A/P01B (2.2mm + gan 3mm)"),
+        ((232, 235, 229), "Tuong P02..P08 (to ong 28mm)"),
         ((194, 230, 212), "Vuon P09..P14 + SUP15"),
-        ((235, 142, 42), "Kep & Gia do SUP01..SUP18"),
-        ((18, 117, 43), "KiCad Hub PCB + 14 Module"),
-        ((96, 148, 194), "Noi that FUR01..FUR09"),
+        ((235, 142, 42), "Kep & Gia do SUP01..SUP18 (3 thanh)"),
+        ((18, 117, 43), "KiCad Hub PCB + Du 14 Module"),
     ])
     p_asm = PREV_DIR / "_assembled_house_furniture.png"
     img_asm.save(str(p_asm), format="PNG")
@@ -680,15 +680,15 @@ def render_freecad_previews() -> list[pathlib.Path]:
     img_exp = _render_coin_to_pil(coin, root_exp, eye2, tgt2, W2, H2, fov_deg=fov2)
     draw_header_banner(
         img_exp,
-        "HINH CHIEU PHAN RA 3D v2 — TAM CHIA MANH DUOI EN, KEP KHONG VIT & NOI THAT",
-        "Phan tach 29 manh tam (<= 170x190 mm), 19 bo kep/khay SUP01..SUP15 (0 oc vit), 9 nhom noi that FUR01..FUR09 + Hub PCB/Relays",
+        "HINH CHIEU PHAN RA 3D v2 (GIAM NHUA HW14) — TAM DUOI EN 2.2mm + TO ONG & KEP KHONG VIT",
+        f"Phan tach 30 manh tam (<= 170x190 mm), 21 bo kep/khay SUP01..SUP18 (0 oc vit, 0 noi that trang tri) + KiCad Hub PCB/14 Module",
     )
     draw2 = ImageDraw.Draw(img_exp)
     exp_callouts = [
         ((36.0, 81.0, 162.0), (34, 150), "KiCad Hub PCB + SUP06 + P16", (16, 114, 48)),
-        ((78.0, 366.0, 108.0), (480, 96), "Noi that FUR01..05 + Chot san FUR09", (38, 92, 152)),
+        ((95.0, 380.0, 130.0), (480, 96), "Tuong giam nhua 2.2mm + Lo to ong 28mm", (38, 112, 82)),
         ((393.0, 382.0, 218.0), (1125, 115), "Kep goc SUP01/01B & Kep noi SUP03", (184, 96, 18)),
-        ((337.0, 64.0, 158.0), (1165, 585), "Be nuoc SUP15 + Bom + Cay FUR06/07", (22, 108, 168)),
+        ((337.0, 64.0, 158.0), (1165, 585), "Be nuoc SUP15 + Bom + Vuon P09..P14", (22, 108, 168)),
         ((200.0, 5.0, -55.0), (1135, 920), "Chan de SUP04 + San chia manh P01A/B", (52, 78, 112)),
     ]
     for pt3, lxy, txt, acc in exp_callouts:
@@ -698,145 +698,22 @@ def render_freecad_previews() -> list[pathlib.Path]:
     draw_legend_strip(img_exp, [
         ((186, 206, 226), "Manh san P01A (3) + P01B (6)"),
         ((232, 235, 229), "Tuong P02 (3) + P05 (3) + P03/04/06"),
-        ((235, 142, 42), "Kep & gia do SUP01..SUP15"),
-        ((18, 117, 43), "Mach KiCad Hub PCB + Relays + PAM"),
-        ((96, 148, 194), "Noi that FUR01..FUR09"),
+        ((235, 142, 42), "Kep & gia do SUP01..SUP18"),
+        ((18, 117, 43), "Mach KiCad Hub PCB + 14 Module"),
     ])
     p_exp = PREV_DIR / "_exploded_house_v2.png"
     img_exp.save(str(p_exp), format="PNG")
     outputs.append(p_exp)
     print(f"[OK] {p_exp.name} ({W2}x{H2})", flush=True)
 
-    # ------------------------------------------------------------------
-    # 3. _furniture_showcase.png (1400x950 — 3x3 crisp Coin3D cards for FUR01..FUR09)
-    # ------------------------------------------------------------------
-    W3, H3 = 1400, 950
-    canvas = Image.new("RGB", (W3, H3), (242, 246, 251))
-    draw_header_banner(
-        canvas,
-        "BO 9 CHI TIET NOI THAT & CAY CANH IN 3D (FUR01 - FUR09) — KHONG SUPPORT, CHOT SAN",
-        "Ty le mo hinh nha thong minh (386x190 mm) | Moi mon lap khop mong chot san FUR09 (0 keo, 0 vit) | In phang Z=0",
-    )
-    draw3 = ImageDraw.Draw(canvas)
-
-    fur_order = [
-        ("FUR01_SOFA", "Sofa 3 cho / Living Sofa"),
-        ("FUR02_TV_STAND", "Ke Tivi / TV Stand"),
-        ("FUR03_TV_SCREEN", "Man hinh TV / TV Screen"),
-        ("FUR04_BED", "Giuong ngu / Double Bed"),
-        ("FUR05_BEDSIDE_TABLE", "Tu & Den ngu / Bedside Lamp"),
-        ("FUR06_PLANT_POT_LARGE", "Chau cay lon / Large Planter"),
-        ("FUR07_MINI_TREE", "Cay mini 2 nua / Cross Mini Tree"),
-        ("FUR08_PLANT_POT_SMALL", "Chau hoa nho / Small Pot"),
-        ("FUR09_FLOOR_TENON_PEG", "Chot mong san / Floor Tenon Peg"),
-    ]
-    room_badge_col = {
-        "Living Room": (38, 104, 168),
-        "Bedroom": (152, 92, 42),
-        "Outdoor / Garden": (34, 134, 68),
-        "Living Room / Bedroom / Outdoor": (96, 82, 138),
-    }
-
-    margin_x, top_y, gap_x, gap_y = 24, 84, 18, 16
-    card_w = (W3 - 2 * margin_x - 2 * gap_x) // 3  # 438
-    card_h = (H3 - top_y - 20 - 2 * gap_y) // 3    # 271
-    render_h = card_h - 68
-
-    f_code = _load_font(15, bold=True)
-    f_room = _load_font(12, bold=True)
-    f_name = _load_font(14, bold=True)
-    f_dims = _load_font(12, bold=False)
-
-    for idx, (fid, bilingual_name) in enumerate(fur_order):
-        r = idx // 3
-        c = idx % 3
-        x0 = margin_x + c * (card_w + gap_x)
-        y0 = top_y + r * (card_h + gap_y)
-
-        raw_sh, meta = ws_data["furniture_raw"][fid]
-        col_rgb = tuple(meta.get("color_rgb", [0.55, 0.50, 0.42]))
-        tile_root = coin.SoSeparator()
-
-        if fid == "FUR03_TV_SCREEN":
-            # Stand TV upright for recognizable showcase orientation
-            s = raw_sh.copy()
-            s.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1, 0, 0), 90.0)
-            bb = s.BoundBox
-            s.translate(FreeCAD.Vector(-bb.Center.x, -bb.Center.y, -bb.ZMin))
-            tile_root.addChild(_shape_to_coin_node(coin, s, rgb=col_rgb, edge_rgb=(0.06, 0.08, 0.12), edge_width=1.4, tess_tol=0.12))
-            vis_bb = s.BoundBox
-        elif fid == "FUR07_MINI_TREE":
-            # Assemble the 2 cross-halving solids into upright 3D tree
-            solids = sorted(raw_sh.Solids, key=lambda sol: sol.BoundBox.XMin)
-            sa = solids[0].copy()
-            sb = solids[1].copy()
-            bba, bbb = sa.BoundBox, sb.BoundBox
-            sa.translate(FreeCAD.Vector(-(bba.XMin + bba.XMax) / 2.0, -bba.YMin, -(bba.ZMin + bba.ZMax) / 2.0))
-            sa.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1, 0, 0), 90.0)
-            sb.translate(FreeCAD.Vector(-(bbb.XMin + bbb.XMax) / 2.0, -bbb.YMin, -(bbb.ZMin + bbb.ZMax) / 2.0))
-            sb.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1, 0, 0), 90.0)
-            sb.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(0, 0, 1), 90.0)
-            tile_root.addChild(_shape_to_coin_node(coin, sa, rgb=(0.20, 0.62, 0.28), edge_rgb=(0.07, 0.24, 0.10), edge_width=1.3, tess_tol=0.12))
-            tile_root.addChild(_shape_to_coin_node(coin, sb, rgb=(0.28, 0.70, 0.34), edge_rgb=(0.07, 0.24, 0.10), edge_width=1.3, tess_tol=0.12))
-            vis_bb = sa.BoundBox
-            vis_bb.add(sb.BoundBox)
-        elif fid == "FUR09_FLOOR_TENON_PEG":
-            # Stand peg upright so press-fit taper is crystal clear
-            s = raw_sh.copy()
-            s.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1, 0, 0), 90.0)
-            bb = s.BoundBox
-            s.translate(FreeCAD.Vector(-bb.Center.x, -bb.Center.y, -bb.ZMin))
-            tile_root.addChild(_shape_to_coin_node(coin, s, rgb=col_rgb, edge_rgb=(0.25, 0.18, 0.08), edge_width=1.5, tess_tol=0.08))
-            vis_bb = s.BoundBox
-        else:
-            s = raw_sh.copy()
-            bb = s.BoundBox
-            s.translate(FreeCAD.Vector(-bb.Center.x, -bb.Center.y, -bb.ZMin))
-            tile_root.addChild(_shape_to_coin_node(coin, s, rgb=col_rgb, edge_rgb=(0.14, 0.11, 0.09), edge_width=1.35, tess_tol=0.12))
-            vis_bb = s.BoundBox
-
-        cx, cy, cz = vis_bb.Center.x, vis_bb.Center.y, vis_bb.Center.z
-        diag = max(10.0, math.hypot(vis_bb.XLength, vis_bb.YLength, vis_bb.ZLength))
-        eye_t = (cx + diag * 1.15, cy - diag * 1.38, cz + diag * 1.02)
-        tgt_t = (cx, cy, cz)
-        tile_img = _render_coin_to_pil(
-            coin, tile_root, eye_t, tgt_t, card_w - 4, render_h, fov_deg=31.0, bg_rgb=(0.985, 0.990, 0.996)
-        )
-
-        # Card frame
-        draw3.rounded_rectangle([(x0, y0), (x0 + card_w, y0 + card_h)], radius=10, fill=(255, 255, 255), outline=(188, 202, 218), width=2)
-        canvas.paste(tile_img, (x0 + 2, y0 + 2))
-
-        # Top badges inside card
-        short_id = fid.split("_")[0]
-        draw3.rounded_rectangle([(x0 + 10, y0 + 10), (x0 + 74, y0 + 34)], radius=5, fill=(15, 42, 74))
-        draw3.text((x0 + 18, y0 + 12), short_id, fill=(255, 255, 255), font=f_code)
-
-        room = meta.get("room", "")
-        room_short = "All Rooms" if "/" in room and "Living" in room else room
-        rcol = room_badge_col.get(room, (68, 92, 118))
-        rb = draw3.textbbox((0, 0), room_short, font=f_room)
-        rw = rb[2] - rb[0] + 16
-        draw3.rounded_rectangle([(x0 + card_w - rw - 10, y0 + 10), (x0 + card_w - 10, y0 + 32)], radius=5, fill=rcol)
-        draw3.text((x0 + card_w - rw - 2, y0 + 13), room_short, fill=(255, 255, 255), font=f_room)
-
-        # Card footer
-        fy = y0 + render_h + 4
-        draw3.line([(x0 + 10, fy), (x0 + card_w - 10, fy)], fill=(214, 224, 236), width=1)
-        draw3.text((x0 + 12, fy + 6), bilingual_name, fill=(16, 34, 56), font=f_name)
-        bx, by, bz = meta["print_bbox_mm"]
-        qty = meta.get("qty", 1)
-        dim_line = f"In phang: {bx:.0f} x {by:.0f} x {bz:.0f} mm  |  SL: {qty}x  |  Khong support"
-        draw3.text((x0 + 12, fy + 29), dim_line, fill=(76, 98, 122), font=f_dims)
-        att = meta.get("vi_name", "")
-        if len(att) > 54:
-            att = att[:51] + "..."
-        draw3.text((x0 + 12, fy + 47), att, fill=(96, 116, 138), font=f_dims)
-
-    p_fur = PREV_DIR / "_furniture_showcase.png"
-    canvas.save(str(p_fur), format="PNG")
-    outputs.append(p_fur)
-    print(f"[OK] {p_fur.name} ({W3}x{H3})", flush=True)
+    # R6: Skip _furniture_showcase.png when decorative furniture has been removed
+    if ws_data["furniture_raw"]:
+        W3, H3 = 1400, 950
+        canvas = Image.new("RGB", (W3, H3), (242, 246, 251))
+        draw_header_banner(canvas, "FURNITURE SHOWCASE", "")
+        p_fur = PREV_DIR / "_furniture_showcase.png"
+        canvas.save(str(p_fur), format="PNG")
+        outputs.append(p_fur)
 
     # ------------------------------------------------------------------
     # 4. _pcb_module_fit_3d.png (1400x950 — Zoomed Tech Bay PCB/Module Fit Close-Up)
@@ -1218,9 +1095,11 @@ def render_plate_layouts() -> list[pathlib.Path]:
     print(f"[OK] Rendered {len(plate_pngs)} individual plate layouts (1200x1200) in {time.time() - t0:.1f}s", flush=True)
 
     # ------------------------------------------------------------------
-    # _plates_overview.png (6x3 montage of all 17 plates + summary card #18)
+    # _plates_overview.png (dynamic grid of all plates + 1 summary card)
     # ------------------------------------------------------------------
-    cols, rows = 6, 3
+    total_cards = len(plate_pngs) + 1
+    cols = 5 if total_cards <= 15 else 6
+    rows = max(1, math.ceil(total_cards / cols))
     cell = 340
     pad = 14
     header_h = 84
@@ -1243,21 +1122,23 @@ def render_plate_layouts() -> list[pathlib.Path]:
         overview.paste(im, (x0, y0))
         odraw.rectangle([(x0, y0), (x0 + cell, y0 + cell)], outline=(148, 166, 188), width=2)
 
-    # Cell 18 (row 2, col 5): Summary & Legend Card
-    x18 = pad + 5 * (cell + pad)
-    y18 = header_h + pad + 2 * (cell + pad)
+    # Final cell: Summary & Legend Card
+    sum_idx = len(plate_pngs)
+    sr_i, sc_i = sum_idx // cols, sum_idx % cols
+    x18 = pad + sc_i * (cell + pad)
+    y18 = header_h + pad + sr_i * (cell + pad)
     odraw.rounded_rectangle([(x18, y18), (x18 + cell, y18 + cell)], radius=10, fill=(255, 255, 255), outline=(27, 54, 93), width=2)
     odraw.rectangle([(x18, y18), (x18 + cell, y18 + 44)], fill=(13, 35, 62))
-    odraw.text((x18 + 14, y18 + 12), "TONG KET BO IN v2", fill=(255, 255, 255), font=_load_font(16, bold=True))
+    odraw.text((x18 + 14, y18 + 12), "TONG KET BO IN HW14", fill=(255, 255, 255), font=_load_font(16, bold=True))
 
     f_stat = _load_font(13, bold=True)
     f_leg = _load_font(12, bold=False)
     stats = [
         f"Ban in: {manifest['achieved_plate_count']} plates (180x200x250)",
         f"Safe zone: 170 x 190 mm (5 mm)",
-        f"Chi tiet doc nhat: {manifest['total_unique_parts']} parts",
+        f"Chi tiet doc nhat: {manifest['total_unique_parts']} parts (0 FUR*)",
         f"Tong so ban the: {manifest['total_part_instances']} instances",
-        f"Khoang cach min: >= {manifest['min_spacing_mm']:.1f} mm",
+        "Baked .3mf: 9% gyroid, 2/3 perims",
         "0 oc vit | 0 keo | 0 support",
     ]
     sy = y18 + 52
@@ -1269,12 +1150,12 @@ def render_plate_layouts() -> list[pathlib.Path]:
     sy += 11
     odraw.text((x18 + 14, sy), "MAU NHOM CHI TIET:", fill=(27, 54, 93), font=f_stat)
     sy += 20
-    for g in ("base", "walls", "garden", "tech", "mounts", "furniture"):
+    for g in ("base", "walls", "garden", "tech", "mounts"):
         fh, eh, gl = GROUP_COLORS[g]
         rgb = tuple(int(fh[i : i + 2], 16) for i in (1, 3, 5))
         odraw.rectangle([(x18 + 16, sy + 2), (x18 + 32, sy + 14)], fill=rgb, outline=(40, 50, 60), width=1)
         odraw.text((x18 + 40, sy), gl, fill=(30, 44, 62), font=f_leg)
-        sy += 17
+        sy += 19
 
     p_ov = PREV_DIR / "_plates_overview.png"
     overview.save(str(p_ov), format="PNG")
@@ -1303,7 +1184,7 @@ def find_prusaslicer_cli() -> pathlib.Path:
 
 
 def _parse_gcode_metrics_and_segments(gcode_text: str):
-    """Parse real PrusaSlicer metrics + extrusion segments (handling both M82 absolute & M83 relative E)."""
+    """Parse real PrusaSlicer metrics + mid-layer toolpath segments separated by feature type (skirt, perimeter, gyroid infill, solid)."""
     time_str = ""
     filament_mm = 0.0
     filament_g = 0.0
@@ -1325,13 +1206,14 @@ def _parse_gcode_metrics_and_segments(gcode_text: str):
         filament_g = (filament_mm * math.pi * (1.75 / 2.0) ** 2 / 1000.0) * 1.24
 
     layer_count = len(re.findall(r"^;LAYER_CHANGE", gcode_text, flags=re.MULTILINE))
-    mid_layer = max(2, layer_count // 2)
-    top_layer = max(1, layer_count - 1)
-    keep_layers = {1, 2, mid_layer, top_layer}
+    # Layer 5 (Z=1.0 mm) sits strictly inside the 2.2 mm web gyroid core (layers 4..8 are gyroid on 2.2 mm & 3.0 mm!)
+    infill_layer = 5 if layer_count >= 7 else max(2, layer_count // 2)
+    keep_layers = {1, infill_layer}
 
-    segs_base: list[tuple[tuple[float, float], tuple[float, float]]] = []
-    segs_upper: list[tuple[tuple[float, float], tuple[float, float]]] = []
     segs_skirt: list[tuple[tuple[float, float], tuple[float, float]]] = []
+    segs_perim: list[tuple[tuple[float, float], tuple[float, float]]] = []
+    segs_infill: list[tuple[tuple[float, float], tuple[float, float]]] = []
+    segs_solid: list[tuple[tuple[float, float], tuple[float, float]]] = []
 
     cx, cy, ce = 0.0, 0.0, 0.0
     rel_e = False
@@ -1381,146 +1263,49 @@ def _parse_gcode_metrics_and_segments(gcode_text: str):
         if layer_idx in keep_layers and de > 1e-6 and (abs(nx - cx) > 1e-4 or abs(ny - cy) > 1e-4):
             seg = ((cx, cy), (nx, ny))
             if "skirt" in cur_type or "brim" in cur_type:
-                segs_skirt.append(seg)
-            elif layer_idx <= 2:
-                segs_base.append(seg)
-            else:
-                segs_upper.append(seg)
+                if layer_idx == 1:
+                    segs_skirt.append(seg)
+            elif layer_idx == infill_layer:
+                if "internal infill" in cur_type:
+                    segs_infill.append(seg)
+                elif "perimeter" in cur_type:
+                    segs_perim.append(seg)
+                else:
+                    segs_solid.append(seg)
+            elif layer_idx == 1 and "perimeter" in cur_type:
+                # Keep layer-1 outline faintly for parts shorter than infill_layer
+                segs_solid.append(seg)
         cx, cy = nx, ny
 
     metrics = {
         "time_str": time_str or "?",
         "filament_m": round(filament_mm / 1000.0, 2),
-        "filament_g": round(filament_g, 1),
+        "filament_g": round(filament_g, 2),
         "layer_count": layer_count,
+        "infill_layer": infill_layer,
     }
-    return metrics, segs_skirt, segs_base, segs_upper
+    return metrics, segs_skirt, segs_perim, segs_infill, segs_solid
 
 
-def render_slicer_plate_preview() -> pathlib.Path:
-    """Slice 3 representative multi-object 3MF plates with PrusaSlicer CLI and render 1800x680 toolpath preview."""
+def render_slicer_plate_preview(all_plates_screens_dir: pathlib.Path | None = None) -> pathlib.Path:
+    """Slice baked .3mf plates with PrusaSlicer CLI (ZERO CLI overrides!) and render G-code gyroid/perimeter previews."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.collections import LineCollection
     from matplotlib.lines import Line2D
     from matplotlib.patches import Rectangle
+    import lightweight_policy as lp
 
     t0 = time.time()
     slicer_exe = find_prusaslicer_cli()
     plates_man = json.loads((META_DIR / "plates_manifest.json").read_text(encoding="utf-8"))
     pl_list = plates_man["plates"]
-    pick_indices = [0, 1, max(2, len(pl_list) - 2)]
-    plate_files = [pathlib.Path(pl_list[i]["threemf_file"]).name for i in pick_indices]
     bed_x, bed_y = 180.0, 200.0
     margin = 5.0
     usable_x, usable_y = 170.0, 190.0
 
-    # 11.25 x 4.25 in @ 160 dpi = exact 1800 x 680 px
-    fig, axes = plt.subplots(1, 3, figsize=(11.25, 4.25), dpi=160)
-    fig.patch.set_facecolor("white")
-
-    with tempfile.TemporaryDirectory(prefix="slicer_v2_") as td:
-        td_path = pathlib.Path(td)
-        for ax, fname in zip(axes, plate_files):
-            mf_path = PLATES_DIR / fname
-            if not mf_path.exists():
-                raise FileNotFoundError(f"Missing plate 3MF: {mf_path}")
-            out_gcode = td_path / (mf_path.stem + ".gcode")
-            cmd = [
-                str(slicer_exe),
-                "--export-gcode",
-                "--dont-arrange",
-                "--bed-shape", "0x0,180x0,180x200,0x200",
-                "--max-print-height", "250",
-                "--layer-height", "0.2",
-                "--nozzle-diameter", "0.4",
-                "--filament-diameter", "1.75",
-                "--filament-density", "1.24",
-                "--perimeters", "3",
-                "--fill-density", "20%",
-                "--support-material=0",
-                "--skirts", "1",
-                "--skirt-distance", "2",
-                "--output", str(out_gcode),
-                str(mf_path),
-            ]
-            print(f"[SLICER] Slicing {fname}...", flush=True)
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-            if proc.returncode != 0 or not out_gcode.exists():
-                raise RuntimeError(f"PrusaSlicer failed on {fname} (rc={proc.returncode}): {proc.stderr[:400]}")
-
-            gtxt = out_gcode.read_text(encoding="utf-8", errors="ignore")
-            metrics, segs_skirt, segs_base, segs_upper = _parse_gcode_metrics_and_segments(gtxt)
-            print(
-                f"  -> {mf_path.stem}: {metrics['time_str']} | {metrics['filament_g']}g ({metrics['filament_m']}m) | "
-                f"{metrics['layer_count']} layers | segs={len(segs_base)}+{len(segs_upper)}",
-                flush=True,
-            )
-
-            # Draw 180x200 bed & 170x190 safe zone
-            ax.add_patch(Rectangle((0, 0), bed_x, bed_y, facecolor="#F5F7FA", edgecolor="#1B365D", lw=2.0, zorder=1))
-            ax.add_patch(Rectangle(
-                (margin, margin), usable_x, usable_y,
-                facecolor="#FFFFFF", edgecolor="#27AE60", lw=1.25, ls="--", zorder=2
-            ))
-            if segs_skirt:
-                ax.add_collection(LineCollection(segs_skirt, colors="#16A085", linewidths=0.75, alpha=0.85, zorder=3))
-            if segs_base:
-                ax.add_collection(LineCollection(segs_base, colors="#E67E22", linewidths=0.55, alpha=0.88, zorder=4))
-            if segs_upper:
-                ax.add_collection(LineCollection(segs_upper, colors="#1F618D", linewidths=0.55, alpha=0.82, zorder=5))
-
-            ax.set_xlim(-6, bed_x + 6)
-            ax.set_ylim(-6, bed_y + 6)
-            ax.set_aspect("equal", adjustable="box")
-            ax.set_xticks(range(0, 181, 30))
-            ax.set_yticks(range(0, 201, 40))
-            ax.grid(True, linestyle=":", color="#CBD5E1", linewidth=0.5, zorder=0)
-            ax.tick_params(labelsize=7.5)
-            ax.set_xlabel("X ban in (mm)", fontsize=8.2, fontweight="bold", color="#1B365D")
-            if ax is axes[0]:
-                ax.set_ylabel("Y ban in (mm)", fontsize=8.2, fontweight="bold", color="#1B365D")
-            ax.set_title(
-                f"{mf_path.stem}\n{metrics['time_str']} | {metrics['filament_g']:.1f} g ({metrics['filament_m']:.2f} m) | {metrics['layer_count']} lop",
-                fontsize=8.8, fontweight="bold", color="#0D233E", pad=6,
-            )
-
-    # Top dark banner
-    fig.patches.append(Rectangle((0, 0.875), 1, 0.125, transform=fig.transFigure, facecolor="#0D233E", edgecolor="none"))
-    fig.patches.append(Rectangle((0, 0.869), 1, 0.006, transform=fig.transFigure, facecolor="#26A69A", edgecolor="none"))
-    fig.text(
-        0.02, 0.952,
-        "KIEM CHUNG CAT LOP PRUSASLICER CLI — DUONG CHAY G-CODE THUC TREN BAN IN 180 x 200 x 250 mm",
-        fontsize=11.5, fontweight="bold", color="white", va="center",
-    )
-    fig.text(
-        0.02, 0.902,
-        "PLA 1.75 mm | Layer 0.20 mm | Nozzle 0.40 mm | 3 Perimeters | 20% Infill | Support: OFF (--dont-arrange, vung an toan 170x190 mm)",
-        fontsize=8.3, color="#C3E0F6", va="center",
-    )
-
-    legend_handles = [
-        Line2D([0], [0], color="#1B365D", lw=2.0, label="Bed 180 x 200 mm"),
-        Line2D([0], [0], color="#27AE60", lw=1.3, ls="--", label="Safe zone 170 x 190 mm"),
-        Line2D([0], [0], color="#16A085", lw=1.4, label="Skirt (2 mm)"),
-        Line2D([0], [0], color="#E67E22", lw=1.5, label="Lop 1-2 (G1 extrusion)"),
-        Line2D([0], [0], color="#1F618D", lw=1.5, label="Lop giua/dinh (G1 extrusion)"),
-    ]
-    fig.legend(
-        handles=legend_handles, loc="lower center", ncol=5,
-        frameon=True, facecolor="#F8FAFC", edgecolor="#CBD5E1",
-        fontsize=7.8, bbox_to_anchor=(0.5, 0.01),
-    )
-
-    fig.subplots_adjust(left=0.055, right=0.985, top=0.77, bottom=0.175, wspace=0.16)
-    out_png = PREV_DIR / "_slicer_plate_preview.png"
-    PREV_DIR.mkdir(parents=True, exist_ok=True)
-    fig.savefig(str(out_png), format="PNG", dpi=160)
-    plt.close(fig)
-    print(f"[OK] {out_png.name} (1800x680) in {time.time() - t0:.1f}s", flush=True)
-
-    # Also render dedicated PrusaSlicer toolpath preview of plate(s) containing P08, P07, SUP11, SUP10, SUP10B
+    # Slice all plates once (ZERO CLI overrides!) if rendering per-plate run-dir screens, otherwise representative subset
     servo_targets = {
         "P08_DOOR_LEAF",
         "P07_SERVO_SHELF",
@@ -1528,82 +1313,178 @@ def render_slicer_plate_preview() -> pathlib.Path:
         "SUP10_DOOR_MORTISE_HINGE",
         "SUP10B_DOOR_HORN_COUPLER",
     }
-    servo_plates = [
-        pl for pl in pl_list if any(it["part_id"] in servo_targets for it in pl["items"])
+    pick_indices = [0, min(1, len(pl_list) - 1), max(0, len(pl_list) - 2)]
+    needed_indices = set(range(len(pl_list))) if all_plates_screens_dir is not None else set(pick_indices)
+    for i, pl in enumerate(pl_list):
+        if any(it["part_id"] in servo_targets for it in pl["items"]):
+            needed_indices.add(i)
+
+    sliced_cache: dict[int, tuple[dict[str, Any], list, list, list, list]] = {}
+    with tempfile.TemporaryDirectory(prefix="slicer_hw14_") as td:
+        td_path = pathlib.Path(td)
+        for i in sorted(needed_indices):
+            pl = pl_list[i]
+            mf_path = PRINT3D_ROOT / pl["threemf_file"]
+            out_gcode = td_path / (mf_path.stem + ".gcode")
+            # ZERO CLI overrides: PrusaSlicer reads baked Slic3r_PE.config & Slic3r_PE_model.config natively!
+            cmd = [
+                str(slicer_exe),
+                "--export-gcode",
+                "--dont-arrange",
+                "--output", str(out_gcode),
+                str(mf_path),
+            ]
+            print(f"[SLICER] Slicing baked .3mf {mf_path.name} (0 CLI overrides)...", flush=True)
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+            if proc.returncode != 0 or not out_gcode.exists():
+                raise RuntimeError(f"PrusaSlicer failed on {mf_path.name} (rc={proc.returncode}): {proc.stderr[:400]}")
+            gtxt = out_gcode.read_text(encoding="utf-8", errors="ignore")
+            sliced_cache[i] = _parse_gcode_metrics_and_segments(gtxt)
+
+    def _draw_plate_ax(ax: Any, pl: dict[str, Any], cached: tuple, highlight_3p: bool = True) -> None:
+        metrics, sk, perim, inf, sol = cached
+        ax.add_patch(Rectangle((0, 0), bed_x, bed_y, facecolor="#F5F7FA", edgecolor="#1B365D", lw=2.0, zorder=1))
+        ax.add_patch(Rectangle((margin, margin), usable_x, usable_y, facecolor="#FFFFFF", edgecolor="#27AE60", lw=1.25, ls="--", zorder=2))
+        if sk:
+            ax.add_collection(LineCollection(sk, colors="#95A5A6", linewidths=0.70, alpha=0.85, zorder=3))
+        if sol:
+            ax.add_collection(LineCollection(sol, colors="#D6EAF8", linewidths=0.45, alpha=0.75, zorder=4))
+        if inf:
+            ax.add_collection(LineCollection(inf, colors="#16A085", linewidths=0.65, alpha=0.95, zorder=5))
+        if perim:
+            ax.add_collection(LineCollection(perim, colors="#D35400", linewidths=0.70, alpha=0.92, zorder=6))
+        if highlight_3p:
+            for it in pl["items"]:
+                if it["part_id"] in lp.THREE_PERIMETER_PARTS:
+                    x0, y0, w, h = float(it["x_mm"]), float(it["y_mm"]), float(it["w_mm"]), float(it["h_mm"])
+                    ax.add_patch(Rectangle((x0 - 0.8, y0 - 0.8), w + 1.6, h + 1.6, facecolor="none", edgecolor="#8E44AD", lw=1.2, ls=":", zorder=7))
+        ax.set_xlim(-6, bed_x + 6)
+        ax.set_ylim(-6, bed_y + 6)
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_xticks(range(0, 181, 30))
+        ax.set_yticks(range(0, 201, 40))
+        ax.grid(True, linestyle=":", color="#CBD5E1", linewidth=0.5, zorder=0)
+        ax.tick_params(labelsize=7.5)
+        ax.set_xlabel("X ban in (mm)", fontsize=8.2, fontweight="bold", color="#1B365D")
+
+    # 1. Per-plate run-dir slicer screens (hw14_slicer_plate01.png .. hw14_slicer_plateNN.png)
+    if all_plates_screens_dir is not None:
+        all_plates_screens_dir.mkdir(parents=True, exist_ok=True)
+        for i, pl in enumerate(pl_list):
+            pidx = int(pl["plate_index"])
+            cached = sliced_cache[i]
+            metrics = cached[0]
+            n_3p = sum(1 for it in pl["items"] if it["part_id"] in lp.THREE_PERIMETER_PARTS)
+            n_2p = len(pl["items"]) - n_3p
+            fig_s = plt.figure(figsize=(7.5, 7.5), dpi=160)
+            fig_s.patch.set_facecolor("white")
+            ax_s = fig_s.add_axes([0.11, 0.145, 0.84, 0.71])
+            _draw_plate_ax(ax_s, pl, cached, highlight_3p=True)
+            ax_s.set_ylabel("Y ban in (mm)", fontsize=8.8, fontweight="bold", color="#1B365D")
+            # Annotate each part with compact tag + 2P/3P badge
+            for it in pl["items"]:
+                x0, y0, w, h = float(it["x_mm"]), float(it["y_mm"]), float(it["w_mm"]), float(it["h_mm"])
+                if max(w, h) >= 18.0:
+                    p_tag = "3P" if it["part_id"] in lp.THREE_PERIMETER_PARTS else "2P"
+                    short = it["part_id"].split("_")[0]
+                    ax_s.text(
+                        x0 + w / 2.0, y0 + h / 2.0, f"{short} ({p_tag})",
+                        ha="center", va="center", fontsize=6.6 if max(w, h) < 60 else 7.8, fontweight="bold",
+                        color="#4A235A" if p_tag == "3P" else "#0D233E",
+                        bbox=dict(boxstyle="round,pad=0.14", facecolor="white", edgecolor="#8E44AD" if p_tag == "3P" else "#1B365D", alpha=0.84, lw=0.7),
+                        zorder=9,
+                    )
+            fig_s.patches.append(Rectangle((0, 0.885), 1, 0.115, transform=fig_s.transFigure, facecolor="#0D233E", edgecolor="none"))
+            fig_s.patches.append(Rectangle((0, 0.880), 1, 0.005, transform=fig_s.transFigure, facecolor="#26A69A", edgecolor="none"))
+            fig_s.text(0.03, 0.948, f"PRUSASLICER G-CODE #{pidx:02d}/{len(pl_list):02d} — {pl['plate_id']}", fontsize=13, fontweight="bold", color="white", va="center")
+            fig_s.text(
+                0.03, 0.908,
+                f"Baked .3mf (0 CLI override) | {metrics['filament_g']:.2f} g ({metrics['filament_m']:.2f} m) | {metrics['time_str']} | Lop #{metrics['infill_layer']}/{metrics['layer_count']} | {n_2p}x 2P + {n_3p}x 3P | 0 support",
+                fontsize=8.3, color="#C3E0F6", va="center",
+            )
+            lhandles = [
+                Line2D([0], [0], color="#D35400", lw=1.6, label="Perimeters (2P / 3P)"),
+                Line2D([0], [0], color="#16A085", lw=1.6, label="9% Gyroid Infill"),
+                Line2D([0], [0], color="#8E44AD", lw=1.4, ls=":", label="3-Perim Strength Part"),
+                Line2D([0], [0], color="#27AE60", lw=1.3, ls="--", label="Safe 170x190 mm"),
+            ]
+            fig_s.legend(handles=lhandles, loc="lower center", ncol=4, frameon=True, facecolor="#F8FAFC", edgecolor="#CBD5E1", fontsize=7.6, bbox_to_anchor=(0.5, 0.012))
+            out_s = all_plates_screens_dir / f"hw14_slicer_plate{pidx:02d}.png"
+            fig_s.savefig(str(out_s), format="PNG", dpi=160)
+            plt.close(fig_s)
+        print(f"[OK] Rendered {len(pl_list)} per-plate slicer screens to {all_plates_screens_dir}", flush=True)
+
+    # 2. Representative 3-plate montage (`previews/_slicer_plate_preview.png`)
+    fig, axes = plt.subplots(1, 3, figsize=(11.25, 4.25), dpi=160)
+    fig.patch.set_facecolor("white")
+    for ax, idx in zip(axes, pick_indices):
+        pl = pl_list[idx]
+        cached = sliced_cache[idx]
+        metrics = cached[0]
+        _draw_plate_ax(ax, pl, cached, highlight_3p=True)
+        if ax is axes[0]:
+            ax.set_ylabel("Y ban in (mm)", fontsize=8.2, fontweight="bold", color="#1B365D")
+        ax.set_title(
+            f"{pl['plate_id']}\n{metrics['time_str']} | {metrics['filament_g']:.2f} g ({metrics['filament_m']:.2f} m) | Lop {metrics['infill_layer']}/{metrics['layer_count']}",
+            fontsize=8.5, fontweight="bold", color="#0D233E", pad=6,
+        )
+
+    fig.patches.append(Rectangle((0, 0.875), 1, 0.125, transform=fig.transFigure, facecolor="#0D233E", edgecolor="none"))
+    fig.patches.append(Rectangle((0, 0.869), 1, 0.006, transform=fig.transFigure, facecolor="#26A69A", edgecolor="none"))
+    fig.text(0.02, 0.952, "KIEM CHUNG CAT LOP PRUSASLICER CLI (BAKED .3MF — 0 CLI OVERRIDE) TREN BAN 180 x 200 mm", fontsize=11.0, fontweight="bold", color="white", va="center")
+    fig.text(0.02, 0.902, "PLA 1.75 mm | 0.20 mm | 9% Gyroid | 2 Perims (3 Perims ngam/khop/SG90) | 3/3 Top-Bot (SUP15: 4 Bot) | Support: OFF", fontsize=8.1, color="#C3E0F6", va="center")
+    legend_handles = [
+        Line2D([0], [0], color="#1B365D", lw=2.0, label="Bed 180 x 200 mm"),
+        Line2D([0], [0], color="#27AE60", lw=1.3, ls="--", label="Safe 170 x 190 mm"),
+        Line2D([0], [0], color="#D35400", lw=1.6, label="Perimeters (2P/3P)"),
+        Line2D([0], [0], color="#16A085", lw=1.6, label="9% Gyroid Infill"),
+        Line2D([0], [0], color="#8E44AD", lw=1.4, ls=":", label="3P Strength Override"),
     ]
-    if servo_plates:
-        n_sp = len(servo_plates)
+    fig.legend(handles=legend_handles, loc="lower center", ncol=5, frameon=True, facecolor="#F8FAFC", edgecolor="#CBD5E1", fontsize=7.6, bbox_to_anchor=(0.5, 0.01))
+    fig.subplots_adjust(left=0.055, right=0.985, top=0.77, bottom=0.175, wspace=0.16)
+    out_png = PREV_DIR / "_slicer_plate_preview.png"
+    PREV_DIR.mkdir(parents=True, exist_ok=True)
+    fig.savefig(str(out_png), format="PNG", dpi=160)
+    plt.close(fig)
+    print(f"[OK] {out_png.name} (1800x680) in {time.time() - t0:.1f}s", flush=True)
+
+    # 3. Dedicated servo door plates preview (`previews/_slicer_servo_door_plates.png`)
+    servo_indices = [i for i, pl in enumerate(pl_list) if any(it["part_id"] in servo_targets for it in pl["items"])]
+    if servo_indices:
+        n_sp = len(servo_indices)
         fig2, axes2 = plt.subplots(1, n_sp, figsize=(max(6.2, 4.2 * n_sp), 4.8), dpi=160)
         if n_sp == 1:
             axes2 = [axes2]
         fig2.patch.set_facecolor("white")
-        with tempfile.TemporaryDirectory(prefix="slicer_servo_") as td2:
-            td2_path = pathlib.Path(td2)
-            for ax2, pl in zip(axes2, servo_plates):
-                mf_path = PRINT3D_ROOT / pl["threemf_file"]
-                out_gc2 = td2_path / (mf_path.stem + ".gcode")
-                cmd2 = [
-                    str(slicer_exe), "--export-gcode", "--dont-arrange",
-                    "--bed-shape", "0x0,180x0,180x200,0x200", "--max-print-height", "250",
-                    "--layer-height", "0.2", "--nozzle-diameter", "0.4",
-                    "--filament-diameter", "1.75", "--filament-density", "1.24",
-                    "--perimeters", "3", "--fill-density", "20%",
-                    "--support-material=0", "--skirts", "1", "--skirt-distance", "2",
-                    "--output", str(out_gc2), str(mf_path),
-                ]
-                proc2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=180)
-                if proc2.returncode != 0 or not out_gc2.exists():
-                    raise RuntimeError(f"PrusaSlicer failed on {mf_path.name}: {proc2.stderr[:300]}")
-                metrics2, sk2, base2, up2 = _parse_gcode_metrics_and_segments(out_gc2.read_text(encoding="utf-8", errors="ignore"))
-                ax2.add_patch(Rectangle((0, 0), bed_x, bed_y, facecolor="#F5F7FA", edgecolor="#1B365D", lw=2.0, zorder=1))
-                ax2.add_patch(Rectangle((margin, margin), usable_x, usable_y, facecolor="#FFFFFF", edgecolor="#27AE60", lw=1.25, ls="--", zorder=2))
-                if sk2:
-                    ax2.add_collection(LineCollection(sk2, colors="#16A085", linewidths=0.75, alpha=0.85, zorder=3))
-                if base2:
-                    ax2.add_collection(LineCollection(base2, colors="#E67E22", linewidths=0.55, alpha=0.88, zorder=4))
-                if up2:
-                    ax2.add_collection(LineCollection(up2, colors="#1F618D", linewidths=0.55, alpha=0.82, zorder=5))
-                # Highlight the target servo/door parts with crisp crimson dashed boxes & tags
-                found_tags: list[str] = []
-                for it in pl["items"]:
-                    if it["part_id"] in servo_targets:
-                        x0, y0, w, h = float(it["x_mm"]), float(it["y_mm"]), float(it["w_mm"]), float(it["h_mm"])
-                        ax2.add_patch(Rectangle((x0 - 1.2, y0 - 1.2), w + 2.4, h + 2.4, facecolor="none", edgecolor="#C0392B", lw=1.8, zorder=8))
-                        short = it["part_id"].split("_")[0]
-                        if short not in found_tags:
-                            found_tags.append(short)
-                        ax2.text(
-                            x0 + w / 2.0, y0 + h / 2.0, short,
-                            ha="center", va="center", fontsize=7.2, fontweight="bold", color="#922B21",
-                            bbox=dict(boxstyle="round,pad=0.18", facecolor="#FDEDEC", edgecolor="#C0392B", lw=0.9, alpha=0.92),
-                            zorder=9,
-                        )
-                ax2.set_xlim(-6, bed_x + 6)
-                ax2.set_ylim(-6, bed_y + 6)
-                ax2.set_aspect("equal", adjustable="box")
-                ax2.set_xticks(range(0, 181, 30))
-                ax2.set_yticks(range(0, 201, 40))
-                ax2.grid(True, linestyle=":", color="#CBD5E1", linewidth=0.5, zorder=0)
-                ax2.tick_params(labelsize=7.5)
-                ax2.set_xlabel("X ban in (mm)", fontsize=8.2, fontweight="bold", color="#1B365D")
-                if ax2 is axes2[0]:
-                    ax2.set_ylabel("Y ban in (mm)", fontsize=8.2, fontweight="bold", color="#1B365D")
-                ax2.set_title(
-                    f"{pl['plate_id']} [{', '.join(found_tags)}]\n{metrics2['time_str']} | {metrics2['filament_g']:.1f} g | {metrics2['layer_count']} lop | 0 support",
-                    fontsize=8.2, fontweight="bold", color="#0D233E", pad=6,
-                )
+        for ax2, idx in zip(axes2, servo_indices):
+            pl = pl_list[idx]
+            cached = sliced_cache[idx]
+            metrics2 = cached[0]
+            _draw_plate_ax(ax2, pl, cached, highlight_3p=False)
+            found_tags: list[str] = []
+            for it in pl["items"]:
+                if it["part_id"] in servo_targets:
+                    x0, y0, w, h = float(it["x_mm"]), float(it["y_mm"]), float(it["w_mm"]), float(it["h_mm"])
+                    ax2.add_patch(Rectangle((x0 - 1.2, y0 - 1.2), w + 2.4, h + 2.4, facecolor="none", edgecolor="#C0392B", lw=1.8, zorder=8))
+                    short = it["part_id"].split("_")[0]
+                    if short not in found_tags:
+                        found_tags.append(short)
+                    ax2.text(
+                        x0 + w / 2.0, y0 + h / 2.0, short,
+                        ha="center", va="center", fontsize=7.2, fontweight="bold", color="#922B21",
+                        bbox=dict(boxstyle="round,pad=0.18", facecolor="#FDEDEC", edgecolor="#C0392B", lw=0.9, alpha=0.92),
+                        zorder=9,
+                    )
+            if ax2 is axes2[0]:
+                ax2.set_ylabel("Y ban in (mm)", fontsize=8.2, fontweight="bold", color="#1B365D")
+            ax2.set_title(
+                f"{pl['plate_id']} [{', '.join(found_tags)}]\n{metrics2['time_str']} | {metrics2['filament_g']:.2f} g | 0 support",
+                fontsize=8.2, fontweight="bold", color="#0D233E", pad=6,
+            )
         fig2.patches.append(Rectangle((0, 0.875), 1, 0.125, transform=fig2.transFigure, facecolor="#0D233E", edgecolor="none"))
         fig2.patches.append(Rectangle((0, 0.869), 1, 0.006, transform=fig2.transFigure, facecolor="#26A69A", edgecolor="none"))
-        fig2.text(
-            0.02, 0.952,
-            "PRUSASLICER CLI G-CODE — BAN IN CHUA CUM CUA & SERVO SG90 (P08, P07, SUP11, SUP10, SUP10B)",
-            fontsize=10.8, fontweight="bold", color="white", va="center",
-        )
-        fig2.text(
-            0.02, 0.902,
-            "Cat lop that --dont-arrange | Ban 180x200x250 mm | PLA 0.20 mm | Support: OFF (0 overhang) | Khung do: chi tiet cum cua & servo",
-            fontsize=8.0, color="#C3E0F6", va="center",
-        )
+        fig2.text(0.02, 0.952, "PRUSASLICER CLI G-CODE — BAN IN CHUA CUM CUA & SERVO SG90 (3 PERIMS BAKED)", fontsize=10.8, fontweight="bold", color="white", va="center")
+        fig2.text(0.02, 0.902, "Baked .3mf (0 CLI override) | P07, SUP10, SUP10B, SUP11 giu 3 thanh | 9% Gyroid | Support: OFF", fontsize=8.0, color="#C3E0F6", va="center")
         fig2.subplots_adjust(left=0.06, right=0.985, top=0.77, bottom=0.14, wspace=0.18)
         out_servo_png = PREV_DIR / "_slicer_servo_door_plates.png"
         fig2.savefig(str(out_servo_png), format="PNG", dpi=160)
@@ -1631,6 +1512,12 @@ def parse_args() -> argparse.Namespace:
         default=os.environ.get("RENDER_V2_MODE", "python"),
         help="Which stage to render",
     )
+    ap.add_argument(
+        "--slicer-screens-dir",
+        type=str,
+        default="",
+        help="Optional directory to also export hw14_slicer_plate01..NN.png for every plate",
+    )
     args, _unknown = ap.parse_known_args(argv)
     return args
 
@@ -1646,7 +1533,8 @@ def main() -> int:
     if args.mode in ("plates", "python", "all"):
         render_plate_layouts()
     if args.mode in ("slicer", "python", "all"):
-        render_slicer_plate_preview()
+        sdir = pathlib.Path(args.slicer_screens_dir) if args.slicer_screens_dir else None
+        render_slicer_plate_preview(all_plates_screens_dir=sdir)
 
     print(f"DONE (mode={args.mode}) in {time.time() - t0:.1f}s", flush=True)
     return 0

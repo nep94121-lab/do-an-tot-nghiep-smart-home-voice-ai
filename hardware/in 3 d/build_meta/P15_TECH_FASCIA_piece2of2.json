@@ -77,6 +77,19 @@
     0.87,
     0.98
   ],
+  "lightweight": {
+    "enabled": false,
+    "web_thickness_mm": 3.0,
+    "rim_thickness_mm": 3.0,
+    "pocket_depth_mm": 0.0,
+    "max_unsupported_span_mm": 0.0,
+    "cutout_count": 0,
+    "hex_flat_to_flat_mm": null,
+    "min_rib_mm": null,
+    "min_edge_margin_mm": null,
+    "relay_psu_closed": true,
+    "cutout_centers_local_uv": []
+  },
   "step_file": "parts/P15_TECH_FASCIA_piece2of2.step",
   "stl_file": "parts/P15_TECH_FASCIA_piece2of2.stl",
   "stl_facets": 8886

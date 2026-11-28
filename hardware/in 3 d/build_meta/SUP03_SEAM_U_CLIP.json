@@ -6,50 +6,50 @@
   "vi_name": "Kep mong chu U khoa moi noi duoi en",
   "mating_source": "Split seams of P01A/P01B/P02/P05/P15 (T=3.0 mm + 0.20 mm clearance)",
   "params": {
-    "length": 34.0,
+    "length": 26.0,
     "slot_w": 3.2,
-    "wall_t": 3.0,
-    "height": 9.0
+    "wall_t": 2.2,
+    "height": 8.2
   },
   "assembly_placements": [
     {
-      "x": 115.0,
-      "y": 375.9,
+      "x": 119.0,
+      "y": 376.7,
       "z": 141.0,
       "rot_z": 0.0
     },
     {
       "x": 214.5,
-      "y": 375.9,
+      "y": 376.7,
       "z": 141.0,
       "rot_z": 0.0
     },
     {
-      "x": 102.5,
-      "y": 188.9,
+      "x": 106.5,
+      "y": 189.7,
       "z": 114.0,
       "rot_z": 0.0
     },
     {
-      "x": 266.0,
-      "y": 188.9,
+      "x": 270.0,
+      "y": 189.7,
       "z": 28.0,
       "rot_z": 0.0
     },
     {
-      "x": 134.0,
-      "y": 6.9,
+      "x": 138.0,
+      "y": 7.7,
       "z": 10.0,
       "rot_z": 0.0
     }
   ],
   "print_bbox_mm": [
-    34.0,
-    9.2,
-    9.0
+    26.0,
+    7.6,
+    8.2
   ],
   "print_z_min": 0.0,
-  "volume_mm3": 2160.249,
+  "volume_mm3": 1118.969,
   "solids": 1,
   "expected_solids": 1,
   "valid": true,

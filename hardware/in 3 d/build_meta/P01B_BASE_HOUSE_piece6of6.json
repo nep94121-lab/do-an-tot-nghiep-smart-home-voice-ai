@@ -37,13 +37,13 @@
     3.0
   ],
   "print_z_min": 0.0,
-  "volume_mm3": 48953.349,
+  "volume_mm3": 22392.054,
   "solids": 1,
   "valid": true,
   "engraved_ok": true,
   "engrave_text": "P01B p6/6 | 136x131x3mm",
   "dovetail_count": 4,
-  "mortise_count": 2,
+  "mortise_count": 0,
   "stripped_fastener_holes": [
     "JOIN_L3_M3",
     "JOIN_L4_M3",
@@ -57,7 +57,115 @@
     0.85,
     0.95
   ],
+  "lightweight": {
+    "enabled": true,
+    "web_thickness_mm": 2.2,
+    "rim_thickness_mm": 3.0,
+    "pocket_depth_mm": 0.8,
+    "max_unsupported_span_mm": 85.0,
+    "cutout_count": 23,
+    "cutout_area_mm2": 8393.39,
+    "conformal_clipped": true,
+    "hex_flat_to_flat_mm": 28.0,
+    "min_rib_mm": 3.2,
+    "min_edge_margin_mm": 6.5,
+    "relay_psu_closed": true,
+    "cutout_centers_local_uv": [
+      [
+        287.871,
+        116.412
+      ],
+      [
+        288.356,
+        106.204
+      ],
+      [
+        312.0,
+        117.656
+      ],
+      [
+        311.998,
+        106.249
+      ],
+      [
+        343.2,
+        117.656
+      ],
+      [
+        342.371,
+        104.073
+      ],
+      [
+        373.991,
+        117.724
+      ],
+      [
+        375.364,
+        104.655
+      ],
+      [
+        298.497,
+        135.106
+      ],
+      [
+        327.6,
+        135.1
+      ],
+      [
+        358.8,
+        135.1
+      ],
+      [
+        387.457,
+        137.317
+      ],
+      [
+        288.973,
+        159.44
+      ],
+      [
+        312.0,
+        162.12
+      ],
+      [
+        343.2,
+        162.12
+      ],
+      [
+        373.979,
+        162.009
+      ],
+      [
+        395.904,
+        155.901
+      ],
+      [
+        297.222,
+        187.911
+      ],
+      [
+        327.673,
+        189.063
+      ],
+      [
+        358.783,
+        187.49
+      ],
+      [
+        385.974,
+        192.393
+      ],
+      [
+        284.902,
+        205.869
+      ],
+      [
+        340.671,
+        205.909
+      ]
+    ]
+  },
   "step_file": "parts/P01B_BASE_HOUSE_piece6of6.step",
   "stl_file": "parts/P01B_BASE_HOUSE_piece6of6.stl",
-  "stl_facets": 7618
+  "stl_facets": 8280
 }

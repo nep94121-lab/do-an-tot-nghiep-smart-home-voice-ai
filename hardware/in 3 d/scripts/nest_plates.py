@@ -33,6 +33,7 @@ SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 PRINT3D_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+import lightweight_policy as lp
 import print_domain as pd_mod
 
 PARTS_DIR = PRINT3D_ROOT / "parts"
@@ -52,6 +53,201 @@ class PackItem:
     solid_xy_area: float
     bbox_xy_area: float
     stl_path: pathlib.Path
+
+
+def _rasterize_mesh_xy_mask(mesh: trimesh.Trimesh, step_mm: float = 1.0, fill_small_holes_mm2: float = 1500.0) -> np.ndarray:
+    """Fast C-level PIL rasterization of projected XY solid footprint on a step_mm grid; fill small hex holes."""
+    from PIL import Image, ImageDraw
+
+    verts = mesh.vertices.copy()
+    verts -= mesh.bounds[0]
+    ext = mesh.extents
+    nx = max(1, int(math.ceil(float(ext[0]) / step_mm)))
+    ny = max(1, int(math.ceil(float(ext[1]) / step_mm)))
+
+    # PIL Image size is (width=nx, height=ny); array is (ny, nx) -> transpose to (nx, ny)
+    im = Image.new("1", (nx, ny), 0)
+    draw = ImageDraw.Draw(im)
+
+    normals = mesh.face_normals
+    up_mask = np.abs(normals[:, 2]) > 0.15
+    tris = verts[mesh.faces[up_mask]][:, :, :2] / step_mm
+    for t in tris:
+        pts = [(float(t[0, 0]), float(t[0, 1])), (float(t[1, 0]), float(t[1, 1])), (float(t[2, 0]), float(t[2, 1]))]
+        draw.polygon(pts, fill=1, outline=1)
+    mask = np.array(im, dtype=bool).T.copy()
+
+    # Fill small interior holes (< fill_small_holes_mm2, e.g. 15 mm hex cutouts ~195 mm2) so no tiny peg nests inside a hex!
+    if fill_small_holes_mm2 > 0.0:
+        from collections import deque
+
+        pad = np.zeros((nx + 2, ny + 2), dtype=bool)
+        pad[1:-1, 1:-1] = mask
+        visited = pad.copy()
+        q: deque[tuple[int, int]] = deque([(0, 0)])
+        visited[0, 0] = True
+        while q:
+            cx, cy = q.popleft()
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx_, ny_ = cx + dx, cy + dy
+                if 0 <= nx_ < nx + 2 and 0 <= ny_ < ny + 2 and not visited[nx_, ny_]:
+                    visited[nx_, ny_] = True
+                    q.append((nx_, ny_))
+        hole_px = ~visited[1:-1, 1:-1]
+        if np.any(hole_px):
+            seen_h = np.zeros((nx, ny), dtype=bool)
+            min_hole_cells = int(math.ceil(fill_small_holes_mm2 / (step_mm * step_mm)))
+            hx_idx, hy_idx = np.where(hole_px)
+            for sx, sy in zip(hx_idx.tolist(), hy_idx.tolist()):
+                if seen_h[sx, sy]:
+                    continue
+                comp: list[tuple[int, int]] = []
+                hq: deque[tuple[int, int]] = deque([(sx, sy)])
+                seen_h[sx, sy] = True
+                while hq:
+                    cx, cy = hq.popleft()
+                    comp.append((cx, cy))
+                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        nx_, ny_ = cx + dx, cy + dy
+                        if 0 <= nx_ < nx and 0 <= ny_ < ny and hole_px[nx_, ny_] and not seen_h[nx_, ny_]:
+                            seen_h[nx_, ny_] = True
+                            hq.append((nx_, ny_))
+                if len(comp) < min_hole_cells:
+                    for cx, cy in comp:
+                        mask[cx, cy] = True
+    return mask
+
+
+def _dilate_mask(mask: np.ndarray, radius_px: int) -> np.ndarray:
+    """Exact Euclidean disk dilation on a 2D boolean mask (returns mask padded by radius_px on all sides)."""
+    nx, ny = mask.shape
+    out = np.zeros((nx + 2 * radius_px, ny + 2 * radius_px), dtype=bool)
+    r2 = radius_px * radius_px
+    for dx in range(-radius_px, radius_px + 1):
+        for dy in range(-radius_px, radius_px + 1):
+            if dx * dx + dy * dy <= r2:
+                x0 = radius_px + dx
+                y0 = radius_px + dy
+                out[x0 : x0 + nx, y0 : y0 + ny] |= mask
+    return out
+
+
+class RasterBin:
+    """2D True-Shape Occupancy-Grid Bin (170x190 mm @ 1 mm grid, 256x256 FFT search, >= 3.0 mm real clearance)."""
+
+    FFT_N = 256
+
+    def __init__(self, width_px: int, height_px: int, step_mm: float = 1.0, spacing_px: int = 4) -> None:
+        self.W = width_px
+        self.H = height_px
+        self.step_mm = step_mm
+        self.spacing_px = spacing_px
+        self.occ_dilated = np.zeros((width_px, height_px), dtype=bool)
+        self.occ_solid = np.zeros((width_px, height_px), dtype=bool)
+        self._occ_fft: np.ndarray | None = None
+        self.placements: list[tuple[PackItem, float, float, float, float, bool]] = []
+
+    def _get_occ_fft(self) -> np.ndarray:
+        if self._occ_fft is None:
+            buf = np.zeros((self.FFT_N, self.FFT_N), dtype=np.float32)
+            buf[: self.W, : self.H] = self.occ_dilated.astype(np.float32)
+            self._occ_fft = np.fft.rfft2(buf)
+        return self._occ_fft
+
+    def find_position(
+        self,
+        item: PackItem,
+        mask_0: np.ndarray,
+        fft_0: np.ndarray,
+        mask_90: np.ndarray,
+        fft_90: np.ndarray,
+        prefer_compact: bool = True,
+    ) -> tuple[int, int, bool, tuple[float, float]] | None:
+        occ_fft = self._get_occ_fft()
+        best_choice: tuple[int, int, bool] | None = None
+        best_score = (float("inf"), float("inf"))
+
+        cur_xmax = max((p[1] + p[3] for p in self.placements), default=0.0)
+        cur_ymax = max((p[2] + p[4] for p in self.placements), default=0.0)
+        s = self.step_mm
+
+        orientations = [(mask_0, fft_0, item.w, item.h, False)]
+        if abs(item.w - item.h) > 1e-3 or mask_0.shape != mask_90.shape:
+            orientations.append((mask_90, fft_90, item.h, item.w, True))
+
+        for m, m_fft, pw, ph, rot in orientations:
+            mw, mh = m.shape
+            max_x = min(int(math.floor((self.W * s - pw) / s + 1e-6)), self.W - mw)
+            max_y = min(int(math.floor((self.H * s - ph) / s + 1e-6)), self.H - mh)
+            if max_x < 0 or max_y < 0:
+                continue
+
+            if not self.placements:
+                # Place solid mass toward bed edges so any L-shaped cutaway merges with remaining bed margin!
+                xs_m, ys_m = np.where(m)
+                mean_x = float(xs_m.mean()) if len(xs_m) else mw / 2.0
+                mean_y = float(ys_m.mean()) if len(ys_m) else mh / 2.0
+                fx = max_x if mean_x > mw / 2.0 else 0
+                fy = max_y if mean_y > mh / 2.0 else 0
+                # For non-convex L-shaped panels (fill < 60%), prefer orientation maximizing the merged empty quadrant!
+                fill_ratio = float(m.sum()) / max(1.0, float(mw * mh))
+                if fill_ratio < 0.60 and max(item.w, item.h) <= self.W:
+                    # Measure open margin along the cutaway edge (prefer wider X margin when X-cutaway aligns)
+                    open_x = self.W - (mw - int(xs_m.min() if fx > 0 else (mw - 1 - xs_m.max())))
+                    open_y = self.H - (mh - int(ys_m.min() if fy > 0 else (mh - 1 - ys_m.max())))
+                    sc = (0.0, -float(min(open_x, open_y)) - 0.01 * float(ph))
+                else:
+                    sc = (0.0, float(ph))
+                if sc < best_score:
+                    best_score = sc
+                    best_choice = (fx, fy, rot)
+                continue
+
+            conv = np.fft.irfft2(occ_fft * m_fft, s=(self.FFT_N, self.FFT_N))
+            valid_map = conv[mw - 1 : mw - 1 + max_x + 1, mh - 1 : mh - 1 + max_y + 1] < 0.25
+            xs, ys = np.where(valid_map)
+            if len(xs) == 0:
+                continue
+
+            if prefer_compact:
+                new_xmax = np.maximum(cur_xmax, xs * s + pw)
+                new_ymax = np.maximum(cur_ymax, ys * s + ph)
+                bbox_inc = (new_xmax * new_ymax) - (cur_xmax * cur_ymax)
+                primary = bbox_inc + 0.01 * (xs + ys)
+                secondary = ys + 0.1 * xs
+            else:
+                primary = ys + 0.05 * xs
+                secondary = xs.astype(np.float64)
+
+            idx_order = np.lexsort((secondary, primary))
+            for k in idx_order[:8]:
+                cx, cy = int(xs[k]), int(ys[k])
+                if not np.any(self.occ_dilated[cx : cx + mw, cy : cy + mh] & m):
+                    sc = (float(primary[k]), float(secondary[k]))
+                    if sc < best_score:
+                        best_score = sc
+                        best_choice = (cx, cy, rot)
+                    break
+
+        if best_choice is None:
+            return None
+        return (*best_choice, best_score)
+
+    def place(self, item: PackItem, x: int, y: int, rot: bool, mask_solid: np.ndarray, mask_dil: np.ndarray) -> None:
+        mw, mh = mask_solid.shape
+        r = self.spacing_px
+        self.occ_solid[x : x + mw, y : y + mh] |= mask_solid
+        dx0 = max(0, x - r)
+        dy0 = max(0, y - r)
+        dx1 = min(self.W, x + mw + r)
+        dy1 = min(self.H, y + mh + r)
+        sx0 = dx0 - (x - r)
+        sy0 = dy0 - (y - r)
+        self.occ_dilated[dx0:dx1, dy0:dy1] |= mask_dil[sx0 : sx0 + (dx1 - dx0), sy0 : sy0 + (dy1 - dy0)]
+        self._occ_fft = None
+        pw = item.h if rot else item.w
+        ph = item.w if rot else item.h
+        self.placements.append((item, float(x) * self.step_mm, float(y) * self.step_mm, pw, ph, rot))
 
 
 @dataclass
@@ -182,7 +378,7 @@ def _compute_mesh_xy_solid_area(mesh: trimesh.Trimesh) -> float:
 def load_pack_items() -> list[PackItem]:
     items: list[PackItem] = []
     for mp in sorted(META_DIR.glob("*.json")):
-        if mp.stem in ("fit_table", "assembly_report", "plates_manifest", "slice_report", "user_like_test_report"):
+        if mp.stem in ("fit_table", "assembly_report", "plates_manifest", "slice_report", "user_like_test_report", "strength_report"):
             continue
         meta = json.loads(mp.read_text(encoding="utf-8"))
         if "part_id" not in meta or "kind" not in meta:
@@ -214,134 +410,141 @@ def load_pack_items() -> list[PackItem]:
     return items
 
 
-def run_packing(items: list[PackItem], cfg: pd_mod.PrintConfig) -> list[list[PlacedItem]]:
-    """Run multi-heuristic MaxRects 2D bin packing; minimize plate count first, then Z-spread & cohesion."""
-    sp = cfg.plate_spacing  # 3.0 mm
-    bin_w = cfg.usable_x + sp  # 173.0
-    bin_h = cfg.usable_y + sp  # 193.0
+def run_packing(items: list[PackItem], cfg: pd_mod.PrintConfig) -> tuple[list[list[PlacedItem]], dict[str, np.ndarray]]:
+    """True-shape 2D raster occupancy-grid nesting (0/90 deg, >= 3.0 mm real Euclidean clearance) minimizing plates."""
+    step_mm = 1.0
+    W = int(round(cfg.usable_x / step_mm))  # 170
+    H = int(round(cfg.usable_y / step_mm))  # 190
+    sp_px = int(math.ceil((cfg.plate_spacing + step_mm) / step_mm))  # 4 px = 4 mm -> >= 3.0 mm real clearance!
+    FFT_N = RasterBin.FFT_N
 
-    sort_orders: list[tuple[str, list[PackItem]]] = [
-        ("area_desc", sorted(items, key=lambda it: (it.bbox_xy_area, max(it.w, it.h), it.z), reverse=True)),
-        ("maxside_desc", sorted(items, key=lambda it: (max(it.w, it.h), it.bbox_xy_area, it.z), reverse=True)),
-        ("perim_desc", sorted(items, key=lambda it: (it.w + it.h, it.bbox_xy_area), reverse=True)),
-        ("height_band_area", sorted(items, key=lambda it: (0 if it.z <= 3.5 else (1 if it.z <= 15.0 else 2), -it.bbox_xy_area, -max(it.w, it.h)))),
-        ("tall_first_area", sorted(items, key=lambda it: (0 if it.z > 15.0 else (1 if it.z > 3.5 else 2), -it.bbox_xy_area))),
-        ("group_area", sorted(items, key=lambda it: ({"base": 0, "walls": 1, "garden": 2, "tech": 3, "furniture": 4, "mounts": 5}[it.group], -it.bbox_xy_area))),
-    ]
+    # Precompute 0-deg & 90-deg solid masks, dilated masks, and reversed FFT kernels per unique part_id
+    mask_cache: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}
+    solid_masks_0: dict[str, np.ndarray] = {}
+    for it in items:
+        if it.part_id in mask_cache:
+            continue
+        mesh = trimesh.load(str(it.stl_path), force="mesh")
+        m0 = _rasterize_mesh_xy_mask(mesh, step_mm=step_mm, fill_small_holes_mm2=1500.0)
+        m90 = np.ascontiguousarray(m0.T[::-1, :])
+        d0 = _dilate_mask(m0, sp_px)
+        d90 = _dilate_mask(m90, sp_px)
 
-    best_bins: list[MaxRectsBin] | None = None
-    best_rank: tuple[int, int, float, float] | None = None
-    best_tag = ""
+        def _rev_fft(arr: np.ndarray) -> np.ndarray:
+            buf = np.zeros((FFT_N, FFT_N), dtype=np.float32)
+            rev = arr[::-1, ::-1]
+            buf[: rev.shape[0], : rev.shape[1]] = rev.astype(np.float32)
+            return np.fft.rfft2(buf)
 
-    def _pack_sequence(ordered: list[PackItem], method: str, global_best_bin: bool) -> list[MaxRectsBin]:
-        bins: list[MaxRectsBin] = []
+        mask_cache[it.part_id] = (m0, d0, _rev_fft(m0), m90, d90, _rev_fft(m90))
+        solid_masks_0[it.part_id] = m0
+
+    def _pack_seq(ordered: list[PackItem], prefer_compact: bool, global_best: bool, force_rot_nonconvex: bool = False) -> list[RasterBin]:
+        bins: list[RasterBin] = []
         for it in ordered:
-            pw, ph = it.w + sp, it.h + sp
-            chosen_bin: MaxRectsBin | None = None
-            chosen_pos: tuple[float, float, float, float, bool] | None = None
-            chosen_score = (float("inf"), float("inf"), float("inf"))
+            m0, d0, f0, m90, d90, f90 = mask_cache[it.part_id]
+            chosen_bin: RasterBin | None = None
+            chosen_pos: tuple[int, int, bool] | None = None
+            chosen_sc = (float("inf"), float("inf"), float("inf"))
 
             for b in bins:
-                res = b.find_position(pw, ph, method=method)
+                res = b.find_position(it, m0, f0, m90, f90, prefer_compact=prefer_compact)
                 if res is None:
                     continue
-                fx, fy, uw, uh, rot, sc = res
+                cx, cy, rot, sc = res
                 z_diff = abs(it.z - max(p[0].z for p in b.placements)) if b.placements else 0.0
                 full_sc = (sc[0], sc[1], z_diff)
-                if not global_best_bin:
+                if not global_best:
                     chosen_bin = b
-                    chosen_pos = (fx, fy, uw, uh, rot)
+                    chosen_pos = (cx, cy, rot)
                     break
-                if full_sc < chosen_score:
-                    chosen_score = full_sc
+                if full_sc < chosen_sc:
+                    chosen_sc = full_sc
                     chosen_bin = b
-                    chosen_pos = (fx, fy, uw, uh, rot)
+                    chosen_pos = (cx, cy, rot)
 
             if chosen_bin is None:
-                nb = MaxRectsBin(bin_w, bin_h)
-                res = nb.find_position(pw, ph, method=method)
-                if res is None:
-                    raise RuntimeError(f"Item {it.inst_id} ({it.w}x{it.h}) does not fit usable bed {cfg.usable_x}x{cfg.usable_y}!")
-                fx, fy, uw, uh, rot, _ = res
-                nb.place(it, fx, fy, uw, uh, rot)
+                nb = RasterBin(W, H, step_mm=step_mm, spacing_px=sp_px)
+                if force_rot_nonconvex and it.solid_xy_area / max(1.0, it.bbox_xy_area) < 0.55 and it.h <= W and it.w <= H:
+                    # Force 90-deg orientation on non-convex L-shaped hosts to test opposite cutaway merge
+                    mw, mh = m90.shape
+                    xs_m, ys_m = np.where(m90)
+                    fx = (W - mw) if float(xs_m.mean()) > mw / 2.0 else 0
+                    fy = (H - mh) if float(ys_m.mean()) > mh / 2.0 else 0
+                    nb.place(it, fx, fy, True, m90, d90)
+                else:
+                    res = nb.find_position(it, m0, f0, m90, f90, prefer_compact=prefer_compact)
+                    if res is None:
+                        raise RuntimeError(f"Item {it.inst_id} ({it.w}x{it.h}) does not fit usable bed {cfg.usable_x}x{cfg.usable_y}!")
+                    cx, cy, rot, _ = res
+                    nb.place(it, cx, cy, rot, m90 if rot else m0, d90 if rot else d0)
                 bins.append(nb)
             else:
                 assert chosen_pos is not None
-                fx, fy, uw, uh, rot = chosen_pos
-                chosen_bin.place(it, fx, fy, uw, uh, rot)
+                cx, cy, rot = chosen_pos
+                chosen_bin.place(it, cx, cy, rot, m90 if rot else m0, d90 if rot else d0)
         return bins
 
-    def _eval_bins(bins: list[MaxRectsBin]) -> tuple[int, int, float, float]:
+    def _eval_bins(bins: list[RasterBin]) -> tuple[int, int, float, float]:
         lone_small = sum(
             1 for b in bins
             if len(b.placements) == 1 and b.placements[0][0].bbox_xy_area < 0.45 * (cfg.usable_x * cfg.usable_y)
         )
         z_spread = sum((max(p[0].z for p in b.placements) - min(p[0].z for p in b.placements)) for b in bins) / max(1, len(bins))
-        min_util = min(sum(p[0].bbox_xy_area for p in b.placements) / (cfg.usable_x * cfg.usable_y) for b in bins)
+        min_util = min(sum(p[0].solid_xy_area for p in b.placements) / (cfg.usable_x * cfg.usable_y) for b in bins)
         return (len(bins), lone_small, round(z_spread, 2), round(-min_util, 4))
 
-    for sname, ordered in sort_orders:
-        for method in ("BSSF", "BAF", "BLSF", "BL"):
-            for global_best_bin in (True, False):
-                bins = _pack_sequence(ordered, method, global_best_bin)
-                rank = _eval_bins(bins)
-                if best_rank is None or rank < best_rank:
-                    best_rank = rank
-                    best_bins = bins
-                    best_tag = f"{sname}/{method}/global={global_best_bin}"
+    sort_orders: list[tuple[str, list[PackItem]]] = [
+        ("sup15_early_tight", sorted(items, key=lambda it: (0 if it.bbox_xy_area >= 14000 else (1 if it.part_id in ("P16_PCB_PLATE", "SUP15_WATER_TANK_LINER", "SUP06_HUB_PCB_SNAP_CARRIER", "P05_WALL_FRONT_piece1of3") else (2 if max(it.w, it.h) >= 50.0 else 3)), -min(it.w, it.h), -max(it.w, it.h)))),
+        ("sup15_maxside", sorted(items, key=lambda it: (0 if it.bbox_xy_area >= 12000 else (1 if it.part_id == "SUP06_HUB_PCB_SNAP_CARRIER" else (2 if max(it.w, it.h) >= 40.0 else 3)), -max(it.w, it.h), -it.bbox_xy_area))),
+        ("lshape_sup06_sup15", sorted(items, key=lambda it: (0 if (it.bbox_xy_area >= 14000 and it.solid_xy_area / max(1.0, it.bbox_xy_area) < 0.62) else (1 if (it.bbox_xy_area >= 11000 or it.part_id == "SUP06_HUB_PCB_SNAP_CARRIER") else (2 if it.part_id == "SUP15_WATER_TANK_LINER" else 3)), -max(it.w, it.h), -it.bbox_xy_area))),
+        ("minside_desc", sorted(items, key=lambda it: (min(it.w, it.h), max(it.w, it.h), it.bbox_xy_area), reverse=True)),
+        ("bbox_desc", sorted(items, key=lambda it: (it.bbox_xy_area, max(it.w, it.h), it.solid_xy_area), reverse=True)),
+    ]
 
-    # Iterative promote-sparse-bin refinement (deterministic local search to eliminate any low-utilization trailing plate)
-    import random
-    rng = random.Random(20261126)
-    base_large = sorted(items, key=lambda it: (it.bbox_xy_area, max(it.w, it.h)), reverse=True)
-    for trial in range(120):
-        if trial < 40 and best_bins is not None:
-            # Promote items from the least-utilized bin to just after the single-plate giant panels (>24000 mm2)
-            sparse_bin = min(best_bins, key=lambda b: sum(p[0].bbox_xy_area for p in b.placements))
-            sparse_ids = {p[0].inst_id for p in sparse_bin.placements}
-            giants = [it for it in base_large if it.bbox_xy_area >= 24000.0 and it.inst_id not in sparse_ids]
-            promoted = [it for it in base_large if it.inst_id in sparse_ids]
-            rest = [it for it in base_large if it.bbox_xy_area < 24000.0 and it.inst_id not in sparse_ids]
-            if trial % 2 == 1:
-                rng.shuffle(rest[: min(24, len(rest))])
-            seq = giants + promoted + rest
-        else:
-            # Area-biased deterministic jittered sort (keeps big items near front while varying pairings)
-            seq = sorted(items, key=lambda it: it.bbox_xy_area * (0.75 + 0.50 * rng.random()), reverse=True)
-        method = ("BAF", "BSSF", "BLSF")[trial % 3]
-        bins = _pack_sequence(seq, method, True)
+    best_bins: list[RasterBin] | None = None
+    best_rank: tuple[int, int, float, float] | None = None
+    best_tag = ""
+
+    for sname, ordered in sort_orders:
+        bins = _pack_seq(ordered, True, False, force_rot_nonconvex=False)
         rank = _eval_bins(bins)
+        print(f"  [try] {sname}/compact -> {len(bins)} plates (rank={rank})", flush=True)
         if best_rank is None or rank < best_rank:
             best_rank = rank
             best_bins = bins
-            best_tag = f"refine#{trial}/{method}"
+            best_tag = f"{sname}/compact"
+        if rank[0] > 15 or rank[1] > 0:
+            bins2 = _pack_seq(ordered, False, False, force_rot_nonconvex=False)
+            rank2 = _eval_bins(bins2)
+            print(f"  [try] {sname}/bl -> {len(bins2)} plates (rank={rank2})", flush=True)
+            if rank2 < best_rank:
+                best_rank = rank2
+                best_bins = bins2
+                best_tag = f"{sname}/bl"
 
     assert best_bins is not None
-    print(f"Best packing strategy: {best_tag} -> {len(best_bins)} plates (rank={best_rank})")
+    print(f"Best true-shape packing strategy: {best_tag} -> {len(best_bins)} plates (rank={best_rank})", flush=True)
 
     # Convert to actual bed coordinates (offset by bed_margin = 5.0 mm, and center each plate's used bbox on the 180x200 bed!)
     plates: list[list[PlacedItem]] = []
     for b in best_bins:
         raw: list[PlacedItem] = []
-        for it, rx, ry, uw, uh, rot in b.placements:
-            w_act = it.h if rot else it.w
-            h_act = it.w if rot else it.h
+        for it, rx, ry, pw, ph, rot in b.placements:
             raw.append(PlacedItem(
                 item=it,
                 x=round(cfg.bed_margin + rx, 3),
                 y=round(cfg.bed_margin + ry, 3),
-                w_placed=round(w_act, 3),
-                h_placed=round(h_act, 3),
+                w_placed=round(pw, 3),
+                h_placed=round(ph, 3),
                 rotated_90=rot,
             ))
-        # Center the packed group nicely inside [5..175] x [5..195] (visually balanced on 180x200 bed!)
         min_x = min(p.x for p in raw)
         min_y = min(p.y for p in raw)
         max_x = max(p.x + p.w_placed for p in raw)
         max_y = max(p.y + p.h_placed for p in raw)
         dx = round((cfg.bed_x - (max_x - min_x)) / 2.0 - min_x, 3)
         dy = round((cfg.bed_y - (max_y - min_y)) / 2.0 - min_y, 3)
-        # Clamp shifts so every part remains strictly inside [bed_margin, bed - bed_margin]
         dx = max(cfg.bed_margin - min_x, min(cfg.bed_x - cfg.bed_margin - max_x, dx))
         dy = max(cfg.bed_margin - min_y, min(cfg.bed_y - cfg.bed_margin - max_y, dy))
         for p in raw:
@@ -349,14 +552,13 @@ def run_packing(items: list[PackItem], cfg: pd_mod.PrintConfig) -> list[list[Pla
             p.y = round(p.y + dy, 3)
         plates.append(raw)
 
-    # Sort plates sensibly: base first, then walls, then garden/tech, then furniture/mounts
     def _plate_sort_key(pl: list[PlacedItem]) -> tuple[int, float]:
         order = {"base": 0, "walls": 1, "garden": 2, "tech": 3, "furniture": 4, "mounts": 5}
-        dom = max(set(p.item.group for p in pl), key=lambda g: sum(p.item.bbox_xy_area for p in pl if p.item.group == g))
-        return (order.get(dom, 9), -sum(p.item.bbox_xy_area for p in pl))
+        dom = max(set(p.item.group for p in pl), key=lambda g: sum(p.item.solid_xy_area for p in pl if p.item.group == g))
+        return (order.get(dom, 9), -sum(p.item.solid_xy_area for p in pl))
 
     plates.sort(key=_plate_sort_key)
-    return plates
+    return plates, solid_masks_0
 
 
 def _plate_short_slug(pl: list[PlacedItem]) -> str:
@@ -397,15 +599,19 @@ def _transform_mesh_for_plate(mesh: trimesh.Trimesh, pl_item: PlacedItem) -> tup
 
 def write_multi_object_3mf(
     out_3mf: pathlib.Path,
-    objects: list[tuple[str, trimesh.Trimesh, list[float]]],
+    objects: list[tuple[str, str, str, trimesh.Trimesh, list[float]]],
     plate_title: str,
-) -> None:
-    """Write a clean, PrusaSlicer-native multi-object 3MF (unit=millimeter) with separate named objects."""
+) -> dict[str, dict[str, str]]:
+    """Write PrusaSlicer 2.9.7 native multi-object 3MF with baked Slic3r_PE.config & Slic3r_PE_model.config.
+
+    Returns mapping inst_id -> per-object overrides baked into Metadata/Slic3r_PE_model.config.
+    """
     content_types = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n'
         '  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
         '  <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>\n'
+        '  <Default Extension="config" ContentType="text/plain"/>\n'
         '</Types>\n'
     )
     rels = (
@@ -419,19 +625,26 @@ def write_multi_object_3mf(
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">',
         f'  <metadata name="Title">{plate_title}</metadata>',
-        '  <metadata name="Application">SmartHome-3DPrint-v2-Nester</metadata>',
-        '  <metadata name="Description">180x200x250 mm build plate, zero screws/glue, flat Z=0</metadata>',
+        f'  <metadata name="Application">{lp.SLICER_APPLICATION_TAG}</metadata>',
+        '  <metadata name="Description">180x200x250 mm lightweight build plate, baked R1-R3 slicer config, zero screws/glue/supports</metadata>',
         '  <resources>',
     ]
 
+    model_cfg_lines: list[str] = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<config>',
+    ]
+    baked_overrides_by_inst: dict[str, dict[str, str]] = {}
+
     build_items: list[str] = []
-    for obj_id, (name, base_mesh, tf_3mf) in enumerate(objects, start=1):
+    for obj_id, (inst_name, part_id, kind, base_mesh, tf_3mf) in enumerate(objects, start=1):
         # Write mesh in its own normalized local coords [0..w]x[0..h]x[0..z] and apply exact bed transform in <item>!
         m = base_mesh.copy()
         m.apply_translation(-m.bounds[0])
         verts = m.vertices
         faces = m.faces
-        lines.append(f'    <object id="{obj_id}" name="{name}" type="model">')
+        n_tris = len(faces)
+        lines.append(f'    <object id="{obj_id}" name="{inst_name}" type="model">')
         lines.append('      <mesh>')
         lines.append('        <vertices>')
         for v in verts:
@@ -444,7 +657,22 @@ def write_multi_object_3mf(
         lines.append('      </mesh>')
         lines.append('    </object>')
         tf_str = " ".join(f"{val:.4f}" for val in tf_3mf)
-        build_items.append(f'    <item objectid="{obj_id}" transform="{tf_str}"/>')
+        build_items.append(f'    <item objectid="{obj_id}" transform="{tf_str}" printable="1"/>')
+
+        # Bake per-object R1-R3 slicer overrides into Metadata/Slic3r_PE_model.config
+        overrides = lp.get_object_slicer_overrides(part_id, kind)
+        baked_overrides_by_inst[inst_name] = dict(overrides)
+        model_cfg_lines.append(f'  <object id="{obj_id}" instances_count="1">')
+        model_cfg_lines.append(f'    <metadata type="object" key="name" value="{inst_name}"/>')
+        for ok, ov in sorted(overrides.items()):
+            model_cfg_lines.append(f'    <metadata type="object" key="{ok}" value="{ov}"/>')
+        model_cfg_lines.append(f'    <volume firstid="0" lastid="{max(0, n_tris - 1)}">')
+        model_cfg_lines.append(f'      <metadata type="volume" key="name" value="{inst_name}"/>')
+        model_cfg_lines.append('      <metadata type="volume" key="source_object_id" value="0"/>')
+        model_cfg_lines.append('      <metadata type="volume" key="source_volume_id" value="0"/>')
+        model_cfg_lines.append('      <metadata type="volume" key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>')
+        model_cfg_lines.append('    </volume>')
+        model_cfg_lines.append('  </object>')
 
     lines.append('  </resources>')
     lines.append('  <build>')
@@ -453,27 +681,52 @@ def write_multi_object_3mf(
     lines.append('</model>')
     model_xml = "\n".join(lines) + "\n"
 
+    model_cfg_lines.append('</config>')
+    model_cfg_xml = "\n".join(model_cfg_lines) + "\n"
+    slic3r_pe_config = lp.format_slic3r_pe_config()
+
     out_3mf.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(str(out_3mf), "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", content_types)
         zf.writestr("_rels/.rels", rels)
         zf.writestr("3D/3dmodel.model", model_xml)
+        zf.writestr("Metadata/Slic3r_PE.config", slic3r_pe_config)
+        zf.writestr("Metadata/Slic3r_PE_model.config", model_cfg_xml)
+    return baked_overrides_by_inst
 
 
 def verify_plates_gate_g3(
     items: list[PackItem],
     plates: list[list[PlacedItem]],
     cfg: pd_mod.PrintConfig,
+    solid_masks_0: dict[str, np.ndarray] | None = None,
 ) -> list[str]:
-    """Gate G3 verification: bijection, >=3.0 mm spacing, strictly inside [5..175]x[5..195], zero lone small part."""
+    """Gate G3 verification: bijection, >=3.0 mm real Euclidean clearance, strictly inside [5..175]x[5..195]."""
     errors: list[str] = []
     expected_ids = {it.inst_id for it in items}
     seen_ids: list[str] = []
+    # Exact 0.5 mm grid clearance check (dilate radius = 6 px = 3.0 mm!)
+    step = 0.5
+    rad_px = int(round(cfg.plate_spacing / step))
+    hi_res_cache: dict[tuple[str, bool], np.ndarray] = {}
+
+    def _get_hires(pi: PlacedItem) -> np.ndarray:
+        key = (pi.item.part_id, pi.rotated_90)
+        if key not in hi_res_cache:
+            m = trimesh.load(str(pi.item.stl_path), force="mesh")
+            m0 = _rasterize_mesh_xy_mask(m, step_mm=step, fill_small_holes_mm2=0.0)
+            hi_res_cache[(pi.item.part_id, False)] = m0
+            hi_res_cache[(pi.item.part_id, True)] = np.ascontiguousarray(m0.T[::-1, :])
+        return hi_res_cache[key]
+
+    bed_gx = int(round(cfg.bed_x / step))
+    bed_gy = int(round(cfg.bed_y / step))
 
     for p_idx, pl in enumerate(plates, 1):
         if len(pl) == 1 and pl[0].item.bbox_xy_area < 0.45 * (cfg.usable_x * cfg.usable_y):
             errors.append(f"PLATE{p_idx:02d} has only one small part: {pl[0].item.inst_id}")
-        for i, a in enumerate(pl):
+        occ_dil = np.zeros((bed_gx, bed_gy), dtype=bool)
+        for a in pl:
             seen_ids.append(a.item.inst_id)
             if a.x < cfg.bed_margin - 0.02 or a.y < cfg.bed_margin - 0.02:
                 errors.append(f"PLATE{p_idx:02d} {a.item.inst_id} violates low bed margin: ({a.x}, {a.y})")
@@ -481,13 +734,22 @@ def verify_plates_gate_g3(
                 errors.append(f"PLATE{p_idx:02d} {a.item.inst_id} exceeds usable bed: ({a.x+a.w_placed}, {a.y+a.h_placed})")
             if a.item.z > cfg.usable_z + 0.02:
                 errors.append(f"PLATE{p_idx:02d} {a.item.inst_id} exceeds height {cfg.usable_z}")
-            for j in range(i + 1, len(pl)):
-                b = pl[j]
-                gap_x = max(b.x - (a.x + a.w_placed), a.x - (b.x + b.w_placed))
-                gap_y = max(b.y - (a.y + a.h_placed), a.y - (b.y + b.h_placed))
-                sep = max(gap_x, gap_y)
-                if sep < cfg.plate_spacing - 0.05:
-                    errors.append(f"PLATE{p_idx:02d} spacing violation ({sep:.2f} mm < {cfg.plate_spacing}): {a.item.inst_id} vs {b.item.inst_id}")
+            hm = _get_hires(a)
+            ix0 = int(round(a.x / step))
+            iy0 = int(round(a.y / step))
+            mw, mh = hm.shape
+            ix1 = min(bed_gx, ix0 + mw)
+            iy1 = min(bed_gy, iy0 + mh)
+            if np.any(occ_dil[ix0:ix1, iy0:iy1] & hm[: ix1 - ix0, : iy1 - iy0]):
+                errors.append(f"PLATE{p_idx:02d} real clearance < {cfg.plate_spacing} mm involving {a.item.inst_id}")
+            hd = _dilate_mask(hm, rad_px)
+            dx0 = max(0, ix0 - rad_px)
+            dy0 = max(0, iy0 - rad_px)
+            dx1 = min(bed_gx, ix0 + mw + rad_px)
+            dy1 = min(bed_gy, iy0 + mh + rad_px)
+            sx0 = dx0 - (ix0 - rad_px)
+            sy0 = dy0 - (iy0 - rad_px)
+            occ_dil[dx0:dx1, dy0:dy1] |= hd[sx0 : sx0 + (dx1 - dx0), sy0 : sy0 + (dy1 - dy0)]
 
     if len(seen_ids) != len(items) or set(seen_ids) != expected_ids:
         missing = expected_ids - set(seen_ids)
@@ -508,8 +770,8 @@ def main() -> int:
     lb_bbox = math.ceil(lb_bbox_exact)
     lb_solid = math.ceil(lb_solid_exact)
 
-    plates = run_packing(items, cfg)
-    g3_errors = verify_plates_gate_g3(items, plates, cfg)
+    plates, solid_masks_0 = run_packing(items, cfg)
+    g3_errors = verify_plates_gate_g3(items, plates, cfg, solid_masks_0)
     if g3_errors:
         for e in g3_errors:
             print(f"[G3 FAIL] {e}")
@@ -530,7 +792,7 @@ def main() -> int:
         mf_out = PLATES_DIR / f"{plate_id}.3mf"
 
         positioned_meshes: list[trimesh.Trimesh] = []
-        mf_objects: list[tuple[str, trimesh.Trimesh, list[float]]] = []
+        mf_objects: list[tuple[str, str, str, trimesh.Trimesh, list[float]]] = []
         item_records: list[dict[str, Any]] = []
 
         for pi in pl:
@@ -539,7 +801,9 @@ def main() -> int:
             base_m = mesh_cache[pi.item.part_id]
             pos_m, tf_3mf = _transform_mesh_for_plate(base_m, pi)
             positioned_meshes.append(pos_m)
-            mf_objects.append((pi.item.inst_id, base_m, tf_3mf))
+            mf_objects.append((pi.item.inst_id, pi.item.part_id, pi.item.kind, base_m, tf_3mf))
+            overrides = lp.get_object_slicer_overrides(pi.item.part_id, pi.item.kind)
+            eff_slicer = lp.get_effective_object_slicer_settings(pi.item.part_id, pi.item.kind)
             item_records.append({
                 "inst_id": pi.item.inst_id,
                 "part_id": pi.item.part_id,
@@ -553,11 +817,17 @@ def main() -> int:
                 "rotated_90": pi.rotated_90,
                 "bbox_area_mm2": pi.item.bbox_xy_area,
                 "solid_area_mm2": pi.item.solid_xy_area,
+                "slicer_overrides": overrides,
+                "effective_perimeters": int(eff_slicer["perimeters"]),
+                "effective_fill_density": eff_slicer["fill_density"],
+                "effective_top_solid_layers": int(eff_slicer["top_solid_layers"]),
+                "effective_bottom_solid_layers": int(eff_slicer["bottom_solid_layers"]),
             })
 
         combined = trimesh.util.concatenate(positioned_meshes)
         combined.export(str(stl_out), file_type="stl")
-        write_multi_object_3mf(mf_out, mf_objects, plate_id)
+        baked_overrides = write_multi_object_3mf(mf_out, mf_objects, plate_id)
+        per_obj_overrides_nonempty = {k: v for k, v in baked_overrides.items() if v}
 
         bmin = combined.bounds[0]
         bmax = combined.bounds[1]
@@ -579,6 +849,8 @@ def main() -> int:
             "used_bbox_mm": [used_w, used_h, max_z],
             "bbox_utilization_pct": bbox_util,
             "solid_utilization_pct": solid_util,
+            "baked_slicer_config": dict(lp.SLICER_GLOBAL_CONFIG),
+            "per_object_overrides": per_obj_overrides_nonempty,
             "items": item_records,
         })
         print(
@@ -601,6 +873,10 @@ def main() -> int:
         "theoretical_lower_bound_solid_exact": round(lb_solid_exact, 2),
         "theoretical_lower_bound_solid_ceil": lb_solid,
         "achieved_plate_count": len(plate_records),
+        "slicer_application_tag": lp.SLICER_APPLICATION_TAG,
+        "baked_slicer_config": dict(lp.SLICER_GLOBAL_CONFIG),
+        "three_perimeter_parts": sorted(lp.THREE_PERIMETER_PARTS),
+        "watertight_exceptions": lp.WATERTIGHT_SOLID_LAYER_EXCEPTIONS,
         "gate_g3_passed": True,
         "elapsed_sec": round(time.time() - t0, 2),
         "plates": plate_records,

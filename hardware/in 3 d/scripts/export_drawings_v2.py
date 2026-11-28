@@ -457,6 +457,14 @@ def draw_panel_piece_v2(
         else ("4 chot mong noi 8x4x3 mm" if is_p17 else "Lien ket rang luoc canh ngoai")
     )
 
+    lw = meta.get("lightweight", {})
+    lw_line = (
+        f"GIAM NHUA: Mang {lw.get('web_thickness_mm', 2.2):.1f}mm (vien {lw.get('rim_thickness_mm', 3.0):.1f}mm) | "
+        f"{lw.get('cutout_count', 0)} lo luc giac {float(lw.get('hex_flat_to_flat_mm') or 28.0):.0f}mm (gan >={lw.get('min_rib_mm', 3.2)}mm)"
+        if lw.get("enabled")
+        else "DO DAY: Nguyen tam 3.0 mm (khu vuc chiu luc / chuc nang)"
+    )
+
     raw_lines = [
         f"MA CHI TIET: {piece.part_id}",
         f"TEN: {piece.vi_name}",
@@ -466,10 +474,11 @@ def draw_panel_piece_v2(
         f"BAN IN 180x200x250: {bed_ok}",
         "LIEN KET: KHONG VIT - KHONG KEO (100% MONG CAI)",
         f"CHIA MANH: {split_note}",
+        lw_line,
         f"CHU KHAC: {meta.get('engrave_text', '-')}",
         f"LO CHUC NANG (0 lo vit): {hole_summary}",
         f"MONG / RANH CAI: {mort_summary}",
-        "IN 3D: PLA/PETG | Lop 0.20mm | Infill 20% | Support: KHONG",
+        "IN 3D (.3mf nhung): PLA | 0.20mm | 9% Gyroid | 2 thanh (3 thanh khop) | 3/3 lop | Support: KHONG",
     ]
     wrapped: list[str] = []
     for ln in raw_lines:
@@ -637,7 +646,7 @@ def draw_3view_part_v2(
         f"CHI TIET MONG / LO: {sockets_info}",
         f"CHU KHAC: {eng_txt}",
         f"GHI CHU: {meta.get('notes', '')}",
-        "HUONG IN: Mat day Z = 0 nam phang | PLA/PETG | Lop 0.20mm | 3 thanh | Infill 25% | Support: KHONG",
+        "HUONG IN: Mat day Z = 0 nam phang | PLA (.3mf nhung) | 0.20mm | 3 thanh (khop/ngam) | 9% Gyroid | Support: KHONG",
     ]
     wrapped: list[str] = []
     for ln in raw_lines:
@@ -886,91 +895,51 @@ def draw_joint_closeup_mong(cfg: pd_mod.PrintConfig) -> tuple[pathlib.Path, path
     )
 
     # =========================================================================
-    # PANEL C: FLOATING MORTISE-AND-TENON FLOOR PEG (FUR09 in P01B + FUR01)
+    # PANEL C: LIGHTWEIGHT 2.2mm COFFERED WEB + 15mm HONEYCOMB CUTOUT (R4/R5)
     # =========================================================================
-    # X centered at 0.0 (peg X in [-3.0, +3.0], mortise/socket X in [-3.15, +3.15])
-    # Z: floor P01B Z in [-3.0, 0.0], FUR01_SOFA Z in [0.0, 7.5], socket Z in [0.0, 4.20]
-    # Peg FUR09 Z in [-3.0, +4.0] with 0.30 mm x 45 deg chamfer at top & bottom!
-    ax_c.set_xlim(-11.5, 14.2)
-    ax_c.set_ylim(-6.2, 9.6)
+    ax_c.set_xlim(-2.0, 52.0)
+    ax_c.set_ylim(-4.5, 28.5)
     ax_c.set_aspect("equal", adjustable="box")
     ax_c.grid(True, linestyle=":", color="#d5e2dc", lw=0.6)
 
-    # Floor P01B left & right of 6.30 mm through-mortise
-    ax_c.add_patch(MplRect((-10.0, -3.0), 6.85, 3.0, facecolor="#cde6f7", edgecolor="#0b2540", lw=1.2, hatch="///", zorder=2))
-    ax_c.add_patch(MplRect((3.15, -3.0), 6.85, 3.0, facecolor="#cde6f7", edgecolor="#0b2540", lw=1.2, hatch="///", zorder=2))
+    # Top-half diagram (Y=13..24): Section showing Z=0 flat bottom, 3.0mm joint rim & rib, 2.2mm recessed web + 15mm hex opening
+    ax_c.add_patch(MplRect((1.0, 14.0), 8.0, 6.0, facecolor="#cde6f7", edgecolor="#0b2540", lw=1.2, zorder=3))
+    ax_c.add_patch(MplRect((9.0, 14.0), 9.0, 4.4, facecolor="#d6f0e4", edgecolor="#115e43", lw=1.2, zorder=3))
+    # Hex cutout gap X=18..33 (15.0 mm wide, vertical walls Z=0..2.2 -> 0 supports!)
+    ax_c.add_patch(MplRect((18.0, 14.0), 15.0, 4.4, facecolor="#fdfefe", edgecolor="#c0392b", lw=1.0, ls="--", zorder=2))
+    ax_c.add_patch(MplRect((33.0, 14.0), 6.4, 4.4, facecolor="#d6f0e4", edgecolor="#115e43", lw=1.2, zorder=3))
+    ax_c.add_patch(MplRect((39.4, 14.0), 10.6, 6.0, facecolor="#cde6f7", edgecolor="#0b2540", lw=1.2, zorder=3))
+    ax_c.axhline(14.0, color="#c0392b", lw=1.0, ls="--", zorder=4)
+    ax_c.text(5.0, 17.0, "Vien mong\n3.0 mm", fontsize=6.9, fontweight="bold", color="#0b2540", ha="center", va="center", zorder=5)
+    ax_c.text(13.5, 16.2, "Mang\n2.2mm", fontsize=6.7, fontweight="bold", color="#115e43", ha="center", va="center", zorder=5)
+    ax_c.text(25.5, 16.2, "Lo luc giac\n28.0 mm", fontsize=7.0, fontweight="bold", color="#c0392b", ha="center", va="center", zorder=5)
+    ax_c.text(36.2, 16.2, "Gan\n>=3.2", fontsize=6.4, fontweight="bold", color="#115e43", ha="center", va="center", zorder=5)
+    ax_c.text(44.7, 17.0, "Gan/Khop\n3.0 mm", fontsize=6.9, fontweight="bold", color="#0b2540", ha="center", va="center", zorder=5)
 
-    # Sofa FUR01_SOFA body sitting on Z=0 with blind socket [-3.15..+3.15, 0..4.20]
-    sofa_poly = [
-        (-9.5, 0.0), (-3.15, 0.0), (-3.15, 4.20), (3.15, 4.20), (3.15, 0.0),
-        (9.5, 0.0), (9.5, 6.8), (-9.5, 6.8),
-    ]
-    ax_c.add_patch(MplPolygon(sofa_poly, closed=True, facecolor="#d6e6f0", edgecolor="#1b4f72", lw=1.2, zorder=2))
+    _draw_dim_arrow(ax_c, 1.0, 22.8, 9.0, 22.8, "Vien >=7.5", fontsize=7.1, color="#0b2540")
+    _draw_dim_arrow(ax_c, 18.0, 22.8, 33.0, 22.8, "Lo luc giac F=28.0 mm", fontsize=7.2, color="#c0392b")
+    _draw_dim_arrow(ax_c, 33.0, 22.8, 39.4, 22.8, ">=3.2", fontsize=7.0, color="#115e43")
+    _draw_dim_arrow(ax_c, 9.0, 11.2, 18.0, 11.2, "Le mep >=6.5 mm", fontsize=7.1, color="#1b4f72")
+    ax_c.text(35.0, 11.2, "Mat day Z=0 phang tuyet doi (0 support!)", fontsize=7.1, fontweight="bold", color="#c0392b", ha="center", va="center")
 
-    # Highlight clearance gaps (0.15 mm/side + 0.20 mm top pocket clearance)
-    ax_c.add_patch(MplRect((-3.15, -3.0), 0.15, 7.20, facecolor="#fadbd8", edgecolor="none", zorder=3))
-    ax_c.add_patch(MplRect((3.00, -3.0), 0.15, 7.20, facecolor="#fadbd8", edgecolor="none", zorder=3))
-    ax_c.add_patch(MplRect((-3.15, 4.00), 6.30, 0.20, facecolor="#fef9e7", edgecolor="none", zorder=3))
+    # Bottom-half diagram (Y=-2.5..8.5): 3 honeycomb cells in plan showing 3.2 mm rib & 18.2 mm pitch
+    r_h = 4.2
+    for hcx, hcy in ((11.0, 3.0), (20.8, 3.0), (30.6, 3.0)):
+        hpts = [
+            (hcx + r_h * math.cos(math.radians(30 + 60 * k)), hcy + r_h * math.sin(math.radians(30 + 60 * k)))
+            for k in range(6)
+        ]
+        ax_c.add_patch(MplPolygon(hpts, closed=True, facecolor="#ffffff", edgecolor="#115e43", lw=1.3, zorder=4))
+    ax_c.add_patch(MplRect((3.5, -2.2), 34.5, 10.4, facecolor="#d6f0e4", edgecolor="#0b2540", lw=1.1, zorder=2))
+    ax_c.text(44.5, 3.0, "R4/R5 Giam nhua:\n• Mang 2.2mm (6 lop\n  dac + 5 lop 9% gyroid)\n• Gan giua lo 3.2mm\n• Relay/PSU kin 100%",
+              fontsize=6.9, fontweight="bold", color="#1b4d3e", ha="center", va="center",
+              bbox=dict(boxstyle="round,pad=0.28", facecolor="#eef8f1", edgecolor="#1e6b52", lw=0.8), zorder=6)
 
-    # FUR09 floating peg (6.00 x 7.00 mm, 0.30 mm x 45 deg lead-in chamfers on both ends)
-    ch = 0.30
-    peg_poly = [
-        (-3.0 + ch, -3.0), (3.0 - ch, -3.0), (3.0, -3.0 + ch),
-        (3.0, 4.0 - ch), (3.0 - ch, 4.0), (-3.0 + ch, 4.0),
-        (-3.0, 4.0 - ch), (-3.0, -3.0 + ch),
-    ]
-    ax_c.add_patch(MplPolygon(peg_poly, closed=True, facecolor="#d4ac7d", edgecolor="#5d3a1a", lw=1.35, zorder=5))
-    ax_c.axvline(0.0, color="#7f8c8d", lw=0.75, ls="-.", zorder=6)
-    ax_c.axhline(0.0, color="#1e8449", lw=0.9, ls="--", zorder=4)
-
-    # Labels inside parts
-    ax_c.text(-6.7, -1.5, "San P01B\n(3.0 mm)", fontsize=7.5, fontweight="bold", color="#0b2540", ha="center", va="center",
-              bbox=dict(boxstyle="round,pad=0.16", facecolor="white", edgecolor="#0b2540", lw=0.5, alpha=0.92), zorder=6)
-    ax_c.text(-6.5, 3.6, "Day FUR01_SOFA\n(Ho mong am 4.2 mm)", fontsize=7.4, fontweight="bold", color="#1b4f72", ha="center", va="center", zorder=6)
-    ax_c.text(0.0, 0.6, "FUR09\n6.0x4.0x7.0", fontsize=7.6, fontweight="bold", color="#4a2308", ha="center", va="center", zorder=7)
-
-    # Dimension arrows
-    # Peg width 6.00 mm (bottom)
-    ax_c.plot([-3.0, -3.0], [-3.0, -5.0], color="#5d3a1a", lw=0.7, ls="--")
-    ax_c.plot([3.0, 3.0], [-3.0, -5.0], color="#5d3a1a", lw=0.7, ls="--")
-    _draw_dim_arrow(ax_c, -3.0, -4.5, 3.0, -4.5, "Chot = 6.00 mm", fontsize=7.9, color="#5d3a1a")
-
-    # Socket width 6.30 mm (top)
-    ax_c.plot([-3.15, -3.15], [4.20, 8.6], color="#1b4f72", lw=0.7, ls="--")
-    ax_c.plot([3.15, 3.15], [4.20, 8.6], color="#1b4f72", lw=0.7, ls="--")
-    _draw_dim_arrow(ax_c, -3.15, 8.0, 3.15, 8.0, "Lo mong = 6.30 mm (6.30 x 4.30)", fontsize=7.9, color="#1b4f72")
-
-    # Floor thickness 3.0 mm & Total peg height 7.0 mm (right side)
-    ax_c.plot([10.0, 12.6], [-3.0, -3.0], color="#0b2540", lw=0.7, ls="--")
-    ax_c.plot([10.0, 12.6], [0.0, 0.0], color="#0b2540", lw=0.7, ls="--")
-    _draw_dim_arrow(ax_c, 12.3, -3.0, 12.3, 0.0, "3.0", fontsize=7.5, rot=0, offset_txt=(0.95, 0))
-
-    ax_c.plot([3.15, 11.1], [4.0, 4.0], color="#5d3a1a", lw=0.7, ls="--")
-    _draw_dim_arrow(ax_c, 10.6, -3.0, 10.6, 4.0, "H=7.0", fontsize=7.5, color="#5d3a1a")
-
-    # Clear callouts for 0.15 mm/side clearance & 0.30 mm lead-in chamfer
-    _draw_callout(
-        ax_c, xy=(3.08, 2.0), xytext=(4.8, 5.2),
-        text="Khe ho ep khit:\n0.15 mm/canh (+0.30 tong)",
-        color="#c0392b", fontsize=7.5, ha="left", va="center", fc="#fff8f7",
-    )
-    _draw_callout(
-        ax_c, xy=(-2.85, 3.85), xytext=(-10.8, 8.2),
-        text="Vat mep dan huong\n0.30 mm x 45°",
-        color="#1e6b52", fontsize=7.4, ha="left", va="center", fc="#f2fbf6",
-    )
-    ax_c.text(
-        4.4, -4.6,
-        "Mat cat XY: 6.0x4.0 trong 6.30x4.30 mm\nIn nam phang -> 0 support!",
-        fontsize=7.1, color="#1b4d3e", fontweight="bold", ha="left", va="center",
-        bbox=dict(boxstyle="round,pad=0.22", facecolor="#eef8f1", edgecolor="#1e6b52", lw=0.7),
-    )
-
-    ax_c.set_xlabel("Mat cat ngang X (mm)", fontsize=8.4)
-    ax_c.set_ylabel("Truc Z lap rap (mm)", fontsize=8.4)
+    ax_c.set_xlabel("Mat cat & so do o to ong giam nhua (mm)", fontsize=8.4)
+    ax_c.set_ylabel("mm", fontsize=8.4)
     ax_c.set_title(
-        "C. CHOT MONG SAN NOI THAT (FUR09 -> P01B 3.0mm + FUR01_SOFA)",
-        fontsize=9.8, fontweight="bold", color="#1b4d3e", pad=8,
+        "C. MANG MONG 2.2 mm + O TO ONG LUC GIAC 28 mm (R4/R5 — 0 SUPPORT, KHOANG RELAY KIN)",
+        fontsize=9.2, fontweight="bold", color="#1b4d3e", pad=8,
     )
 
     # =========================================================================
@@ -1114,12 +1083,12 @@ def draw_pcb_module_fit(cfg: pd_mod.PrintConfig) -> tuple[pathlib.Path, pathlib.
     ax_hdr.text(
         0.018, 0.25,
         f"Nguon PCB thuc te: {pcb.source_file} ({pcb.width_mm:.1f}x{pcb.height_mm:.1f}x{pcb.thickness_mm:.1f} mm, "
-        f"4x Ø{pcb.hole_dia_mm:.1f} @ {pcb.hole_pitch_x_mm:.1f}x{pcb.hole_pitch_y_mm:.1f} mm) | fit_table.json: 12/12 PASS",
+        f"4x Ø{pcb.hole_dia_mm:.1f} @ {pcb.hole_pitch_x_mm:.1f}x{pcb.hole_pitch_y_mm:.1f} mm) | fit_table.json: {len(fit_rows)}/{len(fit_rows)} PASS",
         fontsize=9.0, color="#d4efdf", va="center", ha="left",
     )
     ax_hdr.text(
         0.985, 0.50,
-        "12 / 12 FIT PASS • 0 VIT",
+        f"{len(fit_rows)} / {len(fit_rows)} FIT PASS • 0 VIT",
         fontsize=10.5, fontweight="bold", color="#f9e79f", va="center", ha="right",
         bbox=dict(boxstyle="round,pad=0.30", facecolor="#1e8449", edgecolor="#f9e79f", lw=1.1),
     )

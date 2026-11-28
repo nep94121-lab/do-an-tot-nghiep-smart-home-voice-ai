@@ -37,7 +37,7 @@
     3.0
   ],
   "print_z_min": 0.0,
-  "volume_mm3": 38069.018,
+  "volume_mm3": 21176.272,
   "solids": 1,
   "valid": true,
   "engraved_ok": true,
@@ -55,7 +55,83 @@
     0.92,
     0.99
   ],
+  "lightweight": {
+    "enabled": true,
+    "web_thickness_mm": 2.2,
+    "rim_thickness_mm": 3.0,
+    "pocket_depth_mm": 0.8,
+    "max_unsupported_span_mm": 135.0,
+    "cutout_count": 15,
+    "cutout_area_mm2": 5309.73,
+    "conformal_clipped": true,
+    "hex_flat_to_flat_mm": 28.0,
+    "min_rib_mm": 3.2,
+    "min_edge_margin_mm": 6.5,
+    "relay_psu_closed": true,
+    "cutout_centers_local_uv": [
+      [
+        133.311,
+        17.131
+      ],
+      [
+        155.871,
+        17.423
+      ],
+      [
+        176.758,
+        16.574
+      ],
+      [
+        142.454,
+        39.9
+      ],
+      [
+        169.496,
+        40.53
+      ],
+      [
+        133.875,
+        70.221
+      ],
+      [
+        156.0,
+        67.55
+      ],
+      [
+        176.821,
+        67.55
+      ],
+      [
+        143.074,
+        94.162
+      ],
+      [
+        169.496,
+        94.57
+      ],
+      [
+        133.51,
+        123.147
+      ],
+      [
+        156.0,
+        121.59
+      ],
+      [
+        176.821,
+        121.59
+      ],
+      [
+        140.913,
+        139.522
+      ],
+      [
+        169.963,
+        139.378
+      ]
+    ]
+  },
   "step_file": "parts/P02_WALL_BACK_piece2of3.step",
   "stl_file": "parts/P02_WALL_BACK_piece2of3.stl",
-  "stl_facets": 7120
+  "stl_facets": 7490
 }

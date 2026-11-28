@@ -1,0 +1,223 @@
+{
+  "schema": "hw14_fea_lite_strength_report_v1",
+  "all_passed": true,
+  "passed_count": 5,
+  "total_count": 5,
+  "material_assumptions": {
+    "material": "FDM PLA (0.4 mm nozzle, 0.20 mm layer)",
+    "E_pla_mpa": 2800.0,
+    "sigma_yield_mpa": 45.0,
+    "tau_shear_mpa": 25.0
+  },
+  "checks": {
+    "a_cutouts_and_relay_psu_closed": {
+      "passed": true,
+      "total_hex_cutouts": 288,
+      "min_rib_mm": 3.2,
+      "required_min_rib_mm": 3.0,
+      "min_edge_margin_mm": 6.5,
+      "required_min_edge_margin_mm": 6.0,
+      "p01a_tech_bay_cutouts": 0,
+      "p15_psu_fascia_cutouts": 0,
+      "relay_psu_closed_ok": true,
+      "max_piece_open_area_fraction": 0.581,
+      "honeycomb_lattice_solid_fraction": 0.195,
+      "gibson_ashby_e_eff_ratio": 0.195,
+      "per_panel_summary": {
+        "P01A_BASE_TECH": {
+          "cutout_count": 0,
+          "web_thickness_mm": 2.2,
+          "max_unsupported_span_mm": 81.5,
+          "relay_psu_closed": true
+        },
+        "P01B_BASE_HOUSE": {
+          "cutout_count": 115,
+          "web_thickness_mm": 2.2,
+          "max_unsupported_span_mm": 85.0,
+          "relay_psu_closed": true
+        },
+        "P02_WALL_BACK": {
+          "cutout_count": 65,
+          "web_thickness_mm": 2.2,
+          "max_unsupported_span_mm": 135.0,
+          "relay_psu_closed": true
+        },
+        "P03_WALL_LEFT": {
+          "cutout_count": 31,
+          "web_thickness_mm": 2.2,
+          "max_unsupported_span_mm": 135.0,
+          "relay_psu_closed": true
+        },
+        "P04_WALL_RIGHT": {
+          "cutout_count": 28,
+          "web_thickness_mm": 2.2,
+          "max_unsupported_span_mm": 135.0,
+          "relay_psu_closed": true
+        },
+        "P05_WALL_FRONT": {
+          "cutout_count": 0,
+          "web_thickness_mm": 2.2,
+          "max_unsupported_span_mm": 93.5,
+          "relay_psu_closed": true
+        },
+        "P06_WALL_MID": {
+          "cutout_count": 25,
+          "web_thickness_mm": 2.2,
+          "max_unsupported_span_mm": 135.0,
+          "relay_psu_closed": true
+        },
+        "P07_SERVO_SHELF": {
+          "cutout_count": 0,
+          "web_thickness_mm": 3.0,
+          "max_unsupported_span_mm": 0.0,
+          "relay_psu_closed": true
+        },
+        "P08_DOOR_LEAF": {
+          "cutout_count": 4,
+          "web_thickness_mm": 3.0,
+          "max_unsupported_span_mm": 41.0,
+          "relay_psu_closed": true
+        },
+        "P09_GARDEN_LEFT": {
+          "cutout_count": 0,
+          "web_thickness_mm": 3.0,
+          "max_unsupported_span_mm": 0.0,
+          "relay_psu_closed": true
+        },
+        "P10_WATER_DIVIDER": {
+          "cutout_count": 0,
+          "web_thickness_mm": 3.0,
+          "max_unsupported_span_mm": 0.0,
+          "relay_psu_closed": true
+        },
+        "P11_GARDEN_RIGHT": {
+          "cutout_count": 0,
+          "web_thickness_mm": 3.0,
+          "max_unsupported_span_mm": 0.0,
+          "relay_psu_closed": true
+        },
+        "P12_GARDEN_FRONT": {
+          "cutout_count": 0,
+          "web_thickness_mm": 3.0,
+          "max_unsupported_span_mm": 0.0,
+          "relay_psu_closed": true
+        },
+        "P13_GARDEN_BACK": {
+          "cutout_count": 0,
+          "web_thickness_mm": 3.0,
+          "max_unsupported_span_mm": 0.0,
+          "relay_psu_closed": true
+        },
+        "P14_SOIL_BRIDGE": {
+          "cutout_count": 3,
+          "web_thickness_mm": 3.0,
+          "max_unsupported_span_mm": 17.0,
+          "relay_psu_closed": true
+        },
+        "P15_TECH_FASCIA": {
+          "cutout_count": 0,
+          "web_thickness_mm": 3.0,
+          "max_unsupported_span_mm": 0.0,
+          "relay_psu_closed": true
+        },
+        "P16_PCB_PLATE": {
+          "cutout_count": 17,
+          "web_thickness_mm": 3.0,
+          "max_unsupported_span_mm": 95.0,
+          "relay_psu_closed": true
+        },
+        "P17_BASE_JOINER": {
+          "cutout_count": 0,
+          "web_thickness_mm": 3.0,
+          "max_unsupported_span_mm": 0.0,
+          "relay_psu_closed": true
+        }
+      }
+    },
+    "b_base_plate_2p2mm_deflection": {
+      "passed": true,
+      "web_thickness_mm": 2.2,
+      "skin_thickness_each_mm": 0.6,
+      "gyroid_core_thickness_mm": 1.0,
+      "gyroid_infill_pct": 9.0,
+      "flexural_rigidity_d_eff_n_mm": 2567.62,
+      "max_unsupported_base_span_mm": 85.0,
+      "required_max_span_mm": 85.0,
+      "worst_case_load_g": 250.0,
+      "worst_case_load_n": 2.453,
+      "max_deflection_mm": 0.0801,
+      "required_max_deflection_mm": 0.5,
+      "span_over_deflection": 1061.8
+    },
+    "c_sg90_door_torque_path": {
+      "passed": true,
+      "sg90_stall_torque_nmm": 176.5,
+      "door_torque_margin": {
+        "mechanism": "coaxial_direct_drive_top_jamb",
+        "door_mass_g": 12.82,
+        "door_width_mm": 56.0,
+        "sg90_stall_torque_kg_cm": 1.8,
+        "dynamic_torque_kg_cm": 0.00687,
+        "friction_torque_kg_cm": 0.0026,
+        "external_disturbance_torque_kg_cm": 0.11417,
+        "nominal_required_torque_kg_cm": 0.00946,
+        "worst_case_required_torque_kg_cm": 0.1236,
+        "nominal_safety_margin_x": 190.2,
+        "worst_case_safety_margin_x": 14.56,
+        "passes_min_5x_margin": true
+      },
+      "p07_servo_shelf": {
+        "perimeters": 3,
+        "bending_stress_mpa": 2.884,
+        "fos_yield": 15.6,
+        "tip_deflection_mm": 0.1662,
+        "passed": true
+      },
+      "sup10_hinge_pins_2x": {
+        "perimeters": 3,
+        "pin_dia_mm": 2.7,
+        "total_shear_area_mm2": 11.45,
+        "shear_stress_mpa": 0.186,
+        "fos_shear": 134.67,
+        "passed": true
+      },
+      "sup11_clamp_saddle": {
+        "perimeters": 3,
+        "tenon_shear_area_mm2": 36.0,
+        "shear_stress_mpa": 0.123,
+        "fos_shear": 203.97,
+        "passed": true
+      },
+      "sup10b_horn_coupler": {
+        "perimeters": 3,
+        "stall_force_n": 16.05,
+        "fork_wall_area_mm2": 8.0,
+        "shear_stress_mpa": 2.006,
+        "fos_shear": 12.46,
+        "passed": true
+      }
+    },
+    "d_dovetail_comb_joints": {
+      "passed": true,
+      "handling_load_n": 20.0,
+      "dovetail_seam_thickness_mm": 3.0,
+      "dovetail_neck_mm": 10.0,
+      "dovetail_eff_shear_area_mm2": 19.5,
+      "dovetail_shear_stress_mpa": 1.026,
+      "dovetail_fos_shear": 24.38,
+      "p17_joiner_perimeters": 3,
+      "p17_joiner_fos_shear": 68.0
+    },
+    "e_pcb_tray_p16_sup05_sup06": {
+      "passed": true,
+      "insertion_load_n": 15.0,
+      "sup05_perimeters": 3,
+      "sup06_perimeters": 3,
+      "sup05_tenon_shear_mpa": 0.156,
+      "sup05_fos_shear": 160.0,
+      "p16_bending_stress_mpa": 3.355,
+      "p16_fos_yield": 13.41,
+      "p16_center_deflection_mm": 0.415
+    }
+  }
+}

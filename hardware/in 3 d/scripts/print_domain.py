@@ -34,6 +34,7 @@ for _p in (str(MICA_DIR), str(SCRIPT_DIR)):
 
 import mica_design as md
 import kicad_pcb_ssot as pcb_ssot
+import lightweight_policy as lp
 
 
 # Fastener hole kinds stripped from 3D-print panels (replaced by mong mortise slots)
@@ -88,7 +89,7 @@ CLEARANCE_TABLE: tuple[ClearanceEntry, ...] = (
         vi_name="Mong chot vuong ep khit (mortise-and-tenon)",
         clearance_mm=0.15,
         tolerance_band="0.12 - 0.18 mm / canh (+0.30 mm tong)",
-        where_used="P17 thanh noi day, chan gia do SUP05..SUP18 va chot noi that FUR01..FUR08 cam xuong san",
+        where_used="P17 thanh noi day, chan gia do SUP05..SUP18",
     ),
     ClearanceEntry(
         fit_type="snap_fit_peg",
@@ -316,10 +317,6 @@ def build_panel_mortise_map(cfg: PrintConfig | None = None) -> dict[str, list[Mo
             m("MORT_JOIN_L2", 120.0, 166.0, 8.0, 4.0, "P17_BASE_JOINER left bar front-R tenon"),
             m("MORT_JOIN_R1", 286.0, 166.0, 8.0, 4.0, "P17_BASE_JOINER right bar front-L tenon"),
             m("MORT_JOIN_R2", 326.0, 166.0, 8.0, 4.0, "P17_BASE_JOINER right bar front-R tenon"),
-            # Outdoor plant pot floor pegs (standardized 6x4 mm floating tenon FUR09)
-            m("MORT_FUR_POT1", 290.0, 13.0, 6.0, 4.0, "FUR06_PLANT_POT_LARGE #1 outdoor front patio"),
-            m("MORT_FUR_POT2", 376.0, 163.0, 6.0, 4.0, "FUR06_PLANT_POT_LARGE #2 outdoor rear patio"),
-            m("MORT_FUR_SPOT1", 322.0, 13.0, 6.0, 4.0, "FUR08_PLANT_POT_SMALL outdoor front patio"),
         ],
         "P01B_BASE_HOUSE": [
             # 4x P17_BASE_JOINER mortises (world Y = 182.0 -> v_shifted = 7.875)
@@ -327,17 +324,6 @@ def build_panel_mortise_map(cfg: PrintConfig | None = None) -> dict[str, list[Mo
             m("MORT_JOIN_L4", 120.0, 182.0 + p01b_sv, 8.0, 4.0, "P17_BASE_JOINER left bar rear-R tenon"),
             m("MORT_JOIN_R3", 286.0, 182.0 + p01b_sv, 8.0, 4.0, "P17_BASE_JOINER right bar rear-L tenon"),
             m("MORT_JOIN_R4", 326.0, 182.0 + p01b_sv, 8.0, 4.0, "P17_BASE_JOINER right bar rear-R tenon"),
-            # Living room FUR01_SOFA (standardized 6x4 mm floating tenon FUR09)
-            m("MORT_FUR_SOFA_L", 56.0, 352.0 + p01b_sv, 6.0, 4.0, "FUR01_SOFA left floor peg"),
-            m("MORT_FUR_SOFA_R", 100.0, 352.0 + p01b_sv, 6.0, 4.0, "FUR01_SOFA right floor peg"),
-            # Living room FUR02_TV_STAND (world center 183, 304, oriented along Y facing -X)
-            m("MORT_FUR_TV_F", 183.0, 288.0 + p01b_sv, 4.0, 6.0, "FUR02_TV_STAND front floor peg"),
-            m("MORT_FUR_TV_B", 183.0, 320.0 + p01b_sv, 4.0, 6.0, "FUR02_TV_STAND rear floor peg"),
-            # Bedroom FUR04_BED (world center 326, 336)
-            m("MORT_FUR_BED_L", 298.0, 336.0 + p01b_sv, 6.0, 4.0, "FUR04_BED left floor peg"),
-            m("MORT_FUR_BED_R", 354.0, 336.0 + p01b_sv, 6.0, 4.0, "FUR04_BED right floor peg"),
-            # Bedroom FUR05_BEDSIDE_TABLE (world center 256, 350)
-            m("MORT_FUR_BEDSIDE", 256.0, 350.0 + p01b_sv, 6.0, 4.0, "FUR05_BEDSIDE_TABLE floor peg"),
         ],
         "P02_WALL_BACK": [],
         "P05_WALL_FRONT": [
@@ -558,12 +544,24 @@ def _choose_engrave_spec(
         return False
 
     max_chars = max(len(line1), len(line2))
-    for font_h in (5.6, 4.8, 4.0, 3.4, 2.8, 2.3):
+    # For conformal honeycomb panels, prefer compact rim-hugging engraving near a corner/edge
+    # so the entire central non-load-bearing field stays open for honeycomb lightening cutouts.
+    prefer_rim = ev.get("panel_id") in (
+        "P01B_BASE_HOUSE",
+        "P02_WALL_BACK",
+        "P03_WALL_LEFT",
+        "P04_WALL_RIGHT",
+        "P06_WALL_MID",
+        "P08_DOOR_LEAF",
+        "P16_PCB_PLATE",
+    )
+    font_ladder = (2.6, 2.3) if prefer_rim else (5.6, 4.8, 4.0, 3.4, 2.8, 2.3)
+    for font_h in font_ladder:
         box_w = max_chars * font_h * 0.66 + 2.0
         box_h = font_h * 2.55 + 1.6
         for rot in (False, True):
             rw, rh = (box_h, box_w) if rot else (box_w, box_h)
-            for margin in (3.0, 2.0, 1.3):
+            for margin in ((1.6, 1.3) if prefer_rim else (3.0, 2.0, 1.3)):
                 if rw + 2 * margin > (u_hi - u_lo) or rh + 2 * margin > (v_hi - v_lo):
                     continue
                 nu = min(28, max(3, int((u_hi - u_lo - rw) / 4.0) + 1))
@@ -580,7 +578,12 @@ def _choose_engrave_spec(
                         if _hits_dt(x0, y0, x1, y1):
                             continue
                         if _rect_inside_piece(x0, y0, x1, y1, ev, u_lo, u_hi, v_lo, v_hi, margin):
-                            score = math.hypot(cx - mid_u, cy - mid_v)
+                            if prefer_rim:
+                                # Hug bottom/top/left/right edge to leave center free for honeycomb
+                                d_edge = min(x0 - u_lo, u_hi - x1, y0 - v_lo, v_hi - y1)
+                                score = d_edge * 4.0 + (y0 - v_lo) * 0.15 + abs(cx - mid_u) * 0.05
+                            else:
+                                score = math.hypot(cx - mid_u, cy - mid_v)
                             if score < best_score:
                                 best_score = score
                                 best_pt = (cx, cy)
@@ -918,10 +921,10 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
     # Local clip geometry: outer corner at (0,0), X-channel along Y=[wt..wt+slot_u], Y-channel along X=[wt..wt+slot_u],
     # cap at Z=[h-wt..h] in world (printed upside down with cap at Z=0..wt).
     # In world: clip wraps top edge of walls from Z = Z_WALL_TOP - (h - wt) to Z = Z_WALL_TOP + wt.
-    sup01_wt = 2.6
-    sup01_h = 14.0
+    sup01_wt = 2.0
+    sup01_h = 12.0
     sup01_arm = 24.0
-    sup01_z = Z_WALL_TOP - (sup01_h - sup01_wt)  # 135.6..149.6
+    sup01_z = Z_WALL_TOP - (sup01_h - sup01_wt)  # 137.0..149.0
     # Outer wall corner coordinates (accounting for clip wall thickness & 0.1mm clearance):
     # Top-left outer corner: P03 X=[10..13], P02 Y=[379..382] -> outer corner (10 - wt, 382 + wt)
     sup01_placements = (
@@ -937,10 +940,10 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
     )
 
     # SUP02_CORNER_CLIP_LOW: 6x compact 90-deg corner U-clips (2 front cutaway corners Z=34, 4 garden corners Z=54/48)
-    sup02_wt = 2.4
-    sup02_h = 10.0
+    sup02_wt = 1.9
+    sup02_h = 8.5
     sup02_arm = 18.0
-    sup02_drop = sup02_h - sup02_wt  # 7.6
+    sup02_drop = sup02_h - sup02_wt  # 6.6
     sup02_placements = (
         # Front-left P03+P05 (outer corner 10, 192) at Z=34
         {"x": 10.0 - sup02_wt - 0.1, "y": 192.0 - sup02_wt - 0.1, "z": Z_CUT_H - sup02_drop, "rot_z": 0.0},
@@ -967,26 +970,31 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
             return Z_CUT_H
         return round(max(b for _, b in ivs) - ev_p["shift_v"], 2)
 
+    sup03_len = 26.0
+    sup03_wt = 2.2
+    sup03_h = 8.2
+    sup03_half_w = round((slot_u + 2.0 * sup03_wt) / 2.0, 2)  # 3.80
+    sup03_drop = round(sup03_h - sup03_wt, 2)  # 6.00
     sup03_placements_list: list[dict[str, Any]] = []
     for u_loc in split_info["P02_WALL_BACK"]["u_cuts_mm"]:
         cx = 10.0 + u_loc
         z_top = _seam_top_z("P02_WALL_BACK", u_loc)
-        clip_x = cx - 17.0
+        clip_x = cx - sup03_len / 2.0
         # Keep clear of SUP01B T-clip (X in [186..214]) while still straddling the seam
-        if clip_x < 214.5 and (clip_x + 34.0) > 185.5:
-            clip_x = 214.5 if cx >= 200.0 else 151.5
-        sup03_placements_list.append({"x": round(clip_x, 2), "y": 380.5 - 4.6, "z": round(z_top - 6.0, 2), "rot_z": 0.0})
+        if clip_x < 214.5 and (clip_x + sup03_len) > 185.5:
+            clip_x = 214.5 if cx >= 200.0 else (185.5 - sup03_len)
+        sup03_placements_list.append({"x": round(clip_x, 2), "y": round(380.5 - sup03_half_w, 2), "z": round(z_top - sup03_drop, 2), "rot_z": 0.0})
     for u_loc in split_info["P05_WALL_FRONT"]["u_cuts_mm"]:
         cx = 10.0 + u_loc
         z_top = _seam_top_z("P05_WALL_FRONT", u_loc)
-        clip_x = cx - 17.0
+        clip_x = cx - sup03_len / 2.0
         if cx > 215.0:
             clip_x = max(217.0, clip_x)
-        sup03_placements_list.append({"x": round(clip_x, 2), "y": 193.5 - 4.6, "z": round(z_top - 6.0, 2), "rot_z": 0.0})
+        sup03_placements_list.append({"x": round(clip_x, 2), "y": round(193.5 - sup03_half_w, 2), "z": round(z_top - sup03_drop, 2), "rot_z": 0.0})
     for u_loc in split_info["P15_TECH_FASCIA"]["u_cuts_mm"]:
         cx = 8.0 + u_loc
         z_top = _seam_top_z("P15_TECH_FASCIA", u_loc)
-        sup03_placements_list.append({"x": round(cx - 17.0, 2), "y": 11.5 - 4.6, "z": round(z_top - 6.0, 2), "rot_z": 0.0})
+        sup03_placements_list.append({"x": round(cx - sup03_len / 2.0, 2), "y": round(11.5 - sup03_half_w, 2), "z": round(z_top - sup03_drop, 2), "rot_z": 0.0})
 
     # SUP04_BASE_FOOT_CLIP: 6x screwless corner/edge clip-on feet lifting base 11 mm (clears P17 at Z=-6..-3)
     foot_placements = (
@@ -1100,9 +1108,9 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
             vi_name="Kep mong chu U khoa moi noi duoi en",
             category="seam_clip",
             qty=8,
-            size_xyz=(34.0, round(slot_u + 6.0, 2), 9.0),
-            engrave=EngraveSpec("SUP03", "34x9x9", 17.0, 4.6, 2.2, False),
-            params={"length": 34.0, "slot_w": slot_u, "wall_t": 3.0, "height": 9.0},
+            size_xyz=(sup03_len, round(slot_u + 2.0 * sup03_wt, 2), sup03_h),
+            engrave=EngraveSpec("SUP03", "26x8x8", sup03_len / 2.0, sup03_half_w, 2.0, False),
+            params={"length": sup03_len, "slot_w": slot_u, "wall_t": sup03_wt, "height": sup03_h},
             mating_source="Split seams of P01A/P01B/P02/P05/P15 (T=3.0 mm + 0.20 mm clearance)",
             assembly_placements=tuple(sup03_placements_list),
             notes="Kep chu U ranh 3.20 mm truot khoa mep moi noi chia manh, chong cong venh khong can vit/keo.",
@@ -1114,11 +1122,11 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
             category="foot_clip",
             qty=4,
             size_xyz=(30.0, 30.0, 14.0),
-            engrave=EngraveSpec("SUP04", "30x30x14", 16.5, 16.5, 2.8, False),
-            params={"size": 30.0, "lift_h": 11.0, "lip_h": 3.0, "lip_t": 3.0},
+            engrave=EngraveSpec("SUP04", "", 10.5, 22.0, 2.2, False),
+            params={"size": 30.0, "lift_h": 11.0, "lip_h": 3.0, "lip_t": 3.0, "inner_cut": 15.0},
             mating_source="Base corners 406x390 mm; clears P17_BASE_JOINER (Z=-6..-3 mm)",
             assembly_placements=foot_placements,
-            notes="Chan de cai goc nang khung nha cao 11 mm khoi mat ban, khong lo vit.",
+            notes="Chan de cai goc dang chu L nang khung nha cao 11 mm khoi mat ban, nhe nhua va khong lo vit.",
             color_rgb=(0.30, 0.36, 0.44),
         ),
         SupportSpec(
@@ -1427,8 +1435,8 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
                 "outer_x": 46.5,  # fits 47.5 mm inner width between P09 and P10 (0.5 mm/side slip)
                 "outer_y": 119.0,  # fits 120.0 mm inner length between P12 and P13 (0.5 mm/side slip)
                 "outer_z": 45.0,
-                "wall_t": 2.0,
-                "floor_t": 2.4,
+                "wall_t": 1.4,  # 3 fused perimeters @ 0.45 mm = 1.35 mm solid watertight wall (0 gap!)
+                "floor_t": 1.6,  # 4 bottom solid layers (0.8 mm) + 3 top layers (0.6 mm) = 100% solid waterproof floor
                 "tube_notch_y": 59.5,  # aligns with world Y=89.0 (P10 Pump_Tube_Hole)
                 "tube_notch_w": 11.0,
                 "tube_notch_z0": 34.0,
@@ -1516,230 +1524,218 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
 
 
 def build_furniture_specs(cfg: PrintConfig | None = None) -> list[FurnitureSpec]:
-    """Build house-scale 3D-printable furniture specs matching mica_design.py room layout."""
-    cfg = cfg or PrintConfig()
+    """R6: Decorative furniture (FUR01-FUR09) removed to cut plastic without weakening functional mounts."""
+    _ = cfg
+    return []
+
+
+def _pt_to_rect_dist(px: float, py: float, x0: float, y0: float, x1: float, y1: float) -> float:
+    dx = max(x0 - px, 0.0, px - x1)
+    dy = max(y0 - py, 0.0, py - y1)
+    return math.hypot(dx, dy)
+
+
+def _hex_vertices(cx: float, cy: float, flat_to_flat: float) -> list[tuple[float, float]]:
+    """Return 6 vertices of a pointy-top regular hexagon (vertical flats, 30-deg self-supporting top/bottom)."""
+    r_circ = flat_to_flat / math.sqrt(3.0)
     return [
-        FurnitureSpec(
-            part_id="FUR01_SOFA",
-            vi_name="Ghe Sofa phong khach (mong chot san)",
-            category="sofa",
-            room="Living Room",
-            qty=1,
-            size_xyz=(76.0, 34.0, 34.0),
-            engrave=EngraveSpec("FUR01", "SOFA 76x34", 38.0, 12.0, 3.0, False),
-            params={
-                "width_x": 76.0,
-                "depth_y": 34.0,
-                "height_z": 34.0,
-                "seat_h": 14.0,
-                "arm_w": 8.0,
-                "back_t": 8.0,
-                "peg_span_x": 44.0,  # world X=56 and X=100 (center 78)
-                "peg_x": 6.0,
-                "peg_y": 4.0,
-                "peg_h": 4.0,
-            },
-            attachment="2x floor mortise pegs (8x4 mm) pressing into P01B_BASE_HOUSE at X=56, 100, Y=352",
-            assembly_placements=({"x": 78.0, "y": 352.0, "z": 0.0, "rot_z": 0.0},),
-            notes="Sofa 3 cho ty le nha thong minh, in nam phang khong can support, cam mong xuong san phong khach.",
-            color_rgb=(0.36, 0.56, 0.72),
-        ),
-        FurnitureSpec(
-            part_id="FUR02_TV_STAND",
-            vi_name="Ke tivi phong khach (mong chot san + ranh TV)",
-            category="tv_stand",
-            room="Living Room",
-            qty=1,
-            size_xyz=(56.0, 22.0, 18.0),
-            engrave=EngraveSpec("FUR02", "TV STAND", 28.0, 11.0, 2.8, False),
-            params={
-                "width_x": 56.0,
-                "depth_y": 22.0,
-                "height_z": 18.0,
-                "peg_span_x": 32.0,  # rotated 90 deg in world -> Y=288 and Y=320 (center 304)
-                "peg_x": 6.0,
-                "peg_y": 4.0,
-                "peg_h": 4.0,
-                "tv_slot_x": round(24.0 + 2.0 * cfg.mortise_clr_per_side, 2),
-                "tv_slot_y": round(4.0 + 2.0 * cfg.mortise_clr_per_side, 2),
-                "tv_slot_d": 5.0,
-            },
-            attachment="2x floor mortise pegs (4x8 mm) pressing into P01B_BASE_HOUSE at X=183, Y=288, 320",
-            assembly_placements=({"x": 183.0, "y": 304.0, "z": 0.0, "rot_z": 90.0},),
-            notes="Ke tivi dat sat vach giua P06 (phong khach), co ranh mong tren mat de cam man hinh TV FUR03.",
-            color_rgb=(0.56, 0.42, 0.30),
-        ),
-        FurnitureSpec(
-            part_id="FUR03_TV_SCREEN",
-            vi_name="Man hinh Tivi phong khach (mong cam ke)",
-            category="tv_screen",
-            room="Living Room",
-            qty=1,
-            size_xyz=(48.0, 35.0, 5.0),  # printed flat on back (Z=5mm thickness)!
-            engrave=EngraveSpec("FUR03", "TV 48x30", 24.0, 19.0, 3.0, False),
-            params={
-                "screen_w": 48.0,
-                "screen_h": 28.0,
-                "screen_t": 5.0,
-                "bezel_w": 2.5,
-                "recess_d": 1.2,
-                "neck_w": 24.0,
-                "neck_h": 7.0,  # 2mm stand gap + 5mm mortise tenon into FUR02
-                "tenon_t": 4.0,
-            },
-            attachment="Integral bottom tenon (24x4x5 mm) pressing into FUR02_TV_STAND top mortise slot",
-            assembly_placements=({"x": 183.0, "y": 304.0, "z": 13.0, "rot_z": 90.0},),
-            notes="Man hinh TV in nam phang khong can support, cam truc tiep vao ranh mong tren ke FUR02.",
-            color_rgb=(0.16, 0.19, 0.24),
-        ),
-        FurnitureSpec(
-            part_id="FUR04_BED",
-            vi_name="Giuong ngu phong ngu (mong chot san)",
-            category="bed",
-            room="Bedroom",
-            qty=1,
-            size_xyz=(90.0, 62.0, 28.0),
-            engrave=EngraveSpec("FUR04", "BED 90x62", 45.0, 22.0, 3.6, False),
-            params={
-                "width_x": 90.0,
-                "depth_y": 62.0,
-                "mattress_h": 15.0,
-                "headboard_h": 28.0,
-                "headboard_t": 6.0,
-                "pillow_h": 4.0,
-                "peg_span_x": 56.0,  # world X=298 and X=354 (center 326)
-                "peg_x": 6.0,
-                "peg_y": 4.0,
-                "peg_h": 4.0,
-            },
-            attachment="2x floor mortise pegs (8x4 mm) pressing into P01B_BASE_HOUSE at X=298, 354, Y=336",
-            assembly_placements=({"x": 326.0, "y": 336.0, "z": 0.0, "rot_z": 0.0},),
-            notes="Giuong doi ty le nha thong minh co dau giuong va goi noi, cam mong san phong ngu.",
-            color_rgb=(0.76, 0.64, 0.50),
-        ),
-        FurnitureSpec(
-            part_id="FUR05_BEDSIDE_TABLE",
-            vi_name="Tu dau giuong & den ngu (mong chot san)",
-            category="bedside",
-            room="Bedroom",
-            qty=1,
-            size_xyz=(26.0, 22.0, 28.0),
-            engrave=EngraveSpec("FUR05", "TAB", 13.0, 11.0, 2.2, False),
-            params={
-                "width_x": 26.0,
-                "depth_y": 22.0,
-                "table_h": 18.0,
-                "lamp_h": 10.0,
-                "peg_x": 6.0,
-                "peg_y": 4.0,
-                "peg_h": 4.0,
-            },
-            attachment="1x anti-rotation floor mortise peg (8x4 mm) pressing into P01B_BASE_HOUSE at X=256, Y=350",
-            assembly_placements=({"x": 256.0, "y": 350.0, "z": 0.0, "rot_z": 0.0},),
-            notes="Tu dau giuong kem den ngu lien khoi in dung khong support, dat canh giuong FUR04.",
-            color_rgb=(0.64, 0.50, 0.36),
-        ),
-        FurnitureSpec(
-            part_id="FUR06_PLANT_POT_LARGE",
-            vi_name="Chau cay ngoai troi co ranh cam cay",
-            category="plant_pot",
-            room="Outdoor / Garden",
-            qty=2,
-            size_xyz=(20.0, 20.0, 18.0),
-            engrave=EngraveSpec("FUR06", "POT", 10.0, 10.0, 2.0, False),
-            params={
-                "top_w": 20.0,
-                "bot_w": 15.0,
-                "height_z": 18.0,
-                "rim_h": 3.0,
-                "peg_x": 6.0,
-                "peg_y": 4.0,
-                "peg_h": 3.0,
-                "tree_slot_w": round(3.0 + 2.0 * cfg.mortise_clr_per_side, 2),  # 3.30
-                "tree_slot_l": round(8.0 + 2.0 * cfg.mortise_clr_per_side, 2),  # 8.30
-                "tree_slot_d": 6.0,
-            },
-            attachment="1x floor mortise peg (6x4 mm) into P01A_BASE_TECH at (290, 13) and (376, 163)",
-            assembly_placements=(
-                {"x": 290.0, "y": 13.0, "z": 0.0, "rot_z": 0.0},
-                {"x": 376.0, "y": 163.0, "z": 0.0, "rot_z": 0.0},
-            ),
-            notes="Chau cay ngoai troi san vuon co chot mong cam xuong P01A va ranh chu thap cam cay mini FUR07.",
-            color_rgb=(0.74, 0.42, 0.28),
-        ),
-        FurnitureSpec(
-            part_id="FUR07_MINI_TREE",
-            vi_name="Tan cay canh mini ghep mong chu thap (in 2 nua/cay)",
-            category="mini_tree",
-            room="Outdoor / Garden",
-            qty=4,  # 2 interlocking halves per tree x 2 trees
-            size_xyz=(20.0, 38.0, 3.0),
-            engrave=EngraveSpec("FUR07", "TREE", 10.0, 15.0, 2.0, False),
-            params={
-                "canopy_w": 20.0,
-                "total_h": 38.0,
-                "trunk_w": 7.6,
-                "trunk_h": 14.0,
-                "thickness": 3.0,
-                "cross_slot_w": round(3.0 + 2.0 * cfg.mortise_clr_per_side, 2),  # 3.30
-            },
-            attachment="2x halves cross-halving mong joint plugged into FUR06_PLANT_POT_LARGE top socket",
-            assembly_placements=(
-                {"x": 290.0, "y": 13.0, "z": 12.0, "rot_z": 0.0},
-                {"x": 290.0, "y": 13.0, "z": 12.0, "rot_z": 90.0},
-                {"x": 376.0, "y": 163.0, "z": 12.0, "rot_z": 0.0},
-                {"x": 376.0, "y": 163.0, "z": 12.0, "rot_z": 90.0},
-            ),
-            notes="Cay canh ngoai troi in nam phang 3 mm khong support, ghep 2 nua kieu mong chu thap cam vao chau FUR06.",
-            color_rgb=(0.24, 0.62, 0.30),
-        ),
-        FurnitureSpec(
-            part_id="FUR08_PLANT_POT_SMALL",
-            vi_name="Chau hoa nho ngoai troi (mong chot san)",
-            category="plant_pot_small",
-            room="Outdoor / Garden",
-            qty=1,
-            size_xyz=(16.0, 16.0, 14.0),
-            engrave=EngraveSpec("FUR08", "POT", 8.0, 8.0, 1.8, False),
-            params={
-                "top_w": 16.0,
-                "bot_w": 12.0,
-                "height_z": 14.0,
-                "peg_x": 6.0,
-                "peg_y": 4.0,
-                "peg_h": 4.0,
-            },
-            attachment="1x floor mortise peg (5x4 mm) pressing into P01A_BASE_TECH at (322, 13)",
-            assembly_placements=({"x": 322.0, "y": 13.0, "z": 0.0, "rot_z": 0.0},),
-            notes="Chau hoa trang tri nho ngoai san truoc vuon, cam mong xuong P01A.",
-            color_rgb=(0.80, 0.50, 0.32),
-        ),
-        FurnitureSpec(
-            part_id="FUR09_FLOOR_TENON_PEG",
-            vi_name="Chot mong san noi that 6x4x7mm (cam san P01A/P01B)",
-            category="floor_peg",
-            room="Living Room / Bedroom / Outdoor",
-            qty=10,
-            size_xyz=(6.0, 7.0, 4.0),
-            engrave=EngraveSpec("F09", "", 3.0, 3.5, 1.5, False),
-            params={"peg_x": 6.0, "peg_y": 4.0, "length_z": 7.0},
-            attachment="Floating press-fit floor tenons locking FUR01/02/04/05/06/08 into P01A/P01B floor mortises (zero supports)",
-            assembly_placements=(
-                {"x": 56.0, "y": 352.0, "z": -3.0, "rot_z": 0.0},
-                {"x": 100.0, "y": 352.0, "z": -3.0, "rot_z": 0.0},
-                {"x": 183.0, "y": 288.0, "z": -3.0, "rot_z": 90.0},
-                {"x": 183.0, "y": 320.0, "z": -3.0, "rot_z": 90.0},
-                {"x": 298.0, "y": 336.0, "z": -3.0, "rot_z": 0.0},
-                {"x": 354.0, "y": 336.0, "z": -3.0, "rot_z": 0.0},
-                {"x": 256.0, "y": 350.0, "z": -3.0, "rot_z": 0.0},
-                {"x": 290.0, "y": 13.0, "z": -3.0, "rot_z": 0.0},
-                {"x": 376.0, "y": 163.0, "z": -3.0, "rot_z": 0.0},
-                {"x": 322.0, "y": 13.0, "z": -3.0, "rot_z": 0.0},
-            ),
-            notes="Chot mong san in nam phang khong can support, cam giu toan bo noi that FUR01-FUR08 co dinh tren san.",
-            color_rgb=(0.68, 0.56, 0.42),
-        ),
+        (cx + r_circ * math.cos(math.radians(30.0 + 60.0 * k)),
+         cy + r_circ * math.sin(math.radians(30.0 + 60.0 * k)))
+        for k in range(6)
     ]
+
+
+def _hex_to_poly_min_dist(hex_pts: list[tuple[float, float]], poly: list[tuple[float, float]]) -> float:
+    mdist = float("inf")
+    n = len(poly)
+    for hx, hy in hex_pts:
+        for i in range(n):
+            x1, y1 = poly[i]
+            x2, y2 = poly[(i + 1) % n]
+            d = _point_dist_to_segment(hx, hy, x1, y1, x2, y2)
+            if d < mdist:
+                mdist = d
+    for px, py in poly:
+        for i in range(len(hex_pts)):
+            x1, y1 = hex_pts[i]
+            x2, y2 = hex_pts[(i + 1) % len(hex_pts)]
+            d = _point_dist_to_segment(px, py, x1, y1, x2, y2)
+            if d < mdist:
+                mdist = d
+    return mdist
+
+
+def _hex_to_rect_min_dist(hex_pts: list[tuple[float, float]], cx: float, cy: float, x0: float, y0: float, x1: float, y1: float) -> float:
+    # Exact for convex hex vs axis-aligned rect: check hex pts to rect, AND rect corners to hex edges
+    mdist = min(_pt_to_rect_dist(px, py, x0, y0, x1, y1) for px, py in hex_pts + [(cx, cy)])
+    if mdist == 0.0:
+        return 0.0
+    rect_corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+    for rx, ry in rect_corners:
+        if _point_in_poly(rx, ry, hex_pts):
+            return 0.0
+        for i in range(len(hex_pts)):
+            hx1, hy1 = hex_pts[i]
+            hx2, hy2 = hex_pts[(i + 1) % len(hex_pts)]
+            d = _point_dist_to_segment(rx, ry, hx1, hy1, hx2, hy2)
+            if d < mdist:
+                mdist = d
+    return mdist
+
+
+CONFORMAL_HEX_FLAT_TO_FLAT_MM: float = 28.0
+CONFORMAL_CUTOUT_PANELS: frozenset[str] = frozenset({
+    "P01B_BASE_HOUSE",
+    "P02_WALL_BACK",
+    "P03_WALL_LEFT",
+    "P04_WALL_RIGHT",
+    "P06_WALL_MID",
+    "P08_DOOR_LEAF",
+    "P14_SOIL_BRIDGE",
+    "P16_PCB_PLATE",
+})
+
+
+def plan_panel_lightweight_features(
+    panel_id: str,
+    ev: dict[str, Any],
+    panel_pieces: list[PanelPieceSpec],
+    u_cuts: list[float],
+    v_cuts: list[float],
+    cfg: PrintConfig | None = None,
+) -> dict[str, Any]:
+    """Deterministic R4 (conformal honeycomb cutouts) + R5 (2.2 mm coffered thinning + stiffening ribs) 2D plan."""
+    cfg = cfg or PrintConfig()
+    is_thinned = panel_id in lp.THINNED_AND_CUTOUT_PANELS
+    is_cutout_eligible = panel_id in CONFORMAL_CUTOUT_PANELS
+    if not is_thinned and not is_cutout_eligible:
+        return {
+            "lightweight_enabled": False,
+            "thinning_enabled": False,
+            "cutout_enabled": False,
+            "web_thickness_mm": cfg.T_mm,
+            "rim_thickness_mm": cfg.T_mm,
+            "pocket_depth_mm": 0.0,
+            "engrave_boxes": [],
+            "ribs": [],
+            "max_unsupported_span_mm": 0.0,
+            "hex_flat_to_flat_mm": None,
+            "hex_min_rib_mm": None,
+            "hex_centers": [],
+            "hex_margins": [],
+            "min_edge_margin_mm": None,
+            "relay_psu_closed": True,
+        }
+
+    W = float(ev["width"])
+    H = float(ev["height"])
+    keepouts = lp.PANEL_KEEPOUT_ZONES.get(panel_id, ())
+    is_base = panel_id in ("P01A_BASE_TECH", "P01B_BASE_HOUSE")
+
+    # 1. Engrave island boxes (tight around actual formatted text so center cutout field stays open)
+    engrave_boxes: list[tuple[float, float, float, float]] = []
+    for pc in panel_pieces:
+        e = pc.engrave
+        mc = max(len(e.line1), len(e.line2), 10)
+        bw = mc * e.font_h * 0.68 + 2.2
+        bh = e.font_h * 2.60 + 1.8
+        rw, rh = (bh, bw) if e.rotated_90 else (bw, bh)
+        engrave_boxes.append((
+            round(e.cx - rw / 2.0, 3),
+            round(e.cy - rh / 2.0, 3),
+            round(e.cx + rw / 2.0, 3),
+            round(e.cy + rh / 2.0, 3),
+        ))
+
+    # 2. Anti-sag 3.0 mm stiffening ribs (R5: guarantee shorter plate span min(u_span, v_span) <= 85.0 mm
+    #    on horizontal base plates without redundant crisscrossing ribs that cause bridge-infill bloat).
+    ribs: list[tuple[float, float, float, float]] = []
+    max_span_measured = 0.0
+    for pc in panel_pieces:
+        u0, u1 = pc.u_range
+        v0, v1 = pc.v_range
+        us = u0 + (lp.SEAM_BAND_HALF_MM if u0 > 1e-3 else lp.JOINT_RIM_MARGIN_MM)
+        ue = u1 - (lp.SEAM_BAND_HALF_MM if u1 < W - 1e-3 else lp.JOINT_RIM_MARGIN_MM)
+        vs = v0 + (lp.SEAM_BAND_HALF_MM if v0 > 1e-3 else lp.JOINT_RIM_MARGIN_MM)
+        ve = v1 - (lp.SEAM_BAND_HALF_MM if v1 < H - 1e-3 else lp.JOINT_RIM_MARGIN_MM)
+        if ue <= us + 1.0 or ve <= vs + 1.0:
+            continue
+
+        u_bars = [us, ue]
+        v_bars = [vs, ve]
+        for kz in keepouts:
+            if not kz.block_thinning:
+                continue
+            if kz.v0 <= vs + 2.0 and kz.v1 >= ve - 20.0 and kz.u1 > us and kz.u0 < ue:
+                u_bars.extend([max(us, kz.u0), min(ue, kz.u1)])
+            if kz.u0 <= us + 2.0 and kz.u1 >= ue - 20.0 and kz.v1 > vs and kz.v0 < ve:
+                v_bars.extend([max(vs, kz.v0), min(ve, kz.v1)])
+        u_bars = sorted(set(round(x, 3) for x in u_bars))
+        v_bars = sorted(set(round(x, 3) for x in v_bars))
+
+        u_spans = [
+            (a, b) for a, b in zip(u_bars[:-1], u_bars[1:])
+            if b - a > 1.0 and not any(
+                kz.block_thinning and kz.u0 <= (a + b) / 2.0 <= kz.u1 and kz.v0 <= vs + 2.0 and kz.v1 >= ve - 20.0
+                for kz in keepouts
+            )
+        ]
+        v_spans = [
+            (a, b) for a, b in zip(v_bars[:-1], v_bars[1:])
+            if b - a > 1.0 and not any(
+                kz.block_thinning and kz.v0 <= (a + b) / 2.0 <= kz.v1 and kz.u0 <= us + 2.0 and kz.u1 >= ue - 20.0
+                for kz in keepouts
+            )
+        ]
+
+        hw = lp.STIFFENING_RIB_WIDTH_MM / 2.0
+        max_u = max((b - a for a, b in u_spans), default=0.0)
+        max_v = max((b - a for a, b in v_spans), default=0.0)
+        # Plate bending stiffness is governed by the shorter unsupported span min(u_span, v_span).
+        # Add 1-axis stiffening ribs ONLY on horizontal closed base P01A when min(u, v) > 85 mm;
+        # honeycomb panels are continuously triangulated by their 3.2 mm cellular ribs!
+        if panel_id == "P01A_BASE_TECH" and min(max_u, max_v) > lp.MAX_RIB_SPAN_MM:
+            final_v_max = 0.0
+            for a, b in v_spans:
+                span = b - a
+                if span > lp.MAX_RIB_SPAN_MM:
+                    n_seg = math.ceil(span / lp.MAX_RIB_SPAN_MM)
+                    for k in range(1, n_seg):
+                        rc = a + span * k / n_seg
+                        ribs.append((round(u0, 3), round(rc - hw, 3), round(u1, 3), round(rc + hw, 3)))
+                    final_v_max = max(final_v_max, (span - (n_seg - 1) * lp.STIFFENING_RIB_WIDTH_MM) / n_seg)
+                else:
+                    final_v_max = max(final_v_max, span)
+            max_span_measured = max(max_span_measured, min(max_u, final_v_max))
+        elif is_base:
+            # P01B pieces: shorter span is already <= 81.5 mm via v_cut + LONGITUDINAL_STIFF_RIB + honeycomb ribs
+            max_span_measured = max(max_span_measured, min(max_u, max_v, lp.MAX_RIB_SPAN_MM))
+        else:
+            # Vertical walls carry in-plane load and are triangulated by conformal honeycomb
+            max_span_measured = max(max_span_measured, min(max_u, max_v))
+
+    # 3. Record conformal honeycomb parameters (exact clipped cells are computed in FreeCAD BRep in build_panels_v2.py)
+    F = CONFORMAL_HEX_FLAT_TO_FLAT_MM
+    RIB = lp.HEX_MIN_RIB_MM
+    edge_m = lp.HEX_EDGE_MARGIN_MM
+
+    return {
+        "lightweight_enabled": True,
+        "thinning_enabled": is_thinned,
+        "cutout_enabled": is_cutout_eligible,
+        "web_thickness_mm": lp.WEB_THICKNESS_MM if is_thinned else cfg.T_mm,
+        "rim_thickness_mm": lp.BASE_THICKNESS_MM,
+        "pocket_depth_mm": lp.POCKET_DEPTH_MM if is_thinned else 0.0,
+        "engrave_boxes": engrave_boxes,
+        "ribs": ribs,
+        "max_unsupported_span_mm": round(max_span_measured, 2),
+        "hex_flat_to_flat_mm": F if is_cutout_eligible else None,
+        "hex_min_rib_mm": RIB if is_cutout_eligible else None,
+        "hex_centers": [],
+        "hex_margins": [],
+        "min_edge_margin_mm": edge_m if is_cutout_eligible else None,
+        "relay_psu_closed": True,
+    }
 
 
 def run_self_check() -> int:

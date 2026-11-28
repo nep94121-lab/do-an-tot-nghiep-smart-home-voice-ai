@@ -535,25 +535,43 @@ def build_r3_clearance_checks(
         "hub_j1_terminal_obstructions": hits_j1,
     }
 
-    # 7. Ventilation (DHT11_Airflow on P06_WALL_MID: Y=279.75..292.25, Z=80..96; clear on both sides & >=20mm above FUR03 TV)
+    # 7. Ventilation (DHT11_Airflow on P06_WALL_MID: Y=279.75..292.25, Z=80..96; clear on both sides)
     z_dht_br = Part.makeBox(22.0, 12.0, 15.5, FreeCAD.Vector(201.6, 280.0, 80.25))
     z_dht_lr = Part.makeBox(20.0, 12.0, 15.5, FreeCAD.Vector(170.0, 280.0, 80.25))
     hits_dht_br = _zone_hits(z_dht_br, all_panels_flat + all_sups_flat + all_furs_flat + all_hws_flat)
     hits_dht_lr = _zone_hits(z_dht_lr, all_panels_flat + all_sups_flat + all_furs_flat + all_hws_flat)
-    tv_bb = _merged_bb(fur_by_id["FUR03_TV_SCREEN"])
     sup12_bb = sup_by_id["SUP12_DHT11_SNAP_CRADLE"][0][1].BoundBox
     dht_bb = hw_by_id["HW_DHT11"].BoundBox
-    gap_sup12_tv = round(sup12_bb.ZMin - tv_bb.ZMax, 3)
-    gap_dht_tv = round(dht_bb.ZMin - tv_bb.ZMax, 3)
-    checks["ventilation_dht11_airflow"] = {
-        "passed": bool(len(hits_dht_br) == 0 and len(hits_dht_lr) == 0 and gap_sup12_tv >= 20.0 and gap_dht_tv >= 28.0),
-        "vent_panel": "P06_WALL_MID",
-        "vent_size_mm": [12.5, 16.0],
-        "sup12_above_tv_mm": gap_sup12_tv,
-        "dht11_above_tv_mm": gap_dht_tv,
-        "bedroom_side_obstructions": hits_dht_br,
-        "living_room_side_obstructions": hits_dht_lr,
-    }
+    if "FUR03_TV_SCREEN" in fur_by_id and fur_by_id["FUR03_TV_SCREEN"]:
+        tv_bb = _merged_bb(fur_by_id["FUR03_TV_SCREEN"])
+        gap_sup12_tv = round(sup12_bb.ZMin - tv_bb.ZMax, 3)
+        gap_dht_tv = round(dht_bb.ZMin - tv_bb.ZMax, 3)
+        vent_passed = bool(len(hits_dht_br) == 0 and len(hits_dht_lr) == 0 and gap_sup12_tv >= 20.0 and gap_dht_tv >= 28.0)
+        checks["ventilation_dht11_airflow"] = {
+            "passed": vent_passed,
+            "furniture_removed": False,
+            "vent_panel": "P06_WALL_MID",
+            "vent_size_mm": [12.5, 16.0],
+            "sup12_above_tv_mm": gap_sup12_tv,
+            "dht11_above_tv_mm": gap_dht_tv,
+            "bedroom_side_obstructions": hits_dht_br,
+            "living_room_side_obstructions": hits_dht_lr,
+        }
+    else:
+        # R6: decorative furniture removed -> verify DHT11_Airflow unobstructed on both sides and clear above floor Z=0
+        gap_sup12_floor = round(sup12_bb.ZMin - 0.0, 3)
+        gap_dht_floor = round(dht_bb.ZMin - 0.0, 3)
+        vent_passed = bool(len(hits_dht_br) == 0 and len(hits_dht_lr) == 0 and gap_sup12_floor >= 60.0 and gap_dht_floor >= 65.0)
+        checks["ventilation_dht11_airflow"] = {
+            "passed": vent_passed,
+            "furniture_removed": True,
+            "vent_panel": "P06_WALL_MID",
+            "vent_size_mm": [12.5, 16.0],
+            "sup12_above_floor_mm": gap_sup12_floor,
+            "dht11_above_floor_mm": gap_dht_floor,
+            "bedroom_side_obstructions": hits_dht_br,
+            "living_room_side_obstructions": hits_dht_lr,
+        }
 
     all_r3_ok = all(bool(c["passed"]) for c in checks.values())
     return {
@@ -625,7 +643,6 @@ def main() -> int:
     import cad_common as cc
     import build_panels_v2 as bpv2
     import build_mounts_v2 as bmv2
-    import build_furniture_v2 as bfv2
 
     orig_eng = cc.safe_engrave_top_face
     cc.safe_engrave_top_face = lambda shape, *a, **kw: (shape, True)
@@ -656,11 +673,14 @@ def main() -> int:
                     support_world.append((inst, sup.part_id, ws))
 
         furniture_world: list[tuple[str, str, Any]] = []
-        for fur in pd_mod.build_furniture_specs(cfg):
-            meta = metas[fur.part_id]
-            sh, _ = bfv2.build_one_furniture(fur, cfg)
-            for lbl, ws in wa.place_furniture_in_world(sh, meta):
-                furniture_world.append((lbl, fur.part_id, ws))
+        fur_specs = pd_mod.build_furniture_specs(cfg)
+        if fur_specs:
+            import build_furniture_v2 as bfv2
+            for fur in fur_specs:
+                meta = metas[fur.part_id]
+                sh, _ = bfv2.build_one_furniture(fur, cfg)
+                for lbl, ws in wa.place_furniture_in_world(sh, meta):
+                    furniture_world.append((lbl, fur.part_id, ws))
     finally:
         cc.safe_engrave_top_face = orig_eng
 

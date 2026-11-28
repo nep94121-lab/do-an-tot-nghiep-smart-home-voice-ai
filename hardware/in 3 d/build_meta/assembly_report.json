@@ -1,9 +1,9 @@
 {
   "assembly_passed": true,
-  "elapsed_sec": 56.61,
+  "elapsed_sec": 294.68,
   "panel_instances_checked": 31,
   "support_instances_checked": 51,
-  "furniture_instances_checked": 22,
+  "furniture_instances_checked": 0,
   "hardware_bodies_checked": 17,
   "pcb_keepouts_checked": 13,
   "reconstruction_checks": [
@@ -504,37 +504,37 @@
       "SUP10_DOOR_MORTISE_HINGE_LeafB#2",
       "SUP10B_DOOR_HORN_COUPLER"
     ],
-    "static_obstacles_checked": 117,
+    "static_obstacles_checked": 95,
     "max_intersection_mm3": 0.0,
     "horn_coupler_intersection_mm3": 0.0,
     "collisions": [],
     "torque_margin": {
       "mechanism": "coaxial_direct_drive_top_jamb",
-      "door_mass_g": 17.55,
+      "door_mass_g": 12.82,
       "door_width_mm": 56.0,
       "sg90_stall_torque_kg_cm": 1.8,
-      "dynamic_torque_kg_cm": 0.0094,
-      "friction_torque_kg_cm": 0.00355,
+      "dynamic_torque_kg_cm": 0.00687,
+      "friction_torque_kg_cm": 0.0026,
       "external_disturbance_torque_kg_cm": 0.11417,
-      "nominal_required_torque_kg_cm": 0.01295,
-      "worst_case_required_torque_kg_cm": 0.1271,
-      "nominal_safety_margin_x": 139.0,
-      "worst_case_safety_margin_x": 14.16,
+      "nominal_required_torque_kg_cm": 0.00946,
+      "worst_case_required_torque_kg_cm": 0.1236,
+      "nominal_safety_margin_x": 190.2,
+      "worst_case_safety_margin_x": 14.56,
       "passes_min_5x_margin": true
     }
   },
   "torque_margin": {
     "mechanism": "coaxial_direct_drive_top_jamb",
-    "door_mass_g": 17.55,
+    "door_mass_g": 12.82,
     "door_width_mm": 56.0,
     "sg90_stall_torque_kg_cm": 1.8,
-    "dynamic_torque_kg_cm": 0.0094,
-    "friction_torque_kg_cm": 0.00355,
+    "dynamic_torque_kg_cm": 0.00687,
+    "friction_torque_kg_cm": 0.0026,
     "external_disturbance_torque_kg_cm": 0.11417,
-    "nominal_required_torque_kg_cm": 0.01295,
-    "worst_case_required_torque_kg_cm": 0.1271,
-    "nominal_safety_margin_x": 139.0,
-    "worst_case_safety_margin_x": 14.16,
+    "nominal_required_torque_kg_cm": 0.00946,
+    "worst_case_required_torque_kg_cm": 0.1236,
+    "nominal_safety_margin_x": 190.2,
+    "worst_case_safety_margin_x": 14.56,
     "passes_min_5x_margin": true
   },
   "r3_clearances": {
@@ -612,13 +612,14 @@
       },
       "ventilation_dht11_airflow": {
         "passed": true,
+        "furniture_removed": true,
         "vent_panel": "P06_WALL_MID",
         "vent_size_mm": [
           12.5,
           16.0
         ],
-        "sup12_above_tv_mm": 23.8,
-        "dht11_above_tv_mm": 30.0,
+        "sup12_above_floor_mm": 71.8,
+        "dht11_above_floor_mm": 78.0,
         "bedroom_side_obstructions": [],
         "living_room_side_obstructions": []
       }

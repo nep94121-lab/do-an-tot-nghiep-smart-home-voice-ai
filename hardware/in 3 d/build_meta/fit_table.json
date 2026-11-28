@@ -153,7 +153,7 @@
       "source_of_dimension": "component_dimensions_ssot.py + Soldered/Mouser 101844 datasheet",
       "board_size_mm": "45.0 x 24.0 x 33.0 (tube OD 8.0)",
       "mount_part": "SUP15_WATER_TANK_LINER + P10_WATER_DIVIDER",
-      "mount_inner_size_mm": "Liner inner 42.5x115.0x42.6, notch 11.0",
+      "mount_inner_size_mm": "Liner inner 43.7x116.2x43.4, notch 11.0",
       "clearance_mm": "9.25 mm/side X, 35.0 mm/side Y, 1.50 mm/side tube notch",
       "holding_method": "Free-standing inside 1-piece watertight drop-in liner",
       "status": "PASS"

@@ -7,31 +7,31 @@
   "mating_source": "P02+P03 and P02+P04 top 90-deg corners (T=3.0 mm + 0.20 mm clearance)",
   "params": {
     "arm": 24.0,
-    "height": 14.0,
-    "wall_t": 2.6,
+    "height": 12.0,
+    "wall_t": 2.0,
     "slot_w": 3.2
   },
   "assembly_placements": [
     {
-      "x": 7.300000000000001,
-      "y": 384.70000000000005,
-      "z": 135.6,
+      "x": 7.9,
+      "y": 384.1,
+      "z": 137.0,
       "rot_z": -90.0
     },
     {
-      "x": 398.70000000000005,
-      "y": 384.70000000000005,
-      "z": 135.6,
+      "x": 398.1,
+      "y": 384.1,
+      "z": 137.0,
       "rot_z": 180.0
     }
   ],
   "print_bbox_mm": [
     24.0,
     24.0,
-    14.0
+    12.0
   ],
   "print_z_min": 0.0,
-  "volume_mm3": 3750.977,
+  "volume_mm3": 2711.057,
   "solids": 1,
   "expected_solids": 1,
   "valid": true,

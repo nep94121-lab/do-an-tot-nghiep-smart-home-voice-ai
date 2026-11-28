@@ -13,6 +13,7 @@ Outputs (under `hardware/in 3 d/`):
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import pathlib
 import sys
@@ -31,8 +32,256 @@ import FreeCAD
 import Part
 
 import cad_common
+import lightweight_policy as lp
 import mica_design as md
 import print_domain as pd_mod
+
+
+_CACHED_PIECES_AND_SPLITS: tuple[list[pd_mod.PanelPieceSpec], dict[str, Any]] | None = None
+
+
+def _get_pieces_and_splits(cfg: pd_mod.PrintConfig) -> tuple[list[pd_mod.PanelPieceSpec], dict[str, Any]]:
+    global _CACHED_PIECES_AND_SPLITS
+    if _CACHED_PIECES_AND_SPLITS is None:
+        _CACHED_PIECES_AND_SPLITS = pd_mod.build_panel_piece_specs(cfg)
+    return _CACHED_PIECES_AND_SPLITS
+
+
+def _build_2d_safe_face(
+    ev: dict[str, Any],
+    panel_id: str,
+    panel_pieces: list[pd_mod.PanelPieceSpec],
+    u_cuts: list[float],
+    v_cuts: list[float],
+    engrave_boxes: list[tuple[float, float, float, float]],
+    ribs: list[tuple[float, float, float, float]],
+    margin_mm: float,
+    for_cutouts: bool,
+) -> Any:
+    """Build exact 2D FreeCAD Face of safe interior zones >= margin_mm from every edge/hole/dovetail/keepout."""
+    W = float(ev["width"])
+    H = float(ev["height"])
+    poly = ev["outer_poly"]
+    vecs = [FreeCAD.Vector(x, y, 0.0) for (x, y) in poly]
+    vecs.append(vecs[0])
+    outer_f = Part.Face(Part.makePolygon(vecs))
+
+    bufs: list[Any] = []
+    # 1. Outer boundary rim buffer (exact >= margin_mm from every outer edge, tab, notch, cutaway)
+    n_poly = len(poly)
+    for i in range(n_poly):
+        x1, y1 = poly[i]
+        x2, y2 = poly[(i + 1) % n_poly]
+        xlo, xhi = min(x1, x2), max(x1, x2)
+        ylo, yhi = min(y1, y2), max(y1, y2)
+        if abs(x1 - x2) < 1e-3:
+            bufs.append(Part.makePlane(2.0 * margin_mm, (yhi - ylo) + 2.0 * margin_mm, FreeCAD.Vector(xlo - margin_mm, ylo - margin_mm, 0.0)))
+        elif abs(y1 - y2) < 1e-3:
+            bufs.append(Part.makePlane((xhi - xlo) + 2.0 * margin_mm, 2.0 * margin_mm, FreeCAD.Vector(xlo - margin_mm, ylo - margin_mm, 0.0)))
+        else:
+            L = math.hypot(x2 - x1, y2 - y1)
+            nx, ny = -(y2 - y1) / L * margin_mm, (x2 - x1) / L * margin_mm
+            bufs.append(Part.Face(Part.makePolygon([
+                FreeCAD.Vector(x1 + nx, y1 + ny, 0.0),
+                FreeCAD.Vector(x2 + nx, y2 + ny, 0.0),
+                FreeCAD.Vector(x2 - nx, y2 - ny, 0.0),
+                FreeCAD.Vector(x1 - nx, y1 - ny, 0.0),
+                FreeCAD.Vector(x1 + nx, y1 + ny, 0.0),
+            ])))
+            bufs.append(Part.Face(Part.Wire(Part.makeCircle(margin_mm, FreeCAD.Vector(x1, y1, 0.0)))))
+
+    # 2. Inner rects (slots, mortises, BedWindow, DHT11_Airflow, SlotServoShelf) >= margin_mm collar
+    for r in ev["inner_rects"]:
+        bufs.append(Part.makePlane(
+            r["du"] + 2.0 * margin_mm,
+            r["dv"] + 2.0 * margin_mm,
+            FreeCAD.Vector(r["u0"] - margin_mm, r["v0"] - margin_mm, 0.0),
+        ))
+
+    # 3. Functional circular holes >= margin_mm radial collar
+    for c in ev["circles"]:
+        bufs.append(Part.Face(Part.Wire(Part.makeCircle(c["dia"] / 2.0 + margin_mm, FreeCAD.Vector(c["cx"], c["cy"], 0.0)))))
+
+    # 4. Split seams: straight seam >= margin_mm each side, PLUS every dovetail tooth >= depth + margin_mm!
+    seam_straight = margin_mm if for_cutouts else float(lp.SEAM_BAND_HALF_MM)
+    for uc in u_cuts:
+        bufs.append(Part.makePlane(2.0 * seam_straight, H + 4.0, FreeCAD.Vector(uc - seam_straight, -2.0, 0.0)))
+    for vc in v_cuts:
+        bufs.append(Part.makePlane(W + 4.0, 2.0 * seam_straight, FreeCAD.Vector(-2.0, vc - seam_straight, 0.0)))
+    if for_cutouts:
+        for pc in panel_pieces:
+            for dt in pc.dovetails:
+                if dt.axis == "U":
+                    x0 = dt.cut_pos - dt.depth - margin_mm
+                    x1 = dt.cut_pos + dt.depth + margin_mm
+                    y0 = dt.center_along - dt.head_w / 2.0 - margin_mm
+                    y1 = dt.center_along + dt.head_w / 2.0 + margin_mm
+                else:
+                    x0 = dt.center_along - dt.head_w / 2.0 - margin_mm
+                    x1 = dt.center_along + dt.head_w / 2.0 + margin_mm
+                    y0 = dt.cut_pos - dt.depth - margin_mm
+                    y1 = dt.cut_pos + dt.depth + margin_mm
+                bufs.append(Part.makePlane(x1 - x0, y1 - y0, FreeCAD.Vector(x0, y0, 0.0)))
+
+    # 5. Engraving pad islands (full 3.0 mm + 2.5 mm margin)
+    eng_m = float(lp.ENGRAVE_ISLAND_MARGIN_MM)
+    for ex0, ey0, ex1, ey1 in engrave_boxes:
+        bufs.append(Part.makePlane((ex1 - ex0) + 2.0 * eng_m, (ey1 - ey0) + 2.0 * eng_m, FreeCAD.Vector(ex0 - eng_m, ey0 - eng_m, 0.0)))
+
+    # 6. Anti-sag stiffening ribs (full 3.0 mm)
+    for rx0, ry0, rx1, ry1 in ribs:
+        bufs.append(Part.makePlane(rx1 - rx0, ry1 - ry0, FreeCAD.Vector(rx0, ry0, 0.0)))
+
+    # 7. Policy PANEL_KEEPOUT_ZONES
+    for kz in lp.PANEL_KEEPOUT_ZONES.get(panel_id, ()):
+        if for_cutouts:
+            if not kz.block_through_cutouts:
+                continue
+            # Structural spine/stiffening ribs already encode their full width; safety zones keep full margin_mm
+            km = 0.0 if kz.name in ("MID_WALL_SPINE_RIB", "LONGITUDINAL_STIFF_RIB", "P02_MID_T_SPINE") else margin_mm
+            bufs.append(Part.makePlane((kz.u1 - kz.u0) + 2.0 * km, (kz.v1 - kz.v0) + 2.0 * km, FreeCAD.Vector(kz.u0 - km, kz.v0 - km, 0.0)))
+        else:
+            if not kz.block_thinning:
+                continue
+            bufs.append(Part.makePlane(kz.u1 - kz.u0, kz.v1 - kz.v0, FreeCAD.Vector(kz.u0, kz.v0, 0.0)))
+
+    return outer_f.cut(Part.makeCompound(bufs))
+
+
+def _apply_lightweight_pockets_and_hexes(
+    body: Any,
+    pspec: md.PanelSpec,
+    ev: dict[str, Any],
+    cfg: pd_mod.PrintConfig,
+) -> tuple[Any, dict[str, Any]]:
+    """R5 (2.2 mm coffered recessed web) + R4 (conformal clipped hex honeycomb cutouts)."""
+    all_pieces, split_summary = _get_pieces_and_splits(cfg)
+    panel_pieces = [pc for pc in all_pieces if pc.source_panel_id == pspec.panel_id]
+    sp = split_summary[pspec.panel_id]
+    u_cuts = list(sp.get("u_cuts_mm", []))
+    v_cuts = list(sp.get("v_cuts_mm", []))
+
+    lw_plan = pd_mod.plan_panel_lightweight_features(
+        panel_id=pspec.panel_id,
+        ev=ev,
+        panel_pieces=panel_pieces,
+        u_cuts=u_cuts,
+        v_cuts=v_cuts,
+        cfg=cfg,
+    )
+    if not lw_plan["lightweight_enabled"]:
+        return body, lw_plan
+
+    W = float(ev["width"])
+    H = float(ev["height"])
+    T = float(cfg.T_mm)
+    web_z = float(lp.WEB_THICKNESS_MM)
+    slab_h = (T - web_z) + 1.0  # extends 1.0 mm above Z=T for clean boolean cut
+    edge_m = float(lp.HEX_EDGE_MARGIN_MM)
+
+    safe_cutout_face: Any = None
+    if lw_plan.get("cutout_enabled", False):
+        safe_cutout_face = _build_2d_safe_face(
+            ev=ev,
+            panel_id=pspec.panel_id,
+            panel_pieces=panel_pieces,
+            u_cuts=u_cuts,
+            v_cuts=v_cuts,
+            engrave_boxes=lw_plan["engrave_boxes"],
+            ribs=lw_plan["ribs"],
+            margin_mm=edge_m,
+            for_cutouts=True,
+        )
+
+    # 1. R5 Coffered thinning pocket (Z in [2.2..3.0], bottom stays flat Z=0 -> 0 supports!)
+    pocket_area_mm2 = 0.0
+    if lw_plan.get("thinning_enabled", False):
+        if safe_cutout_face is not None:
+            # Align pocket boundary cleanly with safe_cutout_face so zero internal step-walls bloat honeycomb!
+            pocket_2d = safe_cutout_face
+        else:
+            pocket_2d = _build_2d_safe_face(
+                ev=ev,
+                panel_id=pspec.panel_id,
+                panel_pieces=panel_pieces,
+                u_cuts=u_cuts,
+                v_cuts=v_cuts,
+                engrave_boxes=lw_plan["engrave_boxes"],
+                ribs=lw_plan["ribs"],
+                margin_mm=float(lp.JOINT_RIM_MARGIN_MM),
+                for_cutouts=False,
+            )
+        kept_pockets: list[Any] = []
+        for f in pocket_2d.Faces:
+            bb = f.BoundBox
+            if min(bb.XLength, bb.YLength) >= 4.0 and f.Area >= 35.0:
+                sol = f.extrude(FreeCAD.Vector(0.0, 0.0, slab_h))
+                sol.translate(FreeCAD.Vector(0.0, 0.0, web_z))
+                kept_pockets.append(sol)
+                pocket_area_mm2 += float(f.Area)
+        if kept_pockets:
+            body = body.cut(Part.makeCompound(kept_pockets)).removeSplitter()
+
+    # 2. R4 Conformal clipped hexagonal honeycomb through-cutouts (exact >= 3.2 mm ribs, >= 6.5 mm margin)
+    hex_centers_out: list[tuple[float, float]] = []
+    hex_margins_out: list[float] = []
+    hex_areas_out: list[float] = []
+    if safe_cutout_face is not None and len(safe_cutout_face.Faces) > 0:
+        F = float(pd_mod.CONFORMAL_HEX_FLAT_TO_FLAT_MM)
+        RIB = float(lp.HEX_MIN_RIB_MM)
+        P = F + RIB
+        DY = P * math.sqrt(3.0) / 2.0
+
+        # Pick best lattice phase (2x2 shift) maximizing total clipped cutout area
+        best_cells: list[tuple[Any, float, float, float]] = []
+        best_area = -1.0
+        for iu in range(2):
+            for iv in range(2):
+                off_u = iu * P / 2.0
+                off_v = iv * DY / 2.0
+                cur_cells: list[tuple[Any, float, float, float]] = []
+                cur_area = 0.0
+                row = 0
+                cy = off_v
+                while cy <= H + DY:
+                    cx = off_u + (P / 2.0 if row % 2 == 1 else 0.0)
+                    while cx <= W + P:
+                        pts = pd_mod._hex_vertices(cx, cy, F)
+                        vecs = [FreeCAD.Vector(x, y, 0.0) for (x, y) in pts]
+                        vecs.append(vecs[0])
+                        hf = Part.Face(Part.makePolygon(vecs))
+                        inter = hf.common(safe_cutout_face)
+                        for f in inter.Faces:
+                            bb = f.BoundBox
+                            area = float(f.Area)
+                            if area >= 35.0 and min(bb.XLength, bb.YLength) >= 4.0:
+                                com = f.CenterOfMass
+                                cur_cells.append((f, round(float(com.x), 3), round(float(com.y), 3), round(area, 2)))
+                                cur_area += area
+                        cx += P
+                    cy += DY
+                    row += 1
+                if cur_area > best_area:
+                    best_area = cur_area
+                    best_cells = cur_cells
+
+        if best_cells:
+            cut_solids: list[Any] = []
+            for f, ccx, ccy, area in best_cells:
+                sol = f.extrude(FreeCAD.Vector(0.0, 0.0, T + 2.0))
+                sol.translate(FreeCAD.Vector(0.0, 0.0, -1.0))
+                cut_solids.append(sol)
+                hex_centers_out.append((ccx, ccy))
+                hex_margins_out.append(edge_m)
+                hex_areas_out.append(area)
+            body = body.cut(Part.makeCompound(cut_solids)).removeSplitter()
+
+    lw_plan["hex_centers"] = hex_centers_out
+    lw_plan["hex_margins"] = hex_margins_out
+    lw_plan["hex_areas"] = hex_areas_out
+    lw_plan["conformal_clipped"] = bool(hex_centers_out)
+    lw_plan["pocket_area_mm2"] = round(pocket_area_mm2, 2)
+    return body, lw_plan
 
 
 P17_TENON_CENTERS: tuple[tuple[float, float], ...] = (
@@ -124,6 +373,24 @@ def build_flat_panel_solid(
             )
             body = body.fuse(tenon)
         body = body.removeSplitter()
+
+    if pspec.panel_id in lp.THINNED_AND_CUTOUT_PANELS or pspec.panel_id in pd_mod.CONFORMAL_CUTOUT_PANELS:
+        body, lw_plan = _apply_lightweight_pockets_and_hexes(body, pspec, ev, cfg)
+        ev["lightweight_plan"] = lw_plan
+    else:
+        ev["lightweight_plan"] = {
+            "lightweight_enabled": False,
+            "web_thickness_mm": cfg.T_mm,
+            "rim_thickness_mm": cfg.T_mm,
+            "pocket_depth_mm": 0.0,
+            "max_unsupported_span_mm": 0.0,
+            "hex_flat_to_flat_mm": None,
+            "hex_min_rib_mm": None,
+            "hex_centers": [],
+            "hex_margins": [],
+            "min_edge_margin_mm": None,
+            "relay_psu_closed": True,
+        }
 
     return body, ev
 
@@ -276,6 +543,23 @@ def build_panel_piece_solid(
 
     bb_p = shape_print.BoundBox
     print_bbox = [round(bb_p.XLength, 3), round(bb_p.YLength, 3), round(bb_p.ZLength, 3)]
+
+    lw_plan = ev.get("lightweight_plan", {})
+    u_lo, u_hi = piece.u_range
+    v_lo, v_hi = piece.v_range
+    piece_hex_centers: list[list[float]] = []
+    piece_hex_margins: list[float] = []
+    piece_hex_area = 0.0
+    hex_areas = lw_plan.get("hex_areas", [])
+    for idx_h, ((hcx, hcy), hmarg) in enumerate(zip(lw_plan.get("hex_centers", []), lw_plan.get("hex_margins", []))):
+        if u_lo <= hcx <= u_hi and v_lo <= hcy <= v_hi:
+            piece_hex_centers.append([hcx, hcy])
+            piece_hex_margins.append(hmarg)
+            if idx_h < len(hex_areas):
+                piece_hex_area += float(hex_areas[idx_h])
+    piece_cutout_cnt = len(piece_hex_centers)
+    piece_hex_f = float(lw_plan.get("hex_flat_to_flat_mm") or pd_mod.CONFORMAL_HEX_FLAT_TO_FLAT_MM)
+
     meta = {
         "part_id": piece.part_id,
         "kind": "panel",
@@ -306,6 +590,21 @@ def build_panel_piece_solid(
         "kept_functional_holes": list(piece.kept_functional_holes),
         "bed_fit": cad_common.fits_bed_rotatable(print_bbox, cfg),
         "color_rgb": list(piece.color_rgb),
+        "lightweight": {
+            "enabled": bool(lw_plan.get("lightweight_enabled", False)),
+            "web_thickness_mm": float(lw_plan.get("web_thickness_mm", cfg.T_mm)),
+            "rim_thickness_mm": float(lw_plan.get("rim_thickness_mm", cfg.T_mm)),
+            "pocket_depth_mm": float(lw_plan.get("pocket_depth_mm", 0.0)),
+            "max_unsupported_span_mm": float(lw_plan.get("max_unsupported_span_mm", 0.0)),
+            "cutout_count": piece_cutout_cnt,
+            "cutout_area_mm2": round(piece_hex_area, 2),
+            "conformal_clipped": bool(lw_plan.get("conformal_clipped", False)) and piece_cutout_cnt > 0,
+            "hex_flat_to_flat_mm": piece_hex_f if piece_cutout_cnt > 0 else None,
+            "min_rib_mm": lp.HEX_MIN_RIB_MM if piece_cutout_cnt > 0 else None,
+            "min_edge_margin_mm": round(min(piece_hex_margins), 3) if piece_hex_margins else None,
+            "relay_psu_closed": bool(lw_plan.get("relay_psu_closed", True)),
+            "cutout_centers_local_uv": piece_hex_centers,
+        },
     }
     return shape_print, meta
 

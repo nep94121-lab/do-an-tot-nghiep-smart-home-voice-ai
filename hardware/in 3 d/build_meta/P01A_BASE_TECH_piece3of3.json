@@ -37,13 +37,13 @@
     3.0
   ],
   "print_z_min": 0.0,
-  "volume_mm3": 77575.381,
+  "volume_mm3": 66996.581,
   "solids": 1,
   "valid": true,
   "engraved_ok": true,
   "engrave_text": "P01A p3/3 | 156x182x3mm",
   "dovetail_count": 2,
-  "mortise_count": 5,
+  "mortise_count": 2,
   "stripped_fastener_holes": [
     "PLT_H1_M3",
     "PLT_H2_M3",
@@ -71,7 +71,22 @@
     0.83,
     0.94
   ],
+  "lightweight": {
+    "enabled": true,
+    "web_thickness_mm": 2.2,
+    "rim_thickness_mm": 3.0,
+    "pocket_depth_mm": 0.8,
+    "max_unsupported_span_mm": 81.5,
+    "cutout_count": 0,
+    "cutout_area_mm2": 0.0,
+    "conformal_clipped": false,
+    "hex_flat_to_flat_mm": null,
+    "min_rib_mm": null,
+    "min_edge_margin_mm": null,
+    "relay_psu_closed": true,
+    "cutout_centers_local_uv": []
+  },
   "step_file": "parts/P01A_BASE_TECH_piece3of3.step",
   "stl_file": "parts/P01A_BASE_TECH_piece3of3.stl",
-  "stl_facets": 7618
+  "stl_facets": 7862
 }

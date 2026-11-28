@@ -36,6 +36,7 @@
     28.0,
     6.0
   ],
+  "print_flipped_x180": false,
   "print_bbox_mm": [
     64.0,
     28.0,
@@ -62,6 +63,19 @@
     0.78,
     0.9
   ],
+  "lightweight": {
+    "enabled": false,
+    "web_thickness_mm": 3.0,
+    "rim_thickness_mm": 3.0,
+    "pocket_depth_mm": 0.0,
+    "max_unsupported_span_mm": 0.0,
+    "cutout_count": 0,
+    "hex_flat_to_flat_mm": null,
+    "min_rib_mm": null,
+    "min_edge_margin_mm": null,
+    "relay_psu_closed": true,
+    "cutout_centers_local_uv": []
+  },
   "step_file": "parts/P17_BASE_JOINER.step",
   "stl_file": "parts/P17_BASE_JOINER.stl",
   "stl_facets": 4478

@@ -23,6 +23,8 @@ import sys
 import tempfile
 import time
 from typing import Any
+import xml.etree.ElementTree as ET
+import zipfile
 
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 PRINT3D_ROOT = SCRIPT_DIR.parent
@@ -33,6 +35,7 @@ META_DIR = PRINT3D_ROOT / "build_meta"
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+import lightweight_policy as lp
 import print_domain as pd_mod
 
 DEFAULT_SLICER_EXE = pathlib.Path(r"C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer-console.exe")
@@ -408,13 +411,96 @@ def extract_slicer_warnings(stdout: str, stderr: str) -> dict[str, Any]:
     }
 
 
+def inspect_baked_3mf_config(threemf_path: pathlib.Path, plate: dict[str, Any]) -> dict[str, Any]:
+    """Verify 3D/3dmodel.model Application tag, Metadata/Slic3r_PE.config, and Metadata/Slic3r_PE_model.config."""
+    errors: list[str] = []
+    app_tag = ""
+    global_cfg: dict[str, str] = {}
+    object_cfgs: dict[str, dict[str, str]] = {}
+
+    with zipfile.ZipFile(str(threemf_path), "r") as zf:
+        names = set(zf.namelist())
+        if "3D/3dmodel.model" not in names:
+            errors.append("Missing 3D/3dmodel.model")
+        else:
+            model_txt = zf.read("3D/3dmodel.model").decode("utf-8", errors="ignore")
+            m_app = re.search(r'<metadata\s+name="Application">([^<]+)</metadata>', model_txt)
+            app_tag = m_app.group(1).strip() if m_app else ""
+            if app_tag != lp.SLICER_APPLICATION_TAG:
+                errors.append(f"Application tag mismatch: {app_tag!r} != {lp.SLICER_APPLICATION_TAG!r}")
+
+        if "Metadata/Slic3r_PE.config" not in names:
+            errors.append("Missing Metadata/Slic3r_PE.config")
+        else:
+            cfg_txt = zf.read("Metadata/Slic3r_PE.config").decode("utf-8", errors="ignore")
+            for ln in cfg_txt.splitlines():
+                m_kv = re.match(r"^\s*;\s*([a-zA-Z0-9_]+)\s*=\s*(.+?)\s*$", ln)
+                if m_kv:
+                    global_cfg[m_kv.group(1)] = m_kv.group(2)
+            for k, expected_v in lp.SLICER_GLOBAL_CONFIG.items():
+                actual_v = global_cfg.get(k)
+                if actual_v != expected_v:
+                    errors.append(f"Slic3r_PE.config {k}: {actual_v!r} != {expected_v!r}")
+
+        if "Metadata/Slic3r_PE_model.config" not in names:
+            errors.append("Missing Metadata/Slic3r_PE_model.config")
+        else:
+            mcfg_txt = zf.read("Metadata/Slic3r_PE_model.config").decode("utf-8", errors="ignore")
+            root = ET.fromstring(mcfg_txt)
+            for obj_el in root.findall("object"):
+                meta_map: dict[str, str] = {}
+                for mel in obj_el.findall("metadata"):
+                    k = mel.attrib.get("key", "")
+                    v = mel.attrib.get("value", "")
+                    if k:
+                        meta_map[k] = v
+                oname = meta_map.pop("name", f"id_{obj_el.attrib.get('id', '?')}")
+                object_cfgs[oname] = meta_map
+
+            for item in plate.get("items", []):
+                inst_id = item["inst_id"]
+                expected_ov = lp.get_object_slicer_overrides(item["part_id"], item.get("kind", "panel"))
+                actual_ov = object_cfgs.get(inst_id)
+                if actual_ov is None:
+                    errors.append(f"Missing object {inst_id} in Slic3r_PE_model.config")
+                elif actual_ov != expected_ov:
+                    errors.append(f"Object {inst_id} overrides mismatch: {actual_ov} != {expected_ov}")
+
+    return {
+        "passed": len(errors) == 0,
+        "application_tag": app_tag,
+        "global_config": global_cfg,
+        "object_overrides": {k: v for k, v in object_cfgs.items() if v},
+        "errors": errors,
+    }
+
+
+def parse_gcode_config_footer(gcode_text: str) -> dict[str, str]:
+    """Parse PrusaSlicer G-code trailing config block (`; key = value`)."""
+    cfg: dict[str, str] = {}
+    in_block = False
+    for line in gcode_text.splitlines():
+        s = line.strip()
+        if s == "; prusaslicer_config = begin":
+            in_block = True
+            continue
+        if s == "; prusaslicer_config = end":
+            break
+        if in_block:
+            m = re.match(r"^;\s*([a-zA-Z0-9_]+)\s*=\s*(.*)$", s)
+            if m:
+                cfg[m.group(1)] = m.group(2).strip()
+    return cfg
+
+
 def verify_one_plate(slicer_exe: pathlib.Path, plate: dict[str, Any]) -> dict[str, Any]:
-    """Verify .stl and .3mf via `--info`, then slice .3mf as-is (`--dont-arrange`, no `--center`)."""
+    """Verify .stl and .3mf via `--info`, inspect baked 3MF configs, then slice .3mf with ZERO CLI overrides!"""
     plate_id = plate["plate_id"]
     stl_path = PRINT3D_ROOT / plate["stl_file"]
     threemf_path = PRINT3D_ROOT / plate["threemf_file"]
     expected_count = int(plate["part_count"])
 
+    baked_check = inspect_baked_3mf_config(threemf_path, plate)
     stl_ok, stl_objs, stl_raw = run_prusaslicer_info(slicer_exe, stl_path)
     mf_ok, mf_objs, mf_raw = run_prusaslicer_info(slicer_exe, threemf_path)
 
@@ -424,25 +510,16 @@ def verify_one_plate(slicer_exe: pathlib.Path, plate: dict[str, Any]) -> dict[st
     mf_count_matches = (len(mf_objs) == expected_count)
 
     t0 = time.time()
+    gcode_config_footer: dict[str, str] = {}
+    gcode_config_errors: list[str] = []
     with tempfile.TemporaryDirectory(prefix=f"slice_{plate_id}_") as td:
         out_gcode = pathlib.Path(td) / f"{plate_id}.gcode"
+        # ZERO CLI overrides for fill_density, fill_pattern, perimeters, top/bottom solid layers, filament_density, or supports!
+        # PrusaSlicer 2.9.7 MUST read all settings directly from the baked .3mf project configs!
         cmd = [
             str(slicer_exe),
             "--export-gcode",
             "--dont-arrange",
-            "--bed-shape", f"0x0,{BED_X:.0f}x0,{BED_X:.0f}x{BED_Y:.0f},0x{BED_Y:.0f}",
-            "--max-print-height", f"{BED_Z:.0f}",
-            "--layer-height", "0.2",
-            "--first-layer-height", "0.2",
-            "--nozzle-diameter", "0.4",
-            "--filament-diameter", "1.75",
-            "--filament-density", "1.24",
-            "--perimeters", "3",
-            "--fill-density", "20%",
-            "--fill-pattern", "gyroid",
-            "--support-material=0",
-            "--skirts", "1",
-            "--skirt-distance", "2",
             "--output", str(out_gcode),
             str(threemf_path),
         ]
@@ -465,6 +542,21 @@ def verify_one_plate(slicer_exe: pathlib.Path, plate: dict[str, Any]) -> dict[st
         if slice_ok:
             gtxt = out_gcode.read_text(encoding="utf-8", errors="ignore")
             gcode_metrics = parse_gcode_full(gtxt)
+            gcode_config_footer = parse_gcode_config_footer(gtxt)
+            for k in (
+                "fill_density",
+                "fill_pattern",
+                "perimeters",
+                "top_solid_layers",
+                "bottom_solid_layers",
+                "filament_density",
+                "support_material",
+                "layer_height",
+            ):
+                exp = lp.SLICER_GLOBAL_CONFIG[k]
+                act = gcode_config_footer.get(k)
+                if act != exp:
+                    gcode_config_errors.append(f"G-code footer {k}: {act!r} != {exp!r}")
 
     eb = gcode_metrics.get("extrusion_bounds_mm")
     bed_bounds_ok = False
@@ -476,15 +568,7 @@ def verify_one_plate(slicer_exe: pathlib.Path, plate: dict[str, Any]) -> dict[st
         )
 
     unique_parts = plate.get("unique_parts", [])
-    furn_with_sockets = sorted(p for p in unique_parts if p in _FURNITURE_SOCKET_PARTS)
-    note_parts: list[str] = []
-    if furn_with_sockets:
-        note_parts.append(
-            "Khong can support slicer (overhang <= 45 deg); "
-            f"chi co hoc mong san rong 4.3 mm phia duoi {', '.join(furn_with_sockets)} (short bridge PLA 0.4mm)."
-        )
-    else:
-        note_parts.append("Khong can support slicer (in nam phang Z=0, overhang <= 45 deg).")
+    note_parts: list[str] = ["Khong can support slicer (in nam phang Z=0, overhang <= 45 deg, thong so cat lop nhung truc tiep trong .3mf)."]
     if low_adh and low_adh_parts:
         note_parts.append(
             f"PrusaSlicer ghi chu 'Low bed adhesion' cho chi tiet nho phang ({', '.join(low_adh_parts)}) -> khuyen nghi ban PEI sach hoac brim tuy chon, khong can support."
@@ -492,11 +576,13 @@ def verify_one_plate(slicer_exe: pathlib.Path, plate: dict[str, Any]) -> dict[st
     support_note = " ".join(note_parts)
 
     needs_supports = bool(overhang_warn)
+    baked_config_applied = bool(baked_check["passed"] and len(gcode_config_errors) == 0)
     plate_passed = bool(
         stl_manifold
         and mf_all_manifold
         and mf_count_matches
         and slice_ok
+        and baked_config_applied
         and bed_bounds_ok
         and (not outside_warn)
         and (not needs_supports)
@@ -532,6 +618,27 @@ def verify_one_plate(slicer_exe: pathlib.Path, plate: dict[str, Any]) -> dict[st
         "threemf_object_count": len(mf_objs),
         "threemf_count_matches": mf_count_matches,
         "all_objects_manifold": mf_all_manifold,
+        "baked_3mf_config_ok": baked_check["passed"],
+        "baked_3mf_application": baked_check["application_tag"],
+        "baked_3mf_overrides": baked_check["object_overrides"],
+        "baked_3mf_errors": baked_check["errors"],
+        "gcode_config_verified": len(gcode_config_errors) == 0,
+        "gcode_config_errors": gcode_config_errors,
+        "gcode_applied_settings": {
+            k: gcode_config_footer.get(k, "")
+            for k in (
+                "fill_density",
+                "fill_pattern",
+                "perimeters",
+                "top_solid_layers",
+                "bottom_solid_layers",
+                "top_solid_min_thickness",
+                "bottom_solid_min_thickness",
+                "filament_density",
+                "support_material",
+                "layer_height",
+            )
+        },
         "threemf_objects": [
             {
                 "index": idx + 1,
@@ -701,13 +808,13 @@ def build_r9_user_like_report(
 
     # Step 4: Zero-screws & zero-glue geometry audit
     add_row(
-        f"Kiem toan hinh hoc khong oc vit & khong keo dan ({expected_parts} chi tiet: panel + mount + furniture)",
-        f"Da loai bo {screwless_audit['stripped_fastener_holes_count']} lo oc vit/clamp goc, giu {screwless_audit['kept_functional_holes_count']} lo chuc nang (LED/loa/mic/day/ong), bo sung {screwless_audit['mortise_slots_injected_count']} lo mong chu nhat; ro ri vit={len(screwless_audit['fastener_leaks'])}, keo={len(screwless_audit['glue_mentions'])}",
-        bool(screwless_audit["passed"]),
-        "0 lo oc vit M2/M2.5/M3/clamp sot lai, 0 chi tiet yeu cau keo dan, toan bo lien ket bang mong/chot/kep dan hoi",
+        f"Kiem toan hinh hoc khong oc vit & khong keo dan ({expected_parts} chi tiet: panel + mount, 0 noi that)",
+        f"Da loai bo {screwless_audit['stripped_fastener_holes_count']} lo oc vit/clamp goc, giu {screwless_audit['kept_functional_holes_count']} lo chuc nang (LED/loa/mic/day/ong), bo sung {screwless_audit['mortise_slots_injected_count']} lo mong chu nhat; noi that={screwless_audit['furniture_parts_audited']}, ro ri vit={len(screwless_audit['fastener_leaks'])}, keo={len(screwless_audit['glue_mentions'])}",
+        bool(screwless_audit["passed"]) and screwless_audit["furniture_parts_audited"] == 0,
+        "0 lo oc vit M2/M2.5/M3/clamp sot lai, 0 noi that trang tri, 0 chi tiet yeu cau keo dan, toan bo lien ket bang mong/chot/kep dan hoi",
     )
 
-    # Steps 5..: Every single plate (load, --info manifold/count, slice --dont-arrange, G-code XY/Z bounds, zero warnings)
+    # Steps 5..: Every single plate (load, --info manifold/count, baked .3mf config, slice --dont-arrange ZERO CLI overrides, G-code XY/Z bounds)
     for pr in plate_results:
         eb = pr.get("gcode_extrusion_bounds_mm") or {}
         xy_str = (
@@ -715,14 +822,16 @@ def build_r9_user_like_report(
             f"Y=[{eb.get('y_min', -1):.2f}, {eb.get('y_max', -1):.2f}], "
             f"Z_max={eb.get('z_max', -1):.2f} mm"
         )
+        gcfg = pr.get("gcode_applied_settings") or {}
         add_row(
-            f"Nap & cat lop {pr['plate_id']} ({pr['threemf_file']} + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+            f"Nap & cat lop {pr['plate_id']} ({pr['threemf_file']} + .stl) trong PrusaSlicer CLI chi dung --dont-arrange (0 CLI override, doc thong so nhung trong .3mf)",
             f"3MF={pr['threemf_object_count']}/{pr['expected_part_count']} obj manifold={pr['all_objects_manifold']}, STL manifold={pr['stl_manifold']}; "
+            f"baked_ok={pr.get('baked_3mf_config_ok')}/{pr.get('gcode_config_verified')} (infill={gcfg.get('fill_density')} {gcfg.get('fill_pattern')}, perim={gcfg.get('perimeters')}, top/bot={gcfg.get('top_solid_layers')}/{gcfg.get('bottom_solid_layers')}); "
             f"slice_ok={pr['slice_ok']}, {xy_str}; "
             f"thoi gian={pr['estimated_time_str']}, nhua={pr['filament_g']:.2f}g ({pr['filament_m']:.2f}m), "
             f"canh bao tran ban={pr['outside_volume_warning']}, can support={pr['needs_supports']}",
             bool(pr["plate_passed"]),
-            f"Du {pr['expected_part_count']} obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang",
+            f"Du {pr['expected_part_count']} obj manifold=yes, doc dung cau hinh nhung .3mf (9% gyroid, 2/3 perims, 3/3 solid layers, support=0), G-code trong [0..180]x[0..200]x[0..250]",
         )
 
     # Final step: Aggregate plate totals & full-set completeness
@@ -748,9 +857,9 @@ def build_r9_user_like_report(
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Verify all 57 parts and 17 build plates in PrusaSlicer CLI")
+    ap = argparse.ArgumentParser(description="Verify all 51 parts and baked .3mf build plates in PrusaSlicer CLI (zero CLI overrides)")
     ap.add_argument("--slicer", type=pathlib.Path, default=DEFAULT_SLICER_EXE)
-    ap.add_argument("--workers", type=int, default=4, help="Parallel PrusaSlicer worker threads")
+    ap.add_argument("--workers", type=int, default=2, help="Parallel PrusaSlicer worker threads (max 2 for RAM < 85%%)")
     args = ap.parse_args()
 
     slicer_exe = args.slicer
@@ -841,17 +950,27 @@ def main() -> int:
         "slice_profile": {
             "arrange": False,
             "center": False,
-            "layer_height_mm": 0.2,
-            "first_layer_height_mm": 0.2,
-            "nozzle_diameter_mm": 0.4,
-            "filament_diameter_mm": 1.75,
-            "filament_density_g_cm3": 1.24,
-            "perimeters": 3,
-            "fill_density": "20%",
-            "fill_pattern": "gyroid",
-            "support_material": 0,
-            "skirts": 1,
-            "skirt_distance_mm": 2,
+            "zero_cli_overrides": True,
+            "baked_3mf_verified": all(r.get("baked_3mf_config_ok") and r.get("gcode_config_verified") for r in plate_results),
+            "slicer_application_tag": lp.SLICER_APPLICATION_TAG,
+            "layer_height_mm": float(lp.SLICER_GLOBAL_CONFIG["layer_height"]),
+            "first_layer_height_mm": float(lp.SLICER_GLOBAL_CONFIG["first_layer_height"]),
+            "nozzle_diameter_mm": float(lp.SLICER_GLOBAL_CONFIG["nozzle_diameter"]),
+            "filament_diameter_mm": float(lp.SLICER_GLOBAL_CONFIG["filament_diameter"]),
+            "filament_density_g_cm3": float(lp.SLICER_GLOBAL_CONFIG["filament_density"]),
+            "perimeters": int(lp.SLICER_GLOBAL_CONFIG["perimeters"]),
+            "three_perimeter_parts": sorted(lp.THREE_PERIMETER_PARTS),
+            "watertight_exceptions": lp.WATERTIGHT_SOLID_LAYER_EXCEPTIONS,
+            "fill_density": lp.SLICER_GLOBAL_CONFIG["fill_density"],
+            "fill_pattern": lp.SLICER_GLOBAL_CONFIG["fill_pattern"],
+            "top_solid_layers": int(lp.SLICER_GLOBAL_CONFIG["top_solid_layers"]),
+            "bottom_solid_layers": int(lp.SLICER_GLOBAL_CONFIG["bottom_solid_layers"]),
+            "top_solid_min_thickness_mm": float(lp.SLICER_GLOBAL_CONFIG["top_solid_min_thickness"]),
+            "bottom_solid_min_thickness_mm": float(lp.SLICER_GLOBAL_CONFIG["bottom_solid_min_thickness"]),
+            "support_material": int(lp.SLICER_GLOBAL_CONFIG["support_material"]),
+            "skirts": int(lp.SLICER_GLOBAL_CONFIG["skirts"]),
+            "skirt_distance_mm": int(lp.SLICER_GLOBAL_CONFIG["skirt_distance"]),
+            "elefant_foot_compensation_mm": float(lp.SLICER_GLOBAL_CONFIG["elefant_foot_compensation"]),
         },
         "all_passed": all_passed,
         "elapsed_sec": round(time.time() - t_start, 2),

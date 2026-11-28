@@ -35,7 +35,7 @@ META_DIR = PRINT3D_ROOT / "build_meta"
 def load_all_metas() -> dict[str, dict[str, Any]]:
     metas: dict[str, dict[str, Any]] = {}
     for p in sorted(META_DIR.glob("*.json")):
-        if p.stem in ("fit_table", "assembly_report", "plates_manifest", "slice_report", "user_like_test_report"):
+        if p.stem in ("fit_table", "assembly_report", "plates_manifest", "slice_report", "user_like_test_report", "strength_report"):
             continue
         d = json.loads(p.read_text(encoding="utf-8"))
         if "part_id" in d and "kind" in d:
