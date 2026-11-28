@@ -54,6 +54,6 @@
 ## 3. Automated Audit Summary
 - **Total SSOT components audited:** `26` (`OK`: **14**, `FIXED`: **12**, `FAIL`: **0**)
 - **KiCad Hub PCB (`smarthome_hub.kicad_pcb`):** `100.0 × 80.0 × 1.6 mm`, `51` footprints, `U1`↔`U2` = `22.86 mm`, `C8` on-board = `True`, `C9` on-board = `True`.
-- **Blender House Scene (`SCENE_SPEC.json` v3.1):** `breadboard_used = False`, `routed_wires_count = 40` (40/40 from `hardware/wire_lengths.json`).
+- **Blender House Scene (`SCENE_SPEC.json` v3.2):** `breadboard_used = False`, `furniture_removed = True`, `wall_thinning_mm = 2.2`, `honeycomb_cutouts_enabled = True`, `routed_wires_count = 40` (40/40 from `hardware/wire_lengths.json`).
 - **House Module Clearances (`mica_design.check_hardware_clearances`):** `passed = True`, minimum non-mated gap = `18.0 mm` (`['HW_RELAY1', 'HW_RELAY2']`).
-- **Machine-readable receipt:** `C:\Users\LENOVO\datn-wt\agyhw13_20261127\build_receipts\dimensions_audit.json`
+- **Machine-readable receipt:** `C:\Users\LENOVO\datn-wt\hw14\hardware\blender\dimensions_audit.json`

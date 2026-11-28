@@ -42,7 +42,7 @@ Hệ thống khóa cứng đúng 6 thiết bị chấp hành và 3 cảm biến 
 ├── hardware/
 │   ├── kicad/              # Thiết kế PCB Hub 1 lớp DIY v3 (smarthome_hub/, 51 footprints, C8/C9 trên bo) & bản lắp ghép 3D
 │   ├── mica/               # Mô hình vỏ nhà Mica 3mm tham số hóa trên FreeCAD (.FCStd + script kiểm định)
-│   ├── in 3 d/             # Bộ tệp In 3D v2 lắp mộng không vít/keo + phụ kiện supot & nội thất (STL/3MF/STEP)
+│   ├── in 3 d/             # Bộ tệp In 3D v2 nhẹ hóa lắp mộng không vít/keo/support (.3mf cài sẵn 9% gyroid, 0 đồ trang trí)
 │   ├── blender/            # Cảnh lắp ghép 3D dây nối (system_wired_assembly.glb)
 │   ├── component_dimensions_ssot.py # SSOT kích thước datasheet (NodeMCU v2 Amica 48.26x25.40 mm + 25 linh kiện)
 │   ├── wire_lengths.json   # Tọa độ đi dây 3D & chiều dài 40 dây (3.84–27.48 cm, 40/40 <= 30 cm)
@@ -131,7 +131,7 @@ docker compose up --build -d
 - [Danh sách 40 dây nối & chiều dài thực tế 3D (`WIRE_LIST_LENGTHS.md`)](docs/phan_cung/WIRE_LIST_LENGTHS.md) — 40/40 dây `<= 30 cm` (`3.84 – 27.48 cm`) và tổng hợp mua dây chuẩn `10 / 20 / 30 cm`.
 - [Kiểm định kích thước Datasheet (`DIMENSIONS_AUDIT.md`)](docs/phan_cung/DIMENSIONS_AUDIT.md) — Kích thước thực tế NodeMCU v2 Amica (`48.26 × 25.40 mm`) và 25 linh kiện phần cứng.
 - [Hướng dẫn nạp Firmware & cấu hình Wi-Fi ESP8266 qua USB](docs/phan_cung/HUONG_DAN_NAP_FIRMWARE_USB.md) — Nạp 1 lệnh bằng `hardware/flash_and_setup.ps1`, kiểm tra driver CP2102/CH340, cấu hình Wi-Fi runtime không lộ mật khẩu & xử lý sự cố.
-- [Bộ tệp In 3D Vỏ Nhà v2 & Phụ Kiện Supot (`hardware/in 3 d/`)](hardware/in%203%20d/README.md) — Vỏ nhà lắp mộng không vít/keo + phụ kiện supot & nội thất (`STL`/`3MF`/`STEP`, bản vẽ kỹ thuật, thông số in & thứ tự lắp ráp).
+- [Bộ tệp In 3D Vỏ Nhà v2 Nhẹ Hóa & Phụ Kiện Ngàm (`hardware/in 3 d/`)](hardware/in%203%20d/README.md) — Vỏ nhà lắp mộng không vít/keo/support tối ưu nhẹ hóa (cài sẵn trong `.3mf`: `9% gyroid`, `2 perimeters` / `3 perimeters` cho ngàm nối & cụm Servo, `3 lớp đỉnh/đáy`, vách coffered `2.2 mm` khoét tổ ong, giữ kín vùng relay/PSU, 0 đồ trang trí; xem số bàn in & khối lượng PLA thực tế tại `hardware/in 3 d/README.md` & `manifest.json`).
 - [Các vấn đề đã biết (`KNOWN_ISSUES.md`)](KNOWN_ISSUES.md) — Danh mục giới hạn nhỏ không ảnh hưởng vận hành lõi, hoãn sang sau `v1.0`.
 - [Nhật ký phát hành (`CHANGELOG.md`)](CHANGELOG.md) — Tổng hợp các nhánh tích hợp, bản vá và tái cấu trúc `v1.0`.
 
